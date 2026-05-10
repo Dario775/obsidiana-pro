@@ -316,9 +316,9 @@ export default function MLAffiliatePage() {
       if (!response.ok) {
         if (data.needsReconnect) {
           setConnectionStatus({ isConnected: false, expiresAt: null });
-          alert('Sesión expirada. Reconecta con Mercado Libre.');
+          alert(`Sesión expirada. Reconecta con Mercado Libre.\n\nDetalles: ${data.details || 'No hay detalles'}`);
         } else {
-          alert(data.error || 'Error en la búsqueda');
+          alert(`${data.error || 'Error en la búsqueda'}\n\nDetalles: ${data.details || 'No hay detalles'}`);
         }
         return;
       }

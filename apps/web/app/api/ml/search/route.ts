@@ -191,35 +191,27 @@ export async function POST(request: NextRequest) {
     }
 
     if (!searchResponse.ok) {
-      if (searchResponse.status === 401) {
-        // Token invalid — WE NO LONGER AUTO-CLEAR IT to prevent infinite loops during dev/debugging
-        /*
-        await supabaseAdmin
-          .from('tenants')
-          .update({
-            ml_access_token: null,
-            ml_refresh_token: null,
-            ml_token_expires_at: null,
-          })
-          .eq('id', tenant_id);
-        */
+      const status = searchResponse.status;
+      let mlError = '';
+      try {
+        const errorData = await searchResponse.json();
+        mlError = JSON.stringify(errorData);
+      } catch {
+        mlError = await searchResponse.text();
+      }
 
+      console.error(`ML API Error (${status}):`, mlError);
+
+      if (status === 401) {
         return NextResponse.json(
-          { error: 'ML session expired. Please reconnect.', needsReconnect: true },
+          { error: 'ML session expired. Please reconnect.', needsReconnect: true, details: mlError },
           { status: 401 }
         );
       }
-      let errorMessage = 'ML search failed';
-      try {
-        const errorData = await searchResponse.json();
-        errorMessage = errorData.message || errorMessage;
-      } catch {
-        // Fallback to text if not JSON
-      }
 
       return NextResponse.json(
-        { error: errorMessage },
-        { status: searchResponse.status }
+        { error: `ML API Error (${status})`, details: mlError },
+        { status: status }
       );
     }
 
