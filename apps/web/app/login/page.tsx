@@ -29,7 +29,7 @@ export default function LoginPage() {
 
       if (data.user) {
         console.log('Login exitoso, redirigiendo...');
-        if (email === 'admin@obsidiana.com') {
+        if (email === 'admin@obsidiana.com' || email === 'admin@admin.com') {
           if (typeof window !== 'undefined') {
             window.localStorage.removeItem('tenantId');
           }
@@ -95,7 +95,7 @@ export default function LoginPage() {
 
       if (data.user) {
         console.log(`[DEV] Login como ${role} exitoso`);
-        if (email === 'admin@obsidiana.com' || role === 'Super Admin') {
+        if (email === 'admin@obsidiana.com' || email === 'admin@admin.com' || role === 'Super Admin') {
           if (typeof window !== 'undefined') {
             window.localStorage.removeItem('tenantId');
           }
