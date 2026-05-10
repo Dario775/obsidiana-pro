@@ -1,0 +1,38 @@
+{
+  "name": "obsidiana",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "vitest run",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "clean:dts": "find . -type f \\( -name '*.d.ts' -o -name '*.d.ts.map' \\) ! -path '*/node_modules/*' ! -name 'next-env.d.ts' -delete",
+    "clean:all": "pnpm clean && pnpm clean:dts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.1",
+    "next": "16.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^9.39.1",
+    "postcss": "^8.4.35",
+    "prettier": "^3.7.4",
+    "tailwindcss": "^3.4.1",
+    "turbo": "^2.9.7",
+    "typescript": "5.9.2",
+    "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

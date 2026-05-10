@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    image: supabase/postgres:17.6.1.095
+    container_name: supabase_db_obsidiana-pro
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "54322:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  kong:
+    image: supabase/kong:2.8.1
+    container_name: supabase_kong_obsidiana-pro
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: db
+      KONG_PG_PORT: 5432
+      KONG_PG_USER: postgres
+      KONG_PG_PASSWORD: postgres
+      KONG_PG_DATABASE: kong
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+    depends_on:
+      - db
+    ports:
+      - "54321:8000"
+
+volumes:
+  db-data:

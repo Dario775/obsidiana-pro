@@ -1,0 +1,261 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  src: url('./fonts/MaterialSymbolsOutlined.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+@layer base {
+  :root {
+    --background: 19 19 19;
+    --on-background: 229 226 225;
+    --primary: 139 92 246;
+    --on-primary: 255 255 255;
+    --primary-container: 124 58 237;
+    --on-primary-container: 255 255 255;
+    --secondary: 217 70 239;
+    --on-secondary: 255 255 255;
+    --secondary-container: 217 70 239;
+    --on-secondary-container: 255 255 255;
+    --surface: 10 10 10;
+    --on-surface: 229 226 225;
+    --surface-variant: 24 24 24;
+    --on-surface-variant: 160 160 160;
+    --surface-container: 15 15 15;
+    --surface-container-low: 18 18 18;
+    --surface-container-lowest: 10 10 10;
+    --surface-container-high: 26 26 26;
+    --surface-container-highest: 30 30 30;
+    --surface-dim: 5 5 5;
+    --outline: 255 255 255;
+    --outline-variant: 30 30 30;
+    --error: 239 68 68;
+    --on-error: 255 255 255;
+    --error-container: 239 68 68;
+    --on-error-container: 255 255 255;
+    --font-inter: 'Inter', sans-serif;
+    --font-headline: 'Inter', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-label: 'Inter', sans-serif;
+    --font-data: 'Inter', sans-serif;
+  }
+}
+
+body {
+  @apply bg-background text-on-background font-body-sm;
+}
+
+/* Material Symbols Outlined */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+/* Font utilities */
+.font-headline-xl {
+  font-family: var(--font-inter);
+  font-weight: 900;
+}
+
+.font-headline-lg {
+  font-family: var(--font-inter);
+  font-weight: 800;
+}
+
+.font-headline-md {
+  font-family: var(--font-inter);
+  font-weight: 700;
+}
+
+.font-body-lg {
+  font-family: var(--font-inter);
+  font-weight: 400;
+}
+
+.font-body-sm {
+  font-family: var(--font-inter);
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.font-label-lg {
+  font-family: var(--font-inter);
+  font-weight: 600;
+}
+
+.font-label-md {
+  font-family: var(--font-inter);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.font-data-tabular {
+  font-family: var(--font-inter);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Safe area padding */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Gutter utility */
+.px-gutter {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.py-sm {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.gap-gutter {
+  gap: 1rem;
+}
+
+.gap-md {
+  gap: 1rem;
+}
+
+.gap-sm {
+  gap: 0.5rem;
+}
+
+.gap-xs {
+  gap: 0.25rem;
+}
+
+/* Surface colors */
+.bg-surface {
+  background-color: rgb(var(--surface));
+}
+
+.bg-surface-container {
+  background-color: rgb(var(--surface-container));
+}
+
+.bg-surface-container-low {
+  background-color: rgb(var(--surface-container-low));
+}
+
+.bg-surface-container-lowest {
+  background-color: rgb(var(--surface-container-lowest));
+}
+
+.bg-surface-container-high {
+  background-color: rgb(var(--surface-container-high));
+}
+
+.bg-surface-container-highest {
+  background-color: rgb(var(--surface-container-highest));
+}
+
+.bg-surface-dim {
+  background-color: rgb(var(--surface-dim));
+}
+
+.bg-surface-variant {
+  background-color: rgb(var(--surface-variant));
+}
+
+.text-on-surface {
+  color: rgb(var(--on-surface));
+}
+
+.text-on-surface-variant {
+  color: rgb(var(--on-surface-variant));
+}
+
+.border-outline {
+  border-color: rgb(var(--outline) / 0.1);
+}
+
+.border-outline-variant {
+  border-color: rgb(var(--outline-variant));
+}
+
+/* Primary colors */
+.bg-primary {
+  background-color: rgb(var(--primary));
+}
+
+.text-primary {
+  color: rgb(var(--primary));
+}
+
+.bg-primary-container {
+  background-color: rgb(var(--primary-container));
+}
+
+.text-on-primary {
+  color: rgb(var(--on-primary));
+}
+
+/* Error colors */
+.bg-error {
+  background-color: rgb(var(--error));
+}
+
+.text-error {
+  color: rgb(var(--error));
+}
+
+/* Background */
+.bg-background {
+  background-color: rgb(var(--background));
+}
+
+.text-on-background {
+  color: rgb(var(--on-background));
+}
+
+/* Hide number input spinners and make number inputs behave like textfields (for consistent UX) */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}

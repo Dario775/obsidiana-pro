@@ -1,0 +1,63 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [".env", ".env.local"],
+  "globalEnv": [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY"
+  ],
+  "globalPassThroughEnv": [
+    "NODE_ENV",
+    "PORT",
+    "CI",
+    "VERCEL",
+    "VERCEL_URL"
+  ],
+  "cacheDir": ".turbo/cache",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "!**/*.d.ts",
+        "!**/*.test.ts",
+        "!**/*.test.tsx"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ],
+      "outputLogs": "new-only"
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".eslintrc.*",
+        "eslint.config.*"
+      ]
+    },
+    "check-types": {
+      "dependsOn": ["^check-types"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.d.ts"
+      ]
+    },
+    "clean": {
+      "cache": false
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": [
+        "NEXT_PUBLIC_*",
+        "SUPABASE_*",
+        "PORT"
+      ]
+    }
+  }
+}
