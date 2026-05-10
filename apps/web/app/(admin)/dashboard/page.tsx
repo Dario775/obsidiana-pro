@@ -146,29 +146,6 @@ export default function AdminHomePage() {
         </div>
       </div>
 
-      {/* Mercado Libre Onboarding Banner */}
-      {!tenant?.ml_token_expires_at && (
-        <div className="bg-gradient-to-r from-amber-500/20 to-violet-500/10 border border-amber-500/30 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-1000">
-          <div className="flex items-center gap-6">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center border border-amber-500/30">
-              <span className="material-symbols-outlined text-amber-500 text-3xl">link</span>
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-white tracking-tight uppercase tracking-[0.1em]">Acción Requerida: Mercado Libre</h3>
-              <p className="text-sm text-zinc-400 mt-1 max-w-xl">
-                Tu tienda aún no está vinculada con Mercado Libre. Conecta tu cuenta ahora para sincronizar productos, precios y habilitar el sistema de afiliados.
-              </p>
-            </div>
-          </div>
-          <button 
-            onClick={() => window.location.href = '/settings/ml-affiliate'}
-            className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] active:scale-95 shrink-0"
-          >
-            Conectar Ahora
-          </button>
-        </div>
-      )}
-
       {/* KPI Bento Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
