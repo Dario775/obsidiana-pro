@@ -109,7 +109,7 @@ export default function SubscriptionsPage() {
   const handleOpenPaymentModal = (t: any) => {
     setPaymentTenant(t);
     const plan = plans.find(p => p.id === t.plan_id);
-    setPaymentAmount(plan?.precio_mensual?.toString() || '0');
+    setPaymentAmount(plan?.monthly_price?.toString() || plan?.precio_mensual?.toString() || '0');
     setPaymentMethod('transferencia');
     setPaymentDate(new Date().toISOString().split('T')[0]);
     setPaymentStatus('completed');
@@ -238,7 +238,7 @@ export default function SubscriptionsPage() {
       setSelectedPlan(p);
       setPlanFormData({
         nombre: p.nombre,
-        precio_mensual: p.precio_mensual.toString(),
+        precio_mensual: String(p.precio_mensual || p.monthly_price || 0),
         features: p.features ? Object.keys(p.features).join(', ') : ''
       });
     } else {
@@ -275,7 +275,9 @@ export default function SubscriptionsPage() {
         const { error } = await supabase.from('plans')
           .update({
             nombre: planFormData.nombre,
+            name: planFormData.nombre,
             precio_mensual: parseInt(planFormData.precio_mensual) || 0,
+            monthly_price: parseInt(planFormData.precio_mensual) || 0,
             features: featuresObj
           })
           .eq('id', selectedPlan.id);
@@ -286,7 +288,9 @@ export default function SubscriptionsPage() {
         const { error } = await supabase.from('plans')
           .insert({
             nombre: planFormData.nombre,
+            name: planFormData.nombre,
             precio_mensual: parseInt(planFormData.precio_mensual) || 0,
+            monthly_price: parseInt(planFormData.precio_mensual) || 0,
             features: featuresObj
           });
 
@@ -377,7 +381,7 @@ export default function SubscriptionsPage() {
         
         const totalMonthlyRevenue = tenants.reduce((sum, t) => {
           const plan = plans.find(p => p.id === t.plan_id);
-          return sum + (plan?.precio_mensual || 0);
+          return sum + (plan?.monthly_price || plan?.precio_mensual || 0);
         }, 0);
         
         const totalYearlyRevenue = totalMonthlyRevenue * 12;
@@ -527,7 +531,7 @@ export default function SubscriptionsPage() {
                         </td>
                         <td className="py-4 px-6 text-[10px] font-black text-violet-400 uppercase tracking-widest">{plan ? plan.nombre : 'Sin Plan'}</td>
                         <td className="py-4 px-6 text-xs text-zinc-300">
-                          {plan ? `$${plan.precio_mensual.toLocaleString()}` : '-'}
+                          {plan ? `$${(plan.monthly_price || plan.precio_mensual || 0).toLocaleString()}` : '-'}
                         </td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${t.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'}`}>
