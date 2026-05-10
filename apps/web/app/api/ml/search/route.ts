@@ -125,15 +125,30 @@ export async function POST(request: NextRequest) {
       console.error('ML not reachable at all:', e);
     }
 
-    const tenant = await getTenantInfo(tenant_id);
     const accessToken = await getValidToken(tenant_id);
-    const siteId = tenant?.ml_site_id || ML_SITE_ID;
 
     if (!accessToken) {
       return NextResponse.json(
         { error: 'ML not connected or token expired. Reconnect with ML.', needsReconnect: true },
         { status: 401 }
       );
+    }
+
+    // Fetch site_id on the fly from the token (ensures regional correctness)
+    let siteId = ML_SITE_ID;
+    try {
+      const userRes = await fetch('https://api.mercadolibre.com/users/me', {
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`,
+          'User-Agent': 'ObsidianaPro/1.0'
+        }
+      });
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        siteId = userData.site_id || ML_SITE_ID;
+      }
+    } catch (e) {
+      console.error('Failed to fetch siteId on the fly:', e);
     }
 
     // Search ML API server-side
