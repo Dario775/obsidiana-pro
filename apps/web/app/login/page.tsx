@@ -28,6 +28,33 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data.user) {
+        let userTenantId = data.user.user_metadata?.tenant_id;
+
+        if (!userTenantId && data.user.user_metadata?.store_name) {
+          const sn = data.user.user_metadata.store_name;
+          const { data: matchedTenant } = await supabase
+            .from('tenants')
+            .select('id, is_platform_admin')
+            .or(`nombre.ilike.%${sn}%,slug.ilike.%${sn.replace(/\s+/g, '-')}%`)
+            .limit(1)
+            .maybeSingle();
+          if (matchedTenant) {
+            userTenantId = matchedTenant.id;
+          }
+        }
+
+        if (!userTenantId) {
+          const { data: latestTenant } = await supabase
+            .from('tenants')
+            .select('id, is_platform_admin')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (latestTenant) {
+            userTenantId = latestTenant.id;
+          }
+        }
+
         const { data: tenantData } = await supabase
           .from('tenants')
           .select('id, is_platform_admin')
@@ -38,39 +65,12 @@ export default function LoginPage() {
         console.log('Login exitoso, es super admin:', isSuperAdmin, 'tenant:', userTenantId);
         
         if (isSuperAdmin) {
+          window.localStorage.removeItem('tenantId');
           window.location.href = '/overview';
-        } else {
-          let userTenantId = data.user.user_metadata?.tenant_id;
-
-          if (!userTenantId && data.user.user_metadata?.store_name) {
-            const sn = data.user.user_metadata.store_name;
-            const { data: matchedTenant } = await supabase
-              .from('tenants')
-              .select('id')
-              .or(`nombre.ilike.%${sn}%,slug.ilike.%${sn.replace(/\s+/g, '-')}%`)
-              .limit(1)
-              .maybeSingle();
-            if (matchedTenant) {
-              userTenantId = matchedTenant.id;
-            }
-          }
-
-          if (!userTenantId) {
-            const { data: latestTenant } = await supabase
-              .from('tenants')
-              .select('id')
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            if (latestTenant) {
-              userTenantId = latestTenant.id;
-            }
-          }
-
-          if (userTenantId && typeof window !== 'undefined') {
-            window.localStorage.setItem('tenantId', userTenantId);
-          }
+        } else if (userTenantId) {
+          window.localStorage.setItem('tenantId', userTenantId);
           window.location.href = '/dashboard';
+        }
         }
       }
     } catch (err: any) {
