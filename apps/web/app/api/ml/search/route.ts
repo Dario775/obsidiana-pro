@@ -8,7 +8,7 @@ const ML_SITE_ID = 'MLA'; // Argentina
 async function getTenantInfo(tenantId: string) {
   const { data: tenant } = await supabaseAdmin
     .from('tenants')
-    .select('ml_access_token, ml_refresh_token, ml_token_expires_at, ml_site_id')
+    .select('ml_access_token, ml_refresh_token, ml_token_expires_at')
     .eq('id', tenantId)
     .single();
   return tenant;
