@@ -48,7 +48,6 @@ export default function MLAffiliatePage() {
 
   const [form, setForm] = useState({
     ml_affiliate_id: '',
-    ml_affiliate_word: '',
   });
   
   // Only track connection status — no tokens stored in frontend state
@@ -160,7 +159,6 @@ export default function MLAffiliatePage() {
       .from('tenants')
       .update({
         ml_affiliate_id: form.ml_affiliate_id,
-        ml_affiliate_word: form.ml_affiliate_word,
       })
       .eq('id', tenant.id);
 
