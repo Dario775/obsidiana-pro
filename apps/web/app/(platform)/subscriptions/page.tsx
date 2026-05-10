@@ -498,10 +498,11 @@ export default function SubscriptionsPage() {
               </thead>
 <tbody className="divide-y divide-white/5">
                 {(() => {
-                  const filteredTenants = tenants.filter(t => {
+                  const filteredTenants = (tenants || []).filter(t => {
                     const status = t.subscription_status;
-                    const isActive = status === 'active' || status === 'pending_confirmation' || (t.paid_until && new Date(t.paid_until) > new Date());
-                    const isExpired = status === 'expired' || status === 'cancelled' || (t.paid_until && new Date(t.paid_until) < new Date());
+                    const paidUntil = t.paid_until;
+                    const isActive = status === 'active' || status === 'pending_confirmation' || (paidUntil && new Date(paidUntil) > new Date());
+                    const isExpired = status === 'expired' || status === 'cancelled' || (paidUntil && new Date(paidUntil) < new Date());
                     const isPending = status === 'pending_confirmation';
                     
                     switch (filterTab) {
@@ -529,7 +530,7 @@ export default function SubscriptionsPage() {
                         <td className="py-4 px-6">
                           <span className="text-xs font-bold text-white">{t.nombre}</span>
                         </td>
-                        <td className="py-4 px-6 text-[10px] font-black text-violet-400 uppercase tracking-widest">{plan ? plan.nombre : 'Sin Plan'}</td>
+                        <td className="py-4 px-6 text-[10px] font-black text-violet-400 uppercase tracking-widest">{plan?.nombre || plan?.name || 'Sin Plan'}</td>
                         <td className="py-4 px-6 text-xs text-zinc-300">
                           {plan ? `$${(plan.monthly_price || plan.precio_mensual || 0)?.toLocaleString() || 0}` : '-'}
                         </td>
@@ -667,7 +668,7 @@ ${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}
                 className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
               >
                 <option value="">Sin Plan</option>
-                {plans.map((p) => (
+                {(plans || []).map((p) => (
                   <option key={p.id} value={p.id}>{p.nombre || p.name} - ${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}</option>
                 ))}
               </select>
@@ -932,12 +933,12 @@ ${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {allPayments.map((payment) => {
+                      {(allPayments || []).map((payment) => {
                         const tenant = tenants.find(t => t.id === payment.tenant_id);
                         return (
                           <tr key={payment.id} className="hover:bg-white/[0.02]">
                             <td className="py-3 px-4 text-xs font-bold text-white">{tenant?.nombre || 'Desconocido'}</td>
-                            <td className="py-3 px-4 text-xs text-zinc-300">${payment.amount?.toLocaleString() || 0}</td>
+                            <td className="py-3 px-4 text-xs text-zinc-300">${(payment.amount || 0)?.toLocaleString() || 0}</td>
                             <td className="py-3 px-4 text-[10px] font-black uppercase text-zinc-500">{payment.payment_method || 'transferencia'}</td>
                             <td className="py-3 px-4">
                               <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${payment.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : payment.status === 'rejected' ? 'bg-red-500/10 text-red-400' : 'bg-amber-500/10 text-amber-400'}`}>
