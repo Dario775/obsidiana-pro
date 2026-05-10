@@ -18,6 +18,7 @@ interface TenantWithML {
   ml_affiliate_id: string | null;
   ml_token_expires_at: string | null;
   hasToken: boolean;
+  phone: string | null;
 }
 
 export default function MLIntegrationPage() {
@@ -65,7 +66,7 @@ export default function MLIntegrationPage() {
     // Only select safe fields — not the actual tokens
     const { data } = await supabase
       .from('tenants')
-      .select('id, nombre, slug, ml_affiliate_id, ml_token_expires_at, store_phone')
+      .select('id, nombre, slug, ml_affiliate_id, ml_token_expires_at, phone')
       .order('nombre');
 
     if (data) {
@@ -140,7 +141,7 @@ export default function MLIntegrationPage() {
       return '';
     }
 
-    // Use redirect_uri EXACTLY as registered — pass tenant via state param
+    const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${form.app_client_id}&redirect_uri=${encodeURIComponent(form.app_redirect_uri)}&state=${tenantId}`;
     return authUrl;
   }
 
@@ -367,7 +368,7 @@ export default function MLIntegrationPage() {
                         Copiar Link
                       </button>
                       <button
-                        onClick={() => sendWhatsAppAuth(selectedTenant, selectedTenantData.store_phone || null, selectedTenantData.nombre)}
+                        onClick={() => sendWhatsAppAuth(selectedTenant, selectedTenantData.phone || null, selectedTenantData.nombre)}
                         disabled={loading}
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-sm disabled:opacity-50 flex items-center gap-2"
                       >

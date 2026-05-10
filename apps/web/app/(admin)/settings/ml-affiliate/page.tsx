@@ -481,62 +481,6 @@ export default function MLAffiliatePage() {
         </div>
       </div>
 
-      {/* Affiliate ID Configuration */}
-      <div className="bg-zinc-900 border border-white/5 rounded-xl p-6">
-        <h2 className="text-lg font-black text-white mb-4">Configuración de Afiliado</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">ID de Afiliado (MATT_TOOL)</label>
-            <input
-              type="text"
-              value={form.ml_affiliate_id}
-              onChange={(e) => setForm({ ...form, ml_affiliate_id: e.target.value })}
-              placeholder="Ej: 12345678"
-              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-            />
-            <p className="text-[10px] text-zinc-600 mt-1">
-              Este ID es obligatorio para que las ventas se atribuyan a tu cuenta.
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Tracking Word (MATT_WORD) - Opcional</label>
-            <input
-              type="text"
-              value={form.ml_affiliate_word}
-              onChange={(e) => setForm({ ...form, ml_affiliate_word: e.target.value })}
-              placeholder="Ej: obsidiana"
-              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-            />
-            <p className="text-[10px] text-zinc-600 mt-1">
-              Usa una palabra clave para identificar el origen de tus ventas.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl mb-4">
-          <div className="flex gap-3">
-            <span className="material-symbols-outlined text-amber-500">info</span>
-            <div className="text-sm text-zinc-400">
-              <p className="font-bold text-amber-500 mb-1">¿Cómo obtener estos IDs?</p>
-              <ol className="list-decimal ml-4 space-y-1 text-xs">
-                <li>Ingresa a tu panel de <strong>Mercado Libre Afiliados</strong>.</li>
-                <li>Navega a un producto y usa la <strong>Barra de Afiliados</strong> para generar un link.</li>
-                <li>En el link generado, busca los parámetros <code>matt_tool=</code> y <code>matt_word=</code>.</li>
-                <li>Copia esos valores y pégalos aquí.</li>
-              </ol>
-            </div>
-          </div>
-        </div>
-
-        <button
-          onClick={saveConfig}
-          disabled={saving}
-          className="w-full md:w-auto px-8 py-3 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold disabled:opacity-50 transition-colors"
-        >
-          {saving ? 'Guardando...' : 'Guardar Configuración'}
-        </button>
-      </div>
-
       {/* Search */}
       <div className="bg-zinc-900 border border-white/5 rounded-xl p-6">
         <h2 className="text-lg font-black text-white mb-4">Buscar Productos</h2>
