@@ -5,17 +5,21 @@ export const dynamic = 'force-dynamic';
 
 const ML_SITE_ID = 'MLA'; // Argentina
 
+async function getTenantInfo(tenantId: string) {
+  const { data: tenant } = await supabaseAdmin
+    .from('tenants')
+    .select('ml_access_token, ml_refresh_token, ml_token_expires_at, ml_site_id')
+    .eq('id', tenantId)
+    .single();
+  return tenant;
+}
+
 /**
  * Helper: ensures we have a valid ML token for the tenant.
  * Auto-refreshes if expired.
  */
 async function getValidToken(tenantId: string): Promise<string | null> {
-  const { data: tenant } = await supabaseAdmin
-    .from('tenants')
-    .select('ml_access_token, ml_refresh_token, ml_token_expires_at')
-    .eq('id', tenantId)
-    .single();
-
+  const tenant = await getTenantInfo(tenantId);
   if (!tenant?.ml_access_token) return null;
 
   // Check if token is still valid (with 5 min buffer)
@@ -111,7 +115,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Diagnostic: Test if ML is even reachable
+    try {
+      const testRes = await fetch('https://api.mercadolibre.com/sites', {
+        headers: { 'User-Agent': 'ObsidianaPro/1.0' }
+      });
+      console.log('ML Sites Reachability:', testRes.status);
+    } catch (e) {
+      console.error('ML not reachable at all:', e);
+    }
+
+    const tenant = await getTenantInfo(tenant_id);
     const accessToken = await getValidToken(tenant_id);
+    const siteId = tenant?.ml_site_id || ML_SITE_ID;
 
     if (!accessToken) {
       return NextResponse.json(
@@ -122,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     // Search ML API server-side
     const searchLimit = Math.min(Math.max(1, limit), 50);
-    const searchUrl = `https://api.mercadolibre.com/sites/${ML_SITE_ID}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
+    const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
     
     let searchResponse = await fetch(searchUrl, {
       headers: {

@@ -91,7 +91,21 @@ export async function POST(request: NextRequest) {
 
     const tokenData = await tokenResponse.json();
 
-    // 4. Save tokens to tenant (server-side with service_role)
+    // 4. Fetch user profile to get the site_id (essential for search)
+    let siteId = 'MLA'; // Default
+    try {
+      const userRes = await fetch('https://api.mercadolibre.com/users/me', {
+        headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+      });
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        siteId = userData.site_id || 'MLA';
+      }
+    } catch (e) {
+      console.error('Failed to fetch ML user profile:', e);
+    }
+
+    // 5. Save tokens and site_id to tenant (server-side with service_role)
     const { error: updateError } = await supabaseAdmin
       .from('tenants')
       .update({
@@ -101,6 +115,7 @@ export async function POST(request: NextRequest) {
           Date.now() + tokenData.expires_in * 1000
         ).toISOString(),
         ml_user_id: tokenData.user_id ? String(tokenData.user_id) : null,
+        ml_site_id: siteId,
       })
       .eq('id', tenant_id);
 
