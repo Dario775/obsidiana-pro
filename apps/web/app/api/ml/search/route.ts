@@ -128,17 +128,27 @@ export async function POST(request: NextRequest) {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json',
+        'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)'
       },
     });
 
     // Fallback to public search if authorized search is forbidden (common for some app types/categories)
     if (searchResponse.status === 403) {
+      const forbiddenBody = await searchResponse.text();
+      console.error('Authorized search 403 body:', forbiddenBody);
+      
       console.log('Authorized search forbidden, trying public search...');
       searchResponse = await fetch(searchUrl, {
         headers: {
           'Accept': 'application/json',
+          'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)'
         },
       });
+
+      if (!searchResponse.ok) {
+        const publicForbiddenBody = await searchResponse.text();
+        console.error('Public search failure body:', publicForbiddenBody);
+      }
     }
 
     if (!searchResponse.ok) {
@@ -158,8 +168,16 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         );
       }
+      let errorMessage = 'ML search failed';
+      try {
+        const errorData = await searchResponse.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        // Fallback to text if not JSON
+      }
+
       return NextResponse.json(
-        { error: 'ML search failed' },
+        { error: errorMessage },
         { status: searchResponse.status }
       );
     }
