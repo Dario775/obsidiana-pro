@@ -71,7 +71,6 @@ export default function LoginPage() {
           window.localStorage.setItem('tenantId', userTenantId);
           window.location.href = '/dashboard';
         }
-        }
       }
     } catch (err: any) {
       console.error('Error de login:', err);
