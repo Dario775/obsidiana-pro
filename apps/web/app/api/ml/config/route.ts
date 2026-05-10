@@ -12,10 +12,11 @@ export async function GET() {
       .single();
 
     if (configError || !configData?.value) {
-      return NextResponse.json(
-        { error: 'ML app configuration not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        app_client_id: '',
+        app_redirect_uri: '',
+        error: 'Configuration not found in database'
+      });
     }
 
     const config = configData.value as any;
