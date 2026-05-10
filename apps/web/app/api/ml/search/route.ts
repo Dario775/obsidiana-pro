@@ -192,12 +192,14 @@ export async function POST(request: NextRequest) {
 
     if (!searchResponse.ok) {
       const status = searchResponse.status;
-      let mlError = '';
+      const errorText = await searchResponse.text();
+      let mlError = errorText;
+      
       try {
-        const errorData = await searchResponse.json();
-        mlError = JSON.stringify(errorData);
+        // Try to pretty-print if it's JSON
+        mlError = JSON.stringify(JSON.parse(errorText));
       } catch {
-        mlError = await searchResponse.text();
+        // Stay as plain text if not JSON
       }
 
       console.error(`ML API Error (${status}):`, mlError);
