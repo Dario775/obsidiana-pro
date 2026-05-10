@@ -211,6 +211,12 @@ export default function MLAffiliatePage() {
 
   async function connectWithML() {
     console.log('--- connectWithML triggered ---');
+    
+    if (!form.ml_affiliate_id) {
+      alert('Por favor, ingresa primero tu ID de Afiliado y guárdalo.');
+      return;
+    }
+
     if (!platformConfig?.app_client_id || !platformConfig?.app_redirect_uri) {
       alert('Configuración de ML no disponible. Contacta al administrador.');
       return;
@@ -452,9 +458,10 @@ export default function MLAffiliatePage() {
 
                 {!isConnected ? (
                   <button
+                    type="button"
                     onClick={connectWithML}
-                    disabled={!platformConfig || !tenant?.id}
-                    className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                    disabled={!platformConfig || !tenant?.id || !form.ml_affiliate_id}
+                    className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] active:scale-95 flex items-center justify-center gap-3 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale"
                   >
                     <span className="material-symbols-outlined text-[18px]">vpn_key</span>
                     Autorizar Conexión
