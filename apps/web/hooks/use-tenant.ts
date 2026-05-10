@@ -53,6 +53,12 @@ export interface Tenant {
   custom_domain_cname: string | null;
   store_template: string;
   is_platform_admin: boolean;
+  ml_affiliate_id?: string | null;
+  ml_affiliate_word?: string | null;
+  ml_access_token?: string | null;
+  ml_refresh_token?: string | null;
+  ml_token_expires_at?: string | null;
+  ml_user_id?: string | null;
 }
 
 export interface Plan {
