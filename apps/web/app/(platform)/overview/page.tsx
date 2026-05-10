@@ -29,22 +29,26 @@ export default function PlatformDashboard() {
     try {
       // 1. Fetch tenants
       const { data: tenantsData } = await supabase.from('tenants').select('*');
-      if (tenantsData) setTenants(tenantsData);
+      setTenants(tenantsData || []);
 
       // 2. Fetch all orders across platform
       const { data: ordersData } = await supabase.from('orders').select('*');
-      if (ordersData) setOrders(ordersData);
+      setOrders(ordersData || []);
 
       // 3. Fetch products across platform
       const { data: productsData } = await supabase.from('products').select('*');
-      if (productsData) setProducts(productsData);
+      setProducts(productsData || []);
 
       // 4. Fetch customers across platform
       const { data: customersData } = await supabase.from('customers').select('*');
-      if (customersData) setCustomers(customersData);
+      setCustomers(customersData || []);
 
     } catch (err) {
       console.error(err);
+      setTenants([]);
+      setOrders([]);
+      setProducts([]);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }

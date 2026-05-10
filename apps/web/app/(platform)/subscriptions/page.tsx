@@ -61,14 +61,16 @@ export default function SubscriptionsPage() {
         supabase.from('plans').select('*'),
         supabase.from('subscription_payments').select('*').order('paid_at', { ascending: false })
       ]);
-      if (tenantsRes.data) setTenants(tenantsRes.data);
-      if (plansRes.data) setPlans(plansRes.data);
+      setTenants(tenantsRes.data || []);
+      setPlans(plansRes.data || []);
       if (paymentsRes.data) {
         setPendingPayments(paymentsRes.data.filter((p: any) => p.status === 'pending_confirmation'));
         setAllPayments(paymentsRes.data);
       }
     } catch (err) {
       console.error(err);
+      setTenants([]);
+      setPlans([]);
     } finally {
       setLoading(false);
     }
