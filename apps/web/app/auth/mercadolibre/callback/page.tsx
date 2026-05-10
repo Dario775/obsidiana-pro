@@ -38,8 +38,10 @@ function MLAuthCallbackContent() {
 
       setStatus('¡Conexión Exitosa!');
       
-      // Redirigir al DASHBOARD de la tienda después de 1.5 segundos
-      setTimeout(() => router.push('/dashboard'), 1500);
+      // Redirigir usando window.location.href para forzar recarga total de caché
+      setTimeout(() => {
+        window.location.href = '/settings/ml-affiliate';
+      }, 1500);
 
     } catch (err: any) {
       setError(err.message || 'Error desconocido');

@@ -184,7 +184,8 @@ export async function POST(request: NextRequest) {
 
     if (!searchResponse.ok) {
       if (searchResponse.status === 401) {
-        // Token invalid — clear it
+        // Token invalid — WE NO LONGER AUTO-CLEAR IT to prevent infinite loops during dev/debugging
+        /*
         await supabaseAdmin
           .from('tenants')
           .update({
@@ -193,6 +194,7 @@ export async function POST(request: NextRequest) {
             ml_token_expires_at: null,
           })
           .eq('id', tenant_id);
+        */
 
         return NextResponse.json(
           { error: 'ML session expired. Please reconnect.', needsReconnect: true },
