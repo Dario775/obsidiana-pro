@@ -54,6 +54,7 @@ export interface Tenant {
   custom_domain_verified: boolean;
   custom_domain_cname: string | null;
   store_template: string;
+  is_platform_admin: boolean;
 }
 
 export interface Plan {

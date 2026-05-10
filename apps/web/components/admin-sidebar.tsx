@@ -9,7 +9,8 @@ import { useTenant } from '../hooks/use-tenant';
 export function Sidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
-  const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading } = useTenant();
+  const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading, tenant } = useTenant();
+  const isPlatformAdmin = tenant?.is_platform_admin === true;
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -129,11 +130,11 @@ export function Sidebar() {
               </Link>
             </li>
             <li>
-              <Link href="/settings/ml-affiliate" className={`${navItemClasses('/settings/ml-affiliate')} ${!isOnlineStoreEnabled ? 'opacity-60 hover:opacity-100' : ''}`}>
+              <Link href="/settings/ml-affiliate" className={`${navItemClasses('/settings/ml-affiliate')} ${!isOnlineStoreEnabled && !isPlatformAdmin ? 'opacity-60 hover:opacity-100' : ''}`}>
                 <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/settings/ml-affiliate') ? "'FILL' 1" : "" }}>local_offer</span>
                 <div className="flex flex-col">
                   <span>ML Afiliado</span>
-                  {!isOnlineStoreEnabled && (
+                  {!isOnlineStoreEnabled && !isPlatformAdmin && (
                     <span className="text-[9px] text-amber-500/70 font-medium">Sujeto a suscripción</span>
                   )}
                 </div>
