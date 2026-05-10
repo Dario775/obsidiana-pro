@@ -125,11 +125,19 @@ export async function POST(request: NextRequest) {
       console.error('ML not reachable at all:', e);
     }
 
+    const tenant = await getTenantInfo(tenant_id);
     const accessToken = await getValidToken(tenant_id);
+
+    if (!tenant) {
+      return NextResponse.json(
+        { error: 'Tenant not found in database.' },
+        { status: 401 }
+      );
+    }
 
     if (!accessToken) {
       return NextResponse.json(
-        { error: 'ML not connected or token expired. Reconnect with ML.', needsReconnect: true },
+        { error: 'ML not connected or token expired. Please reconnect.', needsReconnect: true },
         { status: 401 }
       );
     }

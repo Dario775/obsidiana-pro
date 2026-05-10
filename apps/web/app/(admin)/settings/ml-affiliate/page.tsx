@@ -210,6 +210,7 @@ export default function MLAffiliatePage() {
   }
 
   async function connectWithML() {
+    console.log('--- connectWithML triggered ---');
     if (!platformConfig?.app_client_id || !platformConfig?.app_redirect_uri) {
       alert('Configuración de ML no disponible. Contacta al administrador.');
       return;
