@@ -70,20 +70,18 @@ export default function MLAffiliatePage() {
     }
   }, [tenant?.id]);
 
-  const loadPlatformConfig = async () => {
-    const { data } = await supabase
-      .from('platform_settings')
-      .select('value')
-      .eq('key', 'ml_app_config')
-      .single();
-
-    if (data?.value) {
-      const config = data.value as any;
-      // Only extract public fields — NEVER expose client_secret
-      setPlatformConfig({
-        app_client_id: config.app_client_id || '',
-        app_redirect_uri: config.app_redirect_uri || '',
-      });
+    const loadPlatformConfig = async () => {
+    try {
+      const response = await fetch('/api/ml/config');
+      if (response.ok) {
+        const data = await response.json();
+        setPlatformConfig({
+          app_client_id: data.app_client_id || '',
+          app_redirect_uri: data.app_redirect_uri || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error loading ML config:', error);
     }
   };
 
