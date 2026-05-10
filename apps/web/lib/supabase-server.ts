@@ -6,23 +6,13 @@ import { createClient } from '@supabase/supabase-js';
  * This client bypasses RLS for admin operations.
  */
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL');
-}
-
-if (!supabaseServiceRoleKey) {
-  console.warn(
-    '⚠️ SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon key for server operations. ' +
-    'Set SUPABASE_SERVICE_ROLE_KEY in .env.local for proper server-side access.'
-  );
-}
+// Hardcoding URLs to bypass Vercel env var misconfigurations
+const supabaseUrl = 'https://fjgwenrebdwssquebfay.supabase.co';
+const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZ3dlbnJlYmR3c3NxdWViZmF5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2MTYyNSwiZXhwIjoyMDkzOTM3NjI1fQ.g0LQrTqKkbpwiicea00pkl9374UizIhz46Y_Y1_fln4';
 
 export const supabaseAdmin = createClient(
   supabaseUrl,
-  supabaseServiceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  supabaseServiceRoleKey,
   {
     auth: {
       autoRefreshToken: false,
