@@ -122,15 +122,24 @@ export async function POST(request: NextRequest) {
 
     // Search ML API server-side
     const searchLimit = Math.min(Math.max(1, limit), 50);
-    const searchResponse = await fetch(
-      `https://api.mercadolibre.com/sites/${ML_SITE_ID}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`,
-      {
+    const searchUrl = `https://api.mercadolibre.com/sites/${ML_SITE_ID}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
+    
+    let searchResponse = await fetch(searchUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    // Fallback to public search if authorized search is forbidden (common for some app types/categories)
+    if (searchResponse.status === 403) {
+      console.log('Authorized search forbidden, trying public search...');
+      searchResponse = await fetch(searchUrl, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
-      }
-    );
+      });
+    }
 
     if (!searchResponse.ok) {
       if (searchResponse.status === 401) {

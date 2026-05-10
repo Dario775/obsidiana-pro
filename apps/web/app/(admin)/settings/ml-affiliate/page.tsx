@@ -153,15 +153,25 @@ export default function MLAffiliatePage() {
     if (!tenant?.id) return;
     setSaving(true);
 
-    await supabase
-      .from('tenants')
-      .update({
-        ml_affiliate_id: form.ml_affiliate_id,
-      })
-      .eq('id', tenant.id);
+    try {
+      const response = await fetch('/api/ml/save-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: tenant.id,
+          ml_affiliate_id: form.ml_affiliate_id,
+        }),
+      });
 
-    setSaving(false);
-    alert('Configuración guardada');
+      if (!response.ok) throw new Error('Failed to save');
+
+      alert('Configuración guardada');
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('Error al guardar la configuración');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function refreshToken() {
