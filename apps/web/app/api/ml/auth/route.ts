@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { code, tenant_id } = body;
+    const { code, tenant_id, code_verifier } = body;
 
     if (!code || !tenant_id) {
       return NextResponse.json(
@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
         client_secret: config.app_client_secret,
         code: code,
         redirect_uri: config.app_redirect_uri,
+        ...(code_verifier ? { code_verifier } : {})
       }),
     });
 

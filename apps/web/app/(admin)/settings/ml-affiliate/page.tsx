@@ -210,8 +210,33 @@ export default function MLAffiliatePage() {
       return;
     }
 
+    // PKCE Implementation required by Mercado Libre
+    const generateRandomString = (length: number) => {
+      const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+      let result = '';
+      const values = new Uint8Array(length);
+      window.crypto.getRandomValues(values);
+      for (let i = 0; i < length; i++) {
+        const index = (values[i] ?? 0) % charset.length;
+        result += charset[index];
+      }
+      return result;
+    };
+
+    const verifier = generateRandomString(128);
+    localStorage.setItem('ml_code_verifier', verifier);
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+    
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashString = String.fromCharCode.apply(null, hashArray);
+    const base64Hash = btoa(hashString);
+    const challenge = base64Hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
     const redirectUri = platformConfig.app_redirect_uri;
-    const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${platformConfig.app_client_id}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${tenant.id}`;
+    const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${platformConfig.app_client_id}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${tenant.id}&code_challenge=${challenge}&code_challenge_method=S256`;
     
     window.location.href = authUrl;
   }

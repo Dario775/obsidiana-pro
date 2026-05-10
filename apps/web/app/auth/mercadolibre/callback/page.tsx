@@ -29,7 +29,7 @@ function MLAuthCallbackContent() {
       const response = await fetch('/api/ml/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, tenant_id: tenantId }),
+        body: JSON.stringify({ code, tenant_id: tenantId, code_verifier: localStorage.getItem('ml_code_verifier') || '' }),
       });
 
       const data = await response.json();
