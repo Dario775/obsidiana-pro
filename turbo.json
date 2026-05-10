@@ -28,7 +28,6 @@
       ],
       "outputs": [
         ".next/**",
-        "!.next/cache/**",
         "dist/**"
       ],
       "outputLogs": "new-only"
