@@ -1,8 +1,10 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
+
+const IS_DEV = process.env.NODE_ENV === 'development';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,25 +13,26 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  /**
+   * Core login logic — shared between form submit and quick login.
+   * Determines the user's tenant and redirects accordingly.
+   */
+  async function processLogin(loginEmail: string, loginPassword: string) {
     setLoading(true);
     setError('');
 
     try {
-      console.log('Intentando login con:', email);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
       });
 
-      console.log('Respuesta:', { data, error });
-
-      if (error) throw error;
+      if (authError) throw authError;
 
       if (data.user) {
         let userTenantId = data.user.user_metadata?.tenant_id;
 
+        // Fallback: try to match by store_name in metadata
         if (!userTenantId && data.user.user_metadata?.store_name) {
           const sn = data.user.user_metadata.store_name;
           const { data: matchedTenant } = await supabase
@@ -43,18 +46,14 @@ export default function LoginPage() {
           }
         }
 
+        // SECURITY: If we still don't have a tenant_id, show error instead of guessing
         if (!userTenantId) {
-          const { data: latestTenant } = await supabase
-            .from('tenants')
-            .select('id, is_platform_admin')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (latestTenant) {
-            userTenantId = latestTenant.id;
-          }
+          setError('Tu cuenta no tiene un negocio asignado. Contactá al administrador o registra uno nuevo.');
+          setLoading(false);
+          return;
         }
 
+        // Check if this tenant is a platform admin
         const { data: tenantData } = await supabase
           .from('tenants')
           .select('id, is_platform_admin')
@@ -62,13 +61,10 @@ export default function LoginPage() {
           .maybeSingle();
         
         const isSuperAdmin = tenantData?.is_platform_admin === true;
-        console.log('Login exitoso, es super admin:', isSuperAdmin, 'tenant:', userTenantId);
         
         if (isSuperAdmin) {
-          window.localStorage.removeItem('tenantId');
           window.location.href = '/overview';
-        } else if (userTenantId) {
-          window.localStorage.setItem('tenantId', userTenantId);
+        } else {
           window.location.href = '/dashboard';
         }
       }
@@ -78,75 +74,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const quickLogin = async (email: string, password: string, role: string) => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      console.log(`[DEV] Login rápido como ${role}...`);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error('Error en login rápido:', error);
-        setError(`Error: ${error.message}. Intentá recargar la página.`);
-        return;
-      }
-
-      if (data.user) {
-        let userTenantId = data.user.user_metadata?.tenant_id;
-
-        if (!userTenantId && data.user.user_metadata?.store_name) {
-          const sn = data.user.user_metadata.store_name;
-          const { data: matchedTenant } = await supabase
-            .from('tenants')
-            .select('id, is_platform_admin')
-            .or(`nombre.ilike.%${sn}%,slug.ilike.%${sn.replace(/\s+/g, '-')}%`)
-            .limit(1)
-            .maybeSingle();
-          if (matchedTenant) {
-            userTenantId = matchedTenant.id;
-          }
-        }
-
-        if (!userTenantId) {
-          const { data: latestTenant } = await supabase
-            .from('tenants')
-            .select('id, is_platform_admin')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (latestTenant) {
-            userTenantId = latestTenant.id;
-          }
-        }
-
-        const { data: tenantData } = await supabase
-          .from('tenants')
-          .select('id, is_platform_admin')
-          .eq('id', userTenantId)
-          .maybeSingle();
-        
-        const isSuperAdmin = tenantData?.is_platform_admin === true;
-        
-        if (isSuperAdmin) {
-          window.localStorage.removeItem('tenantId');
-          window.location.href = '/overview';
-        } else if (userTenantId) {
-          window.localStorage.setItem('tenantId', userTenantId);
-          window.location.href = '/dashboard';
-        }
-      }
-    } catch (err: any) {
-      console.error('Error:', err);
-      setError(err.message || 'Error desconocido');
-    } finally {
-      setLoading(false);
-    }
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await processLogin(email, password);
   };
 
   return (
@@ -157,39 +89,41 @@ export default function LoginPage() {
           <p className="text-zinc-500">Inicia sesión en tu panel de administración</p>
         </div>
 
-        {/* ACCESO RÁPIDO - SOLO PARA DESARROLLO */}
-        <div className="mb-8 p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-amber-400 text-xl">🚀</span>
-            <h2 className="text-amber-400 font-black text-sm uppercase tracking-widest">
-              Acceso Rápido (Desarrollo)
-            </h2>
-          </div>
-          
-          <div className="space-y-3">
-            <button
-              onClick={() => quickLogin('demo@test.com', 'Demo1234', 'Dueño de Negocio')}
-              disabled={loading}
-              className="w-full min-h-11 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined shrink-0 text-[18px]">store</span>
-              <span className="leading-tight text-center">Entrar como Dueño de Tienda</span>
-            </button>
+        {/* ACCESO RÁPIDO — SOLO EN DESARROLLO (NODE_ENV === 'development') */}
+        {IS_DEV && (
+          <div className="mb-8 p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-amber-400 text-xl">🚀</span>
+              <h2 className="text-amber-400 font-black text-sm uppercase tracking-widest">
+                Acceso Rápido (Dev Only)
+              </h2>
+            </div>
             
-            <button
-              onClick={() => quickLogin('admin@obsidiana.com', 'AdminObsidiana123', 'Super Admin')}
-              disabled={loading}
-              className="w-full min-h-11 bg-violet-600 hover:bg-violet-500 text-white px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined shrink-0 text-[18px]">admin_panel_settings</span>
-              <span className="leading-tight text-center">Entrar como Super Admin</span>
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => processLogin('demo@test.com', 'Demo1234')}
+                disabled={loading}
+                className="w-full min-h-11 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined shrink-0 text-[18px]">store</span>
+                <span className="leading-tight text-center">Entrar como Dueño de Tienda</span>
+              </button>
+              
+              <button
+                onClick={() => processLogin('admin@obsidiana.com', 'AdminObsidiana123')}
+                disabled={loading}
+                className="w-full min-h-11 bg-violet-600 hover:bg-violet-500 text-white px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined shrink-0 text-[18px]">admin_panel_settings</span>
+                <span className="leading-tight text-center">Entrar como Super Admin</span>
+              </button>
+            </div>
+            
+            <p className="mt-3 text-[10px] text-amber-500/60 text-center uppercase tracking-wider">
+              Oculto en producción — NODE_ENV: {process.env.NODE_ENV}
+            </p>
           </div>
-          
-          <p className="mt-3 text-[10px] text-amber-500/60 text-center uppercase tracking-wider">
-            Estos botones son solo para desarrollo
-          </p>
-        </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-6">
           {error && (

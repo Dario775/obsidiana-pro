@@ -226,11 +226,67 @@ export default function SettingsPage() {
           Estas acciones son irreversibles. Procedé con cautela.
         </p>
         <div className="flex gap-3">
-          <button className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-bold transition-colors">
-            Eliminar Cuenta
-          </button>
-          <button className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-bold transition-colors">
+          <button 
+            onClick={async () => {
+              if (!tenant?.id) return;
+              try {
+                // Export all business data as JSON
+                const [products, orders, customers, inventory] = await Promise.all([
+                  supabase.from('products').select('*').eq('tenant_id', tenant.id),
+                  supabase.from('orders').select('*, order_items(*)').eq('tenant_id', tenant.id),
+                  supabase.from('customers').select('*').eq('tenant_id', tenant.id),
+                  supabase.from('inventory_levels').select('*, product_variants(sku, barcode)').eq('tenant_id', tenant.id),
+                ]);
+
+                const exportData = {
+                  exported_at: new Date().toISOString(),
+                  tenant: { id: tenant.id, nombre: tenant.nombre, slug: tenant.slug },
+                  products: products.data || [],
+                  orders: orders.data || [],
+                  customers: customers.data || [],
+                  inventory: inventory.data || [],
+                };
+
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `obsidiana-export-${tenant.slug}-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch (err) {
+                console.error('Export error:', err);
+                alert('Error al exportar datos');
+              }
+            }}
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[16px]">download</span>
             Exportar Datos
+          </button>
+          <button 
+            onClick={() => {
+              const confirmed = window.confirm(
+                '⚠️ ¿Estás seguro que querés eliminar tu cuenta?\n\n' +
+                'Esta acción eliminará:\n' +
+                '• Todos los productos e inventario\n' +
+                '• Todos los pedidos y clientes\n' +
+                '• La tienda online\n' +
+                '• Tu cuenta de usuario\n\n' +
+                'Esta acción es IRREVERSIBLE.\n\n' +
+                'Te recomendamos exportar tus datos primero.'
+              );
+              if (confirmed) {
+                const doubleConfirm = window.prompt('Escribí "ELIMINAR" para confirmar:');
+                if (doubleConfirm === 'ELIMINAR') {
+                  alert('Contactá a soporte@obsidiana.com para completar la eliminación de tu cuenta. Esta acción requiere verificación manual por seguridad.');
+                }
+              }
+            }}
+            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[16px]">delete_forever</span>
+            Eliminar Cuenta
           </button>
         </div>
       </div>

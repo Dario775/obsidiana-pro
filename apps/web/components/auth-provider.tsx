@@ -53,3 +53,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+/**
+ * AuthGuard — Blocks rendering until auth is confirmed.
+ * Redirects to /login if user is not authenticated.
+ */
+export function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.href = '/login';
+    }
+  }, [loading, user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 gap-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-500"></div>
+        <span className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.3em]">Verificando sesión...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // Will redirect in useEffect
+  }
+
+  return <>{children}</>;
+}
+
+/**
+ * PlatformGuard — Only allows access to users whose tenant has is_platform_admin = true.
+ * Redirects to /dashboard if the user is not a super admin.
+ */
+export function PlatformGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const [checking, setChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function checkAdmin() {
+      if (loading || !user) return;
+
+      try {
+        // First check user_metadata for tenant_id
+        const tenantId = user.user_metadata?.tenant_id;
+        if (!tenantId) {
+          // No tenant — redirect
+          window.location.href = '/dashboard';
+          return;
+        }
+
+        const { data: tenant } = await supabase
+          .from('tenants')
+          .select('is_platform_admin')
+          .eq('id', tenantId)
+          .single();
+
+        if (tenant?.is_platform_admin === true) {
+          setIsAdmin(true);
+        } else {
+          window.location.href = '/dashboard';
+        }
+      } catch {
+        window.location.href = '/dashboard';
+      } finally {
+        setChecking(false);
+      }
+    }
+
+    checkAdmin();
+  }, [user, loading]);
+
+  if (loading || checking) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 gap-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-500"></div>
+        <span className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.3em]">Verificando permisos de administrador...</span>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
+
+  return <>{children}</>;
+}

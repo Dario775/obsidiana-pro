@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-const DEFAULT_TENANT_ID = '11111111-1111-1111-1111-111111111111';
-
 export interface Tenant {
   id: string;
   slug: string;
@@ -76,25 +74,30 @@ export function useTenant() {
       try {
         setLoading(true);
 
-        let tenantIdToFetch = DEFAULT_TENANT_ID;
-
-        // 1. First prioritize the user's auth metadata tenant_id
+        // 1. Get authenticated user — this is the ONLY source of truth for tenant_id
         const { data: { user } } = await supabase.auth.getUser();
-        if (user && user.user_metadata?.tenant_id) {
-          tenantIdToFetch = user.user_metadata.tenant_id;
-        } else if (typeof window !== 'undefined') {
-          // 2. Second priority is stored tenantId
-          const stored = window.localStorage.getItem('tenantId');
-          if (stored) {
-            tenantIdToFetch = stored;
-          }
+        
+        if (!user) {
+          // Not logged in — don't load any tenant
+          setError('No hay sesión activa');
+          setLoading(false);
+          return;
+        }
+
+        const tenantId = user.user_metadata?.tenant_id;
+
+        if (!tenantId) {
+          // User has no tenant assigned — this is a configuration issue
+          setError('Tu cuenta no tiene un negocio asignado. Contactá al administrador.');
+          setLoading(false);
+          return;
         }
         
-        // Fetch tenant
+        // Fetch tenant using the authenticated user's tenant_id only
         const { data: tenantData, error: tenantError } = await supabase
           .from('tenants')
           .select('*')
-          .eq('id', tenantIdToFetch)
+          .eq('id', tenantId)
           .single();
 
         if (tenantError) throw tenantError;

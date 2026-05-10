@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
-import { uploadImageToCloudinary } from '@/lib/cloudinary';
 
 interface MLProduct {
   id: string;
@@ -15,8 +14,6 @@ interface MLProduct {
   condition: string;
   listing_type_id: string;
   category_id: string;
-  attributes: any[];
-  description: string;
   permalink: string;
 }
 
@@ -32,8 +29,6 @@ interface ImportedProduct {
   imported_at: string;
 }
 
-const ML_SITE_ID = 'MLA'; // Argentina
-
 export default function MLProductsPage() {
   const { tenant } = useTenant();
   const [loading, setLoading] = useState(false);
@@ -42,9 +37,10 @@ export default function MLProductsPage() {
   const [searchResults, setSearchResults] = useState<MLProduct[]>([]);
   const [importedProducts, setImportedProducts] = useState<ImportedProduct[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [configStatus, setConfigStatus] = useState<'missing' | 'configured'>('missing');
+  const [configStatus, setConfigStatus] = useState<'loading' | 'missing' | 'configured'>('loading');
 
-  const [tenantConfig, setTenantConfig] = useState<any>(null);
+  const [tenantAffiliateId, setTenantAffiliateId] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     if (tenant?.id) {
@@ -56,13 +52,22 @@ export default function MLProductsPage() {
   async function loadConfig() {
     const { data } = await supabase
       .from('tenants')
-      .select('ml_affiliate_id, ml_access_token')
+      .select('ml_affiliate_id, ml_token_expires_at')
       .eq('id', tenant?.id)
       .single();
 
     if (data?.ml_affiliate_id) {
-      setTenantConfig(data);
+      setTenantAffiliateId(data.ml_affiliate_id);
       setConfigStatus('configured');
+      
+      // Check connection status from token expiry (without exposing actual token)
+      const hasToken = !!data.ml_token_expires_at;
+      const isExpired = data.ml_token_expires_at 
+        ? new Date(data.ml_token_expires_at) <= new Date() 
+        : true;
+      setIsConnected(hasToken && !isExpired);
+    } else {
+      setConfigStatus('missing');
     }
   }
 
@@ -82,45 +87,41 @@ export default function MLProductsPage() {
   }
 
   async function searchMLProducts() {
-    if (!searchQuery.trim() || !tenantConfig?.ml_access_token) {
-      alert('Se requiere Access Token para buscar. Configuralo en Settings.');
+    if (!searchQuery.trim()) {
+      alert('Ingresa un término de búsqueda');
+      return;
+    }
+
+    if (!isConnected) {
+      alert('Conecta con Mercado Libre primero desde ML Afiliado.');
       return;
     }
 
     setSearching(true);
     try {
-      const response = await fetch(
-        `https://api.mercadolibre.com/sites/${ML_SITE_ID}/search?q=${encodeURIComponent(searchQuery)}&limit=20`,
-        {
-          headers: {
-            'Authorization': `Bearer ${tenantConfig.ml_access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Error en la búsqueda');
-      }
+      // Search via server-side API — token never reaches browser
+      const response = await fetch('/api/ml/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: searchQuery,
+          tenant_id: tenant?.id,
+        }),
+      });
 
       const data = await response.json();
-      
-      if (data.results) {
-        const formatted: MLProduct[] = data.results.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          price: item.price,
-          currency: item.currency_id,
-          thumbnail: item.thumbnail,
-          pictures: item.pictures?.map((p: any) => p.url) || [],
-          condition: item.condition,
-          listing_type_id: item.listing_type_id,
-          category_id: item.category_id,
-          attributes: item.attributes || [],
-          description: item.plain_text || item.description?.plain_text || '',
-          permalink: item.permalink,
-        }));
-        setSearchResults(formatted);
+
+      if (!response.ok) {
+        if (data.needsReconnect) {
+          setIsConnected(false);
+          alert('Sesión expirada. Reconecta desde ML Afiliado.');
+        } else {
+          alert(data.error || 'Error en la búsqueda');
+        }
+        return;
       }
+
+      setSearchResults(data.results || []);
     } catch (error) {
       console.error('Search error:', error);
       alert('Error al buscar productos');
@@ -138,18 +139,14 @@ export default function MLProductsPage() {
   }
 
   async function importSelectedProducts() {
-    if (!tenant?.id || !tenantConfig?.ml_affiliate_id || selectedIds.length === 0) return;
+    if (!tenant?.id || !tenantAffiliateId || selectedIds.length === 0) return;
 
     setLoading(true);
-    const affiliateId = tenantConfig.ml_affiliate_id;
 
     try {
       for (const productId of selectedIds) {
         const product = searchResults.find(p => p.id === productId);
         if (!product) continue;
-
-        // Generate affiliate URL
-        const affiliateUrl = `${product.permalink}?sender=${affiliateId}&redirect_url=${encodeURIComponent(window.location.origin)}`;
 
         // Get first image for thumbnail
         const thumbnail = product.pictures?.[0] || product.thumbnail;
@@ -166,10 +163,8 @@ export default function MLProductsPage() {
           condition: product.condition,
           listing_type_id: product.listing_type_id,
           category_id: product.category_id,
-          attributes: product.attributes,
-          description: product.description,
           permalink: product.permalink,
-          affiliate_url: affiliateUrl,
+          affiliate_url: '', // Generated dynamically on the store
           clicks: 0,
         }, {
           onConflict: 'tenant_id,ml_item_id',
@@ -200,6 +195,14 @@ export default function MLProductsPage() {
     await loadImportedProducts();
   }
 
+  if (configStatus === 'loading') {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-16">
+        <div className="text-zinc-500">Cargando...</div>
+      </div>
+    );
+  }
+
   if (configStatus === 'missing') {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
@@ -210,10 +213,10 @@ export default function MLProductsPage() {
             Configura tu ID de afiliado primero para importar productos de Mercado Libre.
           </p>
           <a
-            href="/settings/store"
+            href="/settings/ml-affiliate"
             className="inline-block px-6 py-3 bg-amber-500 text-white rounded-xl font-bold"
           >
-            Ir a Configuración
+            Ir a ML Afiliado
           </a>
         </div>
       </div>
@@ -231,8 +234,13 @@ export default function MLProductsPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-emerald-400 font-bold">
-            ID: {tenantConfig?.ml_affiliate_id}
+            ID: {tenantAffiliateId}
           </span>
+          {!isConnected && (
+            <span className="text-xs text-red-400 font-bold ml-2">
+              (Desconectado)
+            </span>
+          )}
         </div>
       </div>
 
@@ -252,7 +260,7 @@ export default function MLProductsPage() {
           </div>
           <button
             onClick={searchMLProducts}
-            disabled={searching || !searchQuery.trim()}
+            disabled={searching || !searchQuery.trim() || !isConnected}
             className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold disabled:opacity-50 flex items-center gap-2"
           >
             {searching ? (

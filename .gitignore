@@ -27,7 +27,6 @@ out/
 build
 dist
 
-
 # Debug
 npm-debug.log*
 yarn-debug.log*
@@ -37,3 +36,28 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Temporary SQL scripts (may contain credentials or debug queries)
+temp_*.sql
+check_*.sql
+add_*.sql
+fix_*.sql
+
+# DB schema dumps (canonical schema lives in supabase/migrations/)
+schema.sql
+supabase_schema_complete.sql
+
+# Scripts that may contain credentials
+push_db.bat
+*.bat
+fix-supabase-*.ps1
+start-dev.ps1
+
+# Local docker experiments
+supabase-local/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

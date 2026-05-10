@@ -15,9 +15,12 @@ interface ImportedProduct {
   imported_at: string;
 }
 
-interface PlatformConfig {
+/**
+ * Platform config — only stores client_id and redirect_uri for the frontend.
+ * client_secret is NEVER sent to the browser.
+ */
+interface PlatformConfigPublic {
   app_client_id: string;
-  app_client_secret: string;
   app_redirect_uri: string;
 }
 
@@ -26,8 +29,6 @@ interface MLStats {
   monthlyClicks: number;
   topProducts: { title: string; clicks: number }[];
 }
-
-const ML_SITE_ID = 'MLA';
 
 export default function MLAffiliatePage() {
   const { tenant } = useTenant();
@@ -38,7 +39,7 @@ export default function MLAffiliatePage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [importedProducts, setImportedProducts] = useState<ImportedProduct[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [platformConfig, setPlatformConfig] = useState<PlatformConfig | null>(null);
+  const [platformConfig, setPlatformConfig] = useState<PlatformConfigPublic | null>(null);
   const [stats, setStats] = useState<MLStats>({
     totalClicks: 0,
     monthlyClicks: 0,
@@ -49,17 +50,16 @@ export default function MLAffiliatePage() {
     ml_affiliate_id: '',
   });
   
-  const [tenantTokens, setTenantTokens] = useState<{
-    ml_access_token: string | null;
-    ml_refresh_token: string | null;
-    ml_token_expires_at: string | null;
+  // Only track connection status — no tokens stored in frontend state
+  const [connectionStatus, setConnectionStatus] = useState<{
+    isConnected: boolean;
+    expiresAt: string | null;
   }>({
-    ml_access_token: null,
-    ml_refresh_token: null,
-    ml_token_expires_at: null,
+    isConnected: false,
+    expiresAt: null,
   });
 
-  const isConnected = !!tenantTokens.ml_access_token;
+  const isConnected = connectionStatus.isConnected;
 
   useEffect(() => {
     if (tenant?.id) {
@@ -78,13 +78,19 @@ export default function MLAffiliatePage() {
       .single();
 
     if (data?.value) {
-      setPlatformConfig(data.value);
+      const config = data.value as any;
+      // Only extract public fields — NEVER expose client_secret
+      setPlatformConfig({
+        app_client_id: config.app_client_id || '',
+        app_redirect_uri: config.app_redirect_uri || '',
+      });
     }
   };
 
   const loadStats = async () => {
     if (!tenant?.id) return;
 
+    // Get total clicks from ml_products
     const { data: products } = await supabase
       .from('ml_products')
       .select('title, clicks')
@@ -94,16 +100,15 @@ export default function MLAffiliatePage() {
 
     const totalClicks = products?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0;
 
+    // Get monthly clicks from ml_clicks_log (correct source)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    const { data: monthlyData } = await supabase
-      .from('ml_products')
-      .select('clicks')
+    const { count: monthlyClicks } = await supabase
+      .from('ml_clicks_log')
+      .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenant.id)
-      .gt('updated_at', startOfMonth);
-
-    const monthlyClicks = monthlyData?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0;
+      .gte('clicked_at', startOfMonth);
 
     const topProducts = (products || [])
       .filter(p => (p.clicks || 0) > 0)
@@ -112,15 +117,16 @@ export default function MLAffiliatePage() {
 
     setStats({
       totalClicks,
-      monthlyClicks,
+      monthlyClicks: monthlyClicks || 0,
       topProducts,
     });
   };
 
   async function loadConfig() {
+    // Only load affiliate_id and connection status — NOT the actual tokens
     const { data } = await supabase
       .from('tenants')
-      .select('ml_affiliate_id, ml_access_token, ml_refresh_token, ml_token_expires_at')
+      .select('ml_affiliate_id, ml_token_expires_at')
       .eq('id', tenant?.id)
       .single();
 
@@ -128,10 +134,16 @@ export default function MLAffiliatePage() {
       setForm({
         ml_affiliate_id: data.ml_affiliate_id || '',
       });
-      setTenantTokens({
-        ml_access_token: data.ml_access_token,
-        ml_refresh_token: data.ml_refresh_token,
-        ml_token_expires_at: data.ml_token_expires_at,
+      
+      // Determine connection status without exposing tokens
+      const hasToken = !!data.ml_token_expires_at;
+      const isExpired = data.ml_token_expires_at 
+        ? new Date(data.ml_token_expires_at) <= new Date() 
+        : true;
+
+      setConnectionStatus({
+        isConnected: hasToken && !isExpired,
+        expiresAt: data.ml_token_expires_at,
       });
     }
   }
@@ -151,75 +163,36 @@ export default function MLAffiliatePage() {
     alert('Configuración guardada');
   }
 
-  function isTokenExpired(): boolean {
-    if (!tenantTokens.ml_token_expires_at) return true;
-    return new Date(tenantTokens.ml_token_expires_at) <= new Date();
-  }
-
-  async function ensureValidToken(): Promise<string | null> {
-    if (!tenantTokens.ml_access_token) return null;
-    
-    if (isTokenExpired() && tenantTokens.ml_refresh_token) {
-      await refreshToken();
-    }
-    
-    const { data } = await supabase
-      .from('tenants')
-      .select('ml_access_token')
-      .eq('id', tenant?.id)
-      .single();
-    
-    return data?.ml_access_token || null;
-  }
-
   async function refreshToken() {
-    if (!tenantTokens.ml_refresh_token || !platformConfig) {
-      setTenantTokens({
-        ml_access_token: null,
-        ml_refresh_token: null,
-        ml_token_expires_at: null,
-      });
-      return;
-    }
-
-    const { app_client_id, app_client_secret } = platformConfig;
-    if (!app_client_id || !app_client_secret) {
-      return;
-    }
-
+    if (!tenant?.id) return;
+    
     setLoading(true);
     try {
-      const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+      // Refresh via server-side API — secret stays on server
+      const response = await fetch('/api/ml/refresh', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          client_id: app_client_id,
-          client_secret: app_client_secret,
-          refresh_token: tenantTokens.ml_refresh_token,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: tenant.id }),
       });
-
-      if (!response.ok) return;
 
       const data = await response.json();
 
-      await supabase
-        .from('tenants')
-        .update({
-          ml_access_token: data.access_token,
-          ml_refresh_token: data.refresh_token,
-          ml_token_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-        })
-        .eq('id', tenant?.id);
+      if (!response.ok) {
+        alert(data.error || 'Error al refrescar token');
+        if (data.error?.includes('Reconnect') || response.status === 400) {
+          setConnectionStatus({ isConnected: false, expiresAt: null });
+        }
+        return;
+      }
 
-      setTenantTokens({
-        ml_access_token: data.access_token,
-        ml_refresh_token: data.refresh_token,
-        ml_token_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
+      setConnectionStatus({
+        isConnected: true,
+        expiresAt: data.expires_at,
       });
+      alert('Token actualizado correctamente');
     } catch (error) {
       console.error('Refresh error:', error);
+      alert('Error de conexión');
     } finally {
       setLoading(false);
     }
@@ -254,11 +227,7 @@ export default function MLAffiliatePage() {
       })
       .eq('id', tenant?.id);
 
-    setTenantTokens({
-      ml_access_token: null,
-      ml_refresh_token: null,
-      ml_token_expires_at: null,
-    });
+    setConnectionStatus({ isConnected: false, expiresAt: null });
   }
 
   async function loadImportedProducts() {
@@ -289,48 +258,29 @@ export default function MLAffiliatePage() {
 
     setSearching(true);
     try {
-      const validToken = await ensureValidToken();
-      if (!validToken) {
-        alert('Token no válido. Reconecta.');
+      // Search via server-side API — token never reaches browser
+      const response = await fetch('/api/ml/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: searchQuery,
+          tenant_id: tenant?.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.needsReconnect) {
+          setConnectionStatus({ isConnected: false, expiresAt: null });
+          alert('Sesión expirada. Reconecta con Mercado Libre.');
+        } else {
+          alert(data.error || 'Error en la búsqueda');
+        }
         return;
       }
 
-      const response = await fetch(
-        `https://api.mercadolibre.com/sites/${ML_SITE_ID}/search?q=${encodeURIComponent(searchQuery)}&limit=20`,
-        {
-          headers: {
-            'Authorization': `Bearer ${validToken}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setTenantTokens({
-            ml_access_token: null,
-            ml_refresh_token: null,
-            ml_token_expires_at: null,
-          });
-          return;
-        }
-        throw new Error('Error en la búsqueda');
-      }
-
-      const data = await response.json();
-      
-      if (data.results) {
-        const formatted = data.results.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          price: item.price,
-          currency: item.currency_id,
-          thumbnail: item.thumbnail,
-          pictures: item.pictures?.map((p: any) => p.url) || [],
-          condition: item.condition,
-          permalink: item.permalink,
-        }));
-        setSearchResults(formatted);
-      }
+      setSearchResults(data.results || []);
     } catch (error) {
       console.error('Search error:', error);
       alert('Error al buscar');
@@ -354,14 +304,12 @@ export default function MLAffiliatePage() {
     }
 
     setLoading(true);
-    const affiliateId = form.ml_affiliate_id;
 
     try {
       for (const productId of selectedIds) {
         const product = searchResults.find(p => p.id === productId);
         if (!product) continue;
 
-        const affiliateUrl = `${product.permalink}?sender=${affiliateId}`;
         const thumbnail = product.pictures?.[0] || product.thumbnail;
 
         await supabase.from('ml_products').upsert({
@@ -374,7 +322,7 @@ export default function MLAffiliatePage() {
           pictures: product.pictures,
           condition: product.condition,
           permalink: product.permalink,
-          affiliate_url: affiliateUrl,
+          affiliate_url: '', // Will be generated dynamically using the Barra de Afiliados URL or manually set
           clicks: 0,
         }, {
           onConflict: 'tenant_id,ml_item_id',
@@ -429,31 +377,43 @@ export default function MLAffiliatePage() {
               }`}>
                 {isConnected ? '✓ Conectado' : 'No conectado'}
               </p>
-              {tenantTokens.ml_token_expires_at && (
+              {connectionStatus.expiresAt && (
                 <p className="text-xs text-zinc-600">
-                  Expira: {new Date(tenantTokens.ml_token_expires_at).toLocaleString('es-AR')}
+                  Expira: {new Date(connectionStatus.expiresAt).toLocaleString('es-AR')}
                 </p>
               )}
             </div>
           </div>
           
-          {isConnected ? (
-            <button
-              onClick={disconnect}
-              className="px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg font-bold text-sm"
-            >
-              Desconectar
-            </button>
-          ) : (
-            <button
-              onClick={connectWithML}
-              disabled={!platformConfig || !tenant?.id}
-              className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl font-bold disabled:opacity-50 flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined">link</span>
-              Conectar con Mercado Libre
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {isConnected && (
+              <>
+                <button
+                  onClick={refreshToken}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg font-bold text-sm disabled:opacity-50"
+                >
+                  Refrescar
+                </button>
+                <button
+                  onClick={disconnect}
+                  className="px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg font-bold text-sm"
+                >
+                  Desconectar
+                </button>
+              </>
+            )}
+            {!isConnected && (
+              <button
+                onClick={connectWithML}
+                disabled={!platformConfig || !tenant?.id}
+                className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl font-bold disabled:opacity-50 flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined">link</span>
+                Conectar con Mercado Libre
+              </button>
+            )}
+          </div>
         </div>
         
         {!platformConfig && (
@@ -522,21 +482,6 @@ export default function MLAffiliatePage() {
             {saving ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
-        <button
-          onClick={() => {
-            if (!form.ml_affiliate_id) {
-              alert('Primero guardá tu ID de afiliado');
-              return;
-            }
-            const testUrl = `https://articulo.mercadolibre.com.ar/MLA-1?ref=${form.ml_affiliate_id}&source=affiliate`;
-            window.open(testUrl, '_blank');
-          }}
-          disabled={!form.ml_affiliate_id}
-          className="mt-3 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2"
-        >
-          <span className="material-symbols-outlined text-sm">open_in_new</span>
-          Probar Link
-        </button>
       </div>
 
       {/* Search */}

@@ -2,8 +2,13 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
+/**
+ * OAuth Callback for Mercado Libre.
+ * 
+ * The authorization code is exchanged for tokens SERVER-SIDE via /api/ml/auth.
+ * The client_secret NEVER reaches the browser.
+ */
 function MLAuthCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -39,59 +44,23 @@ function MLAuthCallbackContent() {
     }
 
     try {
-      setStatus('Obteniendo configuración...');
-
-      const { data: configData } = await supabase
-        .from('platform_settings')
-        .select('value')
-        .eq('key', 'ml_app_config')
-        .single();
-
-      const config = configData?.value;
-      if (!config?.app_client_id || !config?.app_client_secret || !config?.app_redirect_uri) {
-        throw new Error('Configuración de ML no disponible. Contacta al administrador.');
-      }
-
       setStatus('Intercambiando código por token...');
 
-      const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+      // Exchange code for tokens SERVER-SIDE — client_secret stays on the server
+      const response = await fetch('/api/ml/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: config.app_client_id,
-          client_secret: config.app_client_secret,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           code: code,
-          redirect_uri: config.app_redirect_uri,
+          tenant_id: tenantId,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Error al intercambiar código');
-      }
-
       const data = await response.json();
 
-      setStatus('Guardando tokens en tu tienda...');
-
-      const { data: tenantData, error: tenantError } = await supabase
-        .from('tenants')
-        .select('id, nombre')
-        .eq('id', tenantId)
-        .single();
-
-      if (tenantError || !tenantData) {
-        throw new Error('Tienda no encontrada. Ingresá desde tu panel de tienda.');
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al intercambiar código');
       }
-
-      await supabase
-        .from('tenants')
-        .update({
-          ml_access_token: data.access_token,
-          ml_refresh_token: data.refresh_token,
-          ml_token_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-        })
-        .eq('id', tenantData.id);
 
       setStatus('¡Conectado!');
       
@@ -124,6 +93,15 @@ function MLAuthCallbackContent() {
 
         {status === '¡Conectado!' && (
           <p className="text-sm text-zinc-500 mt-4">Redireccionando...</p>
+        )}
+
+        {error && (
+          <button
+            onClick={() => router.push('/settings/ml-affiliate')}
+            className="mt-6 px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold text-sm"
+          >
+            Volver a Configuración
+          </button>
         )}
       </div>
     </div>

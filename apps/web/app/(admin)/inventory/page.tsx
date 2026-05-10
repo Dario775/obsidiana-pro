@@ -72,13 +72,13 @@ export default function InventoryPage() {
     setLoading(true);
     
     // First get inventory with product variant info
-    console.log('Fetching inventory for tenant:', tenant.id);
+
     const { data: inventoryData, error: invError } = await supabase
       .from('inventory_levels')
       .select('*')
       .eq('tenant_id', tenant.id);
     
-    console.log('Inventory data:', inventoryData?.length, 'items', invError);
+
     
     if (invError) {
       console.error('Error fetching inventory:', invError);
@@ -290,7 +290,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
     }
   }
 
-  // Función para filtrar items
+  // Función para filtrar items — single unified useEffect for all filters
   useEffect(() => {
     let filtered = items;
     
@@ -308,7 +308,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       });
     }
     
-    // Filtro de estado
+    // Filtro de estado de stock
     if (statusFilter) {
       filtered = filtered.filter(item => {
         const available = item.available || 0;
@@ -318,14 +318,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         return true;
       });
     }
-    
-    setFilteredItems(filtered);
-  }, [searchQuery, items, statusFilter, onlineFilter]);
 
-  // Filtro de tienda online
-  useEffect(() => {
-    let filtered = items;
-    
+    // Filtro de tienda online
     if (onlineFilter) {
       const online = onlineFilter === 'online';
       filtered = filtered.filter(item => {
@@ -335,7 +329,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
     }
     
     setFilteredItems(filtered);
-  }, [items, onlineFilter]);
+  }, [searchQuery, items, statusFilter, onlineFilter]);
 
   // Función para eliminar producto
   async function handleDeleteProduct(item: any) {
@@ -434,7 +428,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
     const file = e.target.files?.[0];
     
     if (!file || !tenant?.id) {
-      console.log('Missing file or tenant', !!file, !!tenant?.id);
+
       alert('Cargando datos. Intenta de nuevo.');
       return;
     }
@@ -647,7 +641,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
           images: productImages
         })
         .eq('tenant_id', tenantId)
-        .eq('slug', product.slug);
+        .eq('id', product.id);
 
       if (productError) throw productError;
 

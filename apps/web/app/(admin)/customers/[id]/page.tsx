@@ -195,7 +195,7 @@ export default function CustomerDetailPage() {
        if (ordersError) {
          console.error('Error fetching orders:', ordersError);
        } else {
-         console.log('Orders fetched:', ordersData);
+
          setOrders(ordersData || []);
        }
 
@@ -784,12 +784,9 @@ export default function CustomerDetailPage() {
                     // Crear lista combinada de transacciones (órdenes + pagos)
                     const transactions: AccountTransaction[] = [];
                     
-                    console.log('Orders for account:', orders);
-                    console.log('Payments for account:', payments);
-                    
+
                     // Agregar órdenes como cargos
                     orders.forEach(order => {
-                      console.log('Order:', order.number, 'total_ars:', order.total_ars);
                       transactions.push({
                         id: `order-${order.id}`,
                         date: order.placed_at,
@@ -802,7 +799,6 @@ export default function CustomerDetailPage() {
 
                     // Agregar pagos como abonos (solo los completados/pagados)
                     payments.forEach(payment => {
-                      console.log('Payment:', payment.amount_ars, 'status:', payment.status);
                       if (payment.status !== 'paid') return;
                       const order = orders.find(o => o.id === payment.order_id);
                       transactions.push({

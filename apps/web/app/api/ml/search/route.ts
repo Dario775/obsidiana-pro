@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
+const ML_SITE_ID = 'MLA'; // Argentina
+
 /**
  * Helper: ensures we have a valid ML token for the tenant.
  * Auto-refreshes if expired.
@@ -20,7 +22,7 @@ async function getValidToken(tenantId: string): Promise<string | null> {
   const expiresAt = tenant.ml_token_expires_at
     ? new Date(tenant.ml_token_expires_at)
     : new Date(0);
-  const now = new Date(Date.now() + 5 * 60 * 1000);
+  const now = new Date(Date.now() + 5 * 60 * 1000); // 5 min buffer
 
   if (expiresAt > now) {
     return tenant.ml_access_token;
@@ -58,6 +60,7 @@ async function getValidToken(tenantId: string): Promise<string | null> {
     });
 
     if (!refreshResponse.ok) {
+      // Invalidate stored tokens
       await supabaseAdmin
         .from('tenants')
         .update({
@@ -71,6 +74,7 @@ async function getValidToken(tenantId: string): Promise<string | null> {
 
     const tokenData = await refreshResponse.json();
 
+    // Save new tokens
     await supabaseAdmin
       .from('tenants')
       .update({
@@ -89,61 +93,94 @@ async function getValidToken(tenantId: string): Promise<string | null> {
 }
 
 /**
- * POST /api/ml/prices
- * Fetches live prices from ML API.
- * Auto-refreshes tokens if expired.
- * Uses service_role for DB access.
+ * POST /api/ml/search
+ * Server-side product search on Mercado Libre.
+ * Access token never leaves the server.
+ * 
+ * Body: { query: string, tenant_id: string, limit?: number }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { item_ids, tenant_id } = body;
+    const { query, tenant_id, limit = 20 } = body;
 
-    if (!item_ids || !Array.isArray(item_ids) || item_ids.length === 0) {
-      return NextResponse.json({ error: 'Missing item_ids' }, { status: 400 });
+    if (!query || !tenant_id) {
+      return NextResponse.json(
+        { error: 'Missing required fields: query, tenant_id' },
+        { status: 400 }
+      );
     }
 
-    if (!tenant_id) {
-      return NextResponse.json({ error: 'Missing tenant_id' }, { status: 400 });
-    }
-
-    const results: Record<string, { price: number; currency: string }> = {};
-
-    // Get a valid token (auto-refresh if needed)
     const accessToken = await getValidToken(tenant_id);
 
-    // Fetch prices in parallel (max 20 items)
-    const itemsToFetch = item_ids.slice(0, 20);
-    const fetchPromises = itemsToFetch.map(async (itemId: string) => {
-      try {
-        const response = await fetch(
-          `https://api.mercadolibre.com/items/${itemId}`,
-          {
-            headers: accessToken
-              ? { 'Authorization': `Bearer ${accessToken}` }
-              : {},
-          }
-        );
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'ML not connected or token expired. Reconnect with ML.', needsReconnect: true },
+        { status: 401 }
+      );
+    }
 
-        if (response.ok) {
-          const data = await response.json();
-          results[itemId] = {
-            price: data.price,
-            currency: data.currency_id,
-          };
-        } else {
-          results[itemId] = { price: 0, currency: 'ARS' };
-        }
-      } catch {
-        results[itemId] = { price: 0, currency: 'ARS' };
+    // Search ML API server-side
+    const searchLimit = Math.min(Math.max(1, limit), 50);
+    const searchResponse = await fetch(
+      `https://api.mercadolibre.com/sites/${ML_SITE_ID}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
       }
+    );
+
+    if (!searchResponse.ok) {
+      if (searchResponse.status === 401) {
+        // Token invalid — clear it
+        await supabaseAdmin
+          .from('tenants')
+          .update({
+            ml_access_token: null,
+            ml_refresh_token: null,
+            ml_token_expires_at: null,
+          })
+          .eq('id', tenant_id);
+
+        return NextResponse.json(
+          { error: 'ML session expired. Please reconnect.', needsReconnect: true },
+          { status: 401 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'ML search failed' },
+        { status: searchResponse.status }
+      );
+    }
+
+    const data = await searchResponse.json();
+
+    // Map results — only return safe fields (no tokens)
+    const results = (data.results || []).map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      price: item.price,
+      currency: item.currency_id,
+      thumbnail: item.thumbnail,
+      pictures: item.pictures?.map((p: any) => p.url) || [],
+      condition: item.condition,
+      listing_type_id: item.listing_type_id,
+      category_id: item.category_id,
+      permalink: item.permalink,
+    }));
+
+    return NextResponse.json({
+      results,
+      total: data.paging?.total || 0,
     });
 
-    await Promise.all(fetchPromises);
-
-    return NextResponse.json({ prices: results });
   } catch (error) {
-    console.error('Prices fetch error:', error);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    console.error('ML search error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

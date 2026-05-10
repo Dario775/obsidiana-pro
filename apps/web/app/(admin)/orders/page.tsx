@@ -100,9 +100,29 @@ export default function OrdersPage() {
     setUpdatingStatus(false);
   }
 
+  // Sanitize user input to prevent XSS in print labels
+  function escapeHtml(str: string | null | undefined): string {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function printLabel() {
     if (!selectedOrder) return;
     
+    // Sanitize all user-provided data
+    const customerName = escapeHtml(selectedOrder.customer_name) || 'CLIENTE';
+    const customerAddress = escapeHtml(selectedOrder.customer_address) || 'SIN DIRECCIÓN';
+    const customerPhone = escapeHtml(selectedOrder.customer_phone) || 'SIN TEL';
+    const customerEmail = escapeHtml(selectedOrder.customer_email);
+    const orderNotes = escapeHtml(selectedOrder.notes);
+    const storeName = escapeHtml(tenant?.nombre) || 'Tienda';
+    const itemsList = orderItems.map(i => `${escapeHtml(i.title_snapshot)} (x${i.quantity})`).join(', ');
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
     
@@ -215,7 +235,7 @@ export default function OrdersPage() {
 <body>
   <div class="label">
     <div class="header">
-      <h1>${tenant?.nombre || 'Tienda'}</h1>
+      <h1>${storeName}</h1>
       <div class="order-num">#${selectedOrder.number}</div>
     </div>
     
@@ -223,14 +243,14 @@ export default function OrdersPage() {
       <div class="section">
         <div class="section-title">ENTREGAR A:</div>
         <div class="section-content">
-          ${selectedOrder.customer_name?.toUpperCase() || 'CLIENTE'}
+          ${customerName.toUpperCase()}
         </div>
       </div>
       
       <div class="section">
         <div class="section-title">DIRECCIÓN:</div>
         <div class="section-content">
-          ${selectedOrder.customer_address?.toUpperCase() || 'SIN DIRECCIÓN'}
+          ${customerAddress.toUpperCase()}
         </div>
       </div>
     </div>
@@ -238,22 +258,22 @@ export default function OrdersPage() {
     <div class="section">
       <div class="section-title">CONTACTO:</div>
       <div class="section-content">
-        📱 ${selectedOrder.customer_phone || 'SIN TEL'}
-        ${selectedOrder.customer_email ? `<br>✉️ ${selectedOrder.customer_email}` : ''}
+        📱 ${customerPhone}
+        ${customerEmail ? `<br>✉️ ${customerEmail}` : ''}
       </div>
     </div>
     
-    ${selectedOrder.notes ? `
+    ${orderNotes ? `
     <div class="section">
       <div class="section-title">NOTAS:</div>
       <div class="section-content" style="font-weight: normal; font-size: 12px;">
-        ${selectedOrder.notes}
+        ${orderNotes}
       </div>
     </div>
     ` : ''}
     
     <div class="items-list">
-      <strong>Productos:</strong> ${orderItems.map(i => `${i.title_snapshot} (x${i.quantity})`).join(', ')}
+      <strong>Productos:</strong> ${itemsList}
     </div>
     
     <div class="barcode">
@@ -261,7 +281,7 @@ export default function OrdersPage() {
     </div>
     
     <div class="from" style="margin-top: 15px; text-align: center; font-size: 10px;">
-      ${tenant?.nombre || 'Tienda'} - ${new Date(selectedOrder.created_at).toLocaleDateString('es-AR')}
+      ${storeName} - ${new Date(selectedOrder.created_at).toLocaleDateString('es-AR')}
     </div>
   </div>
   <script>window.print();</script>
@@ -506,9 +526,22 @@ export default function OrdersPage() {
                   <span className="material-symbols-outlined">print</span>
                   Imprimir Etiqueta
                 </button>
-                <button className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold flex items-center justify-center gap-2">
-                  <span className="material-symbols-outlined">Whatsapp</span>
-                  Contactar
+                <button 
+                  onClick={() => {
+                    const phone = selectedOrder.customer_phone?.replace(/\D/g, '') || '';
+                    const msg = encodeURIComponent(
+                      `¡Hola ${selectedOrder.customer_name || 'Cliente'}! 👋\n` +
+                      `Te contactamos de *${tenant?.nombre || 'nuestra tienda'}* por tu pedido #${selectedOrder.number}.\n` +
+                      `Total: $${(selectedOrder.total_ars || 0).toLocaleString('es-AR')}\n` +
+                      `¿En qué podemos ayudarte?`
+                    );
+                    window.open(`https://wa.me/${phone.startsWith('54') ? phone : '54' + phone}?text=${msg}`, '_blank');
+                  }}
+                  disabled={!selectedOrder.customer_phone}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <span className="material-symbols-outlined">chat</span>
+                  {selectedOrder.customer_phone ? 'WhatsApp' : 'Sin teléfono'}
                 </button>
               </div>
             </div>
