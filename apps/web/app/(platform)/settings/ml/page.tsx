@@ -392,7 +392,7 @@ export default function MLIntegrationPage() {
 
                 {selectedTenantData.ml_token_expires_at && (
                   <p className="text-xs text-zinc-500 mb-3">
-                    Expira: {new Date(selectedTenantData.ml_token_expires_at).toLocaleString('es-AR')}
+                    Expira: {selectedTenantData.ml_token_expires_at ? new Date(selectedTenantData.ml_token_expires_at).toLocaleString('es-AR') : 'Sin fecha'}
                   </p>
                 )}
 
@@ -492,7 +492,7 @@ export default function MLIntegrationPage() {
                   <td className="py-3 px-4">
                     <span className="text-xs text-zinc-400">
                       {t.ml_token_expires_at 
-                        ? new Date(t.ml_token_expires_at).toLocaleString('es-AR')
+                        ? t.ml_token_expires_at ? new Date(t.ml_token_expires_at).toLocaleString('es-AR') : 'Sin fecha'
                         : '—'}
                     </span>
                   </td>

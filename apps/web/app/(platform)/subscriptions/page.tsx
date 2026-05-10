@@ -430,7 +430,7 @@ export default function SubscriptionsPage() {
                 <span className="material-symbols-outlined text-blue-400">trending_up</span>
                 <span className="text-[10px] text-zinc-500 font-bold uppercase">Ingreso Mensual</span>
               </div>
-              <p className="text-xl font-black text-white">${totalMonthlyRevenue.toLocaleString()}</p>
+              <p className="text-xl font-black text-white">${totalMonthlyRevenue?.toLocaleString() || 0}</p>
             </div>
             
             <div className="bg-zinc-900 border border-violet-500/20 rounded-xl p-4">
@@ -438,7 +438,7 @@ export default function SubscriptionsPage() {
                 <span className="material-symbols-outlined text-violet-400">account_balance</span>
                 <span className="text-[10px] text-zinc-500 font-bold uppercase">Total Recibido</span>
               </div>
-              <p className="text-xl font-black text-white">${totalReceived.toLocaleString()}</p>
+              <p className="text-xl font-black text-white">${totalReceived?.toLocaleString() || 0}</p>
             </div>
           </div>
 );
@@ -531,7 +531,7 @@ export default function SubscriptionsPage() {
                         </td>
                         <td className="py-4 px-6 text-[10px] font-black text-violet-400 uppercase tracking-widest">{plan ? plan.nombre : 'Sin Plan'}</td>
                         <td className="py-4 px-6 text-xs text-zinc-300">
-                          {plan ? `$${(plan.monthly_price || plan.precio_mensual || 0).toLocaleString()}` : '-'}
+                          {plan ? `$${(plan.monthly_price || plan.precio_mensual || 0)?.toLocaleString() || 0}` : '-'}
                         </td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${t.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'}`}>
@@ -604,7 +604,7 @@ export default function SubscriptionsPage() {
                       <span className="text-xs font-bold text-white uppercase tracking-wider">{p.nombre}</span>
                     </td>
                     <td className="py-4 px-6 text-xs text-emerald-400 font-black">
-                      ${p.precio_mensual.toLocaleString()}
+${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}
                     </td>
                     <td className="py-4 px-6 text-xs text-zinc-300">
                       <div className="flex flex-wrap gap-1">
@@ -668,7 +668,7 @@ export default function SubscriptionsPage() {
               >
                 <option value="">Sin Plan</option>
                 {plans.map((p) => (
-                  <option key={p.id} value={p.id}>{p.nombre} - ${p.precio_mensual.toLocaleString()}</option>
+                  <option key={p.id} value={p.id}>{p.nombre || p.name} - ${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}</option>
                 ))}
               </select>
             </div>

@@ -109,7 +109,7 @@ export default function PlatformDashboard() {
       {/* Global Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {[
-          { label: 'Ingresos Totales (SaaS)', value: `$${totalSales.toLocaleString()}`, trend: 'Activo', icon: 'payments', color: 'emerald' },
+          { label: 'Ingresos Totales (SaaS)', value: `$${totalSales?.toLocaleString() || 0}`, trend: 'Activo', icon: 'payments', color: 'emerald' },
           { label: 'Tenants Registrados', value: tenants.length.toString(), trend: 'Directo', icon: 'store', color: 'violet' },
           { label: 'Total Clientes', value: customers.length.toString(), trend: 'Consolidado', icon: 'group', color: 'blue' },
           { label: 'Total Productos', value: products.length.toString(), trend: 'Catálogo', icon: 'inventory_2', color: 'amber' },
