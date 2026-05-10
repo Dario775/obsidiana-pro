@@ -185,9 +185,9 @@ export async function POST(request: NextRequest) {
       });
 
       if (!searchResponse.ok) {
-        const publicForbiddenBody = await searchResponse.text();
-        console.error('Public search failure body:', publicForbiddenBody);
+        console.error('Public search failure, status:', searchResponse.status);
       }
+    }
     }
 
     if (!searchResponse.ok) {
