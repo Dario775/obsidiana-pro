@@ -236,10 +236,10 @@ export async function POST(request: NextRequest) {
       total: data.paging?.total || 0,
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('ML search error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message || String(error) },
       { status: 500 }
     );
   }
