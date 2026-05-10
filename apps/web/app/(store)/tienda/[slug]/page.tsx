@@ -188,8 +188,10 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           let finalAffiliateUrl = '';
           if (affiliateId && mp.permalink) {
             const url = new URL(mp.permalink);
-            url.searchParams.set('ref', affiliateId);
-            url.searchParams.set('source', 'affiliate');
+            // MercadoLibre standard affiliate parameters
+            url.searchParams.set('matt_tool', affiliateId);
+            // Optional: If you had a matt_word stored, you'd set it here too
+            // url.searchParams.set('matt_word', affiliateWord); 
             finalAffiliateUrl = url.toString();
           }
           

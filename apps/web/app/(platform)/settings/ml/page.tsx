@@ -65,7 +65,7 @@ export default function MLIntegrationPage() {
     // Only select safe fields — not the actual tokens
     const { data } = await supabase
       .from('tenants')
-      .select('id, nombre, slug, ml_affiliate_id, ml_token_expires_at')
+      .select('id, nombre, slug, ml_affiliate_id, ml_token_expires_at, store_phone')
       .order('nombre');
 
     if (data) {
@@ -141,9 +141,22 @@ export default function MLIntegrationPage() {
     }
 
     // Use redirect_uri EXACTLY as registered — pass tenant via state param
-    const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${form.app_client_id}&redirect_uri=${encodeURIComponent(form.app_redirect_uri)}&state=${tenantId}`;
-    
     return authUrl;
+  }
+
+  function sendWhatsAppAuth(tenantId: string, phone: string | null, name: string) {
+    const url = generateTenantAuthUrl(tenantId);
+    if (!url) return;
+
+    const message = `Hola ${name}! Para activar la integración de Mercado Libre en tu tienda Obsidiana, por favor ingresa a este link y autoriza la aplicación: ${url}`;
+    const encodedMessage = encodeURIComponent(message);
+    
+    // If no phone, just open WA without number
+    const waUrl = phone 
+      ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodedMessage}`
+      : `https://wa.me/?text=${encodedMessage}`;
+    
+    window.open(waUrl, '_blank');
   }
 
   async function refreshTenantToken(tenantId: string) {
@@ -338,19 +351,30 @@ export default function MLIntegrationPage() {
                       Refrescar Token
                     </button>
                   ) : (
-                    <button
-                      onClick={() => {
-                        const url = generateTenantAuthUrl(selectedTenant);
-                        if (url) {
-                          navigator.clipboard.writeText(url);
-                          alert('URL de autorización copiada al portapapeles. Envíala al comerciante.');
-                        }
-                      }}
-                      disabled={loading}
-                      className="px-4 py-2 bg-violet-500 hover:bg-violet-400 text-white rounded-lg font-bold text-sm disabled:opacity-50"
-                    >
-                      Copiar Link de Auth
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          const url = generateTenantAuthUrl(selectedTenant);
+                          if (url) {
+                            navigator.clipboard.writeText(url);
+                            alert('URL de autorización copiada al portapapeles.');
+                          }
+                        }}
+                        disabled={loading}
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold text-sm disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-sm">content_copy</span>
+                        Copiar Link
+                      </button>
+                      <button
+                        onClick={() => sendWhatsAppAuth(selectedTenant, selectedTenantData.store_phone || null, selectedTenantData.nombre)}
+                        disabled={loading}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-sm disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-sm">share</span>
+                        Enviar WhatsApp
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

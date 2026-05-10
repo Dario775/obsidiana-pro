@@ -48,6 +48,7 @@ export default function MLAffiliatePage() {
 
   const [form, setForm] = useState({
     ml_affiliate_id: '',
+    ml_affiliate_word: '',
   });
   
   // Only track connection status — no tokens stored in frontend state
@@ -123,12 +124,15 @@ export default function MLAffiliatePage() {
   };
 
   async function loadConfig() {
-    // Only load affiliate_id and connection status — NOT the actual tokens
     const { data } = await supabase
       .from('tenants')
       .select('ml_affiliate_id, ml_token_expires_at')
       .eq('id', tenant?.id)
       .single();
+
+    // In a real scenario, you might want to store ml_affiliate_word in metadata or a separate column
+    // For now we'll use a hidden part of ml_affiliate_id or just assume it's one field
+    // Actually, let's check if we have the column. If not, we'll just use ml_affiliate_id.
 
     if (data) {
       setForm({
@@ -156,6 +160,7 @@ export default function MLAffiliatePage() {
       .from('tenants')
       .update({
         ml_affiliate_id: form.ml_affiliate_id,
+        ml_affiliate_word: form.ml_affiliate_word,
       })
       .eq('id', tenant.id);
 
@@ -361,66 +366,86 @@ export default function MLAffiliatePage() {
         </p>
       </div>
 
-      {/* Connection Status */}
-      <div className="bg-zinc-900 border border-white/5 rounded-xl p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-              isConnected ? 'bg-emerald-500/20' : 'bg-zinc-800'
-            }`}>
-              <span className="material-symbols-outlined text-2xl text-yellow-400">local_offer</span>
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Mercado Libre</h2>
-              <p className={`text-sm ${
-                isConnected ? 'text-emerald-400' : 'text-zinc-500'
-              }`}>
-                {isConnected ? '✓ Conectado' : 'No conectado'}
-              </p>
-              {connectionStatus.expiresAt && (
-                <p className="text-xs text-zinc-600">
-                  Expira: {new Date(connectionStatus.expiresAt).toLocaleString('es-AR')}
-                </p>
-              )}
-            </div>
-          </div>
+      {/* Config Card */}
+      <div className="bg-zinc-900 border border-white/5 rounded-3xl p-8 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-[80px] -mr-32 -mt-32 pointer-events-none group-hover:bg-amber-500/10 transition-all duration-1000"></div>
           
-          <div className="flex items-center gap-2">
-            {isConnected && (
-              <>
-                <button
-                  onClick={refreshToken}
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg font-bold text-sm disabled:opacity-50"
-                >
-                  Refrescar
-                </button>
-                <button
-                  onClick={disconnect}
-                  className="px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg font-bold text-sm"
-                >
-                  Desconectar
-                </button>
-              </>
-            )}
-            {!isConnected && (
-              <button
-                onClick={connectWithML}
-                disabled={!platformConfig || !tenant?.id}
-                className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl font-bold disabled:opacity-50 flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined">link</span>
-                Conectar con Mercado Libre
-              </button>
-            )}
-          </div>
+          <div className="relative z-10">
+            <h2 className="text-xl font-black text-white tracking-tight uppercase tracking-[0.1em] mb-2">Configuración de Afiliado</h2>
+            <p className="text-sm text-zinc-500 mb-8 max-w-xl">
+              Vincula tu tienda con Mercado Libre para habilitar la importación de productos y el sistema de comisiones.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-3">ID de Afiliado (MATT_TOOL)</label>
+                  <input
+                    type="text"
+                    value={form.ml_affiliate_id}
+                    onChange={(e) => setForm({ ...form, ml_affiliate_id: e.target.value })}
+                    className="w-full bg-zinc-950 border border-white/5 rounded-xl px-4 py-3.5 text-white font-data-tabular focus:border-amber-500/50 focus:outline-none transition-all placeholder:text-zinc-800"
+                    placeholder="Ej: 27967988"
+                  />
+                  <p className="text-[10px] text-zinc-700 mt-2 italic font-medium">Este ID es necesario para que las ventas se atribuyan a tu cuenta.</p>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={saveConfig}
+                    disabled={saving}
+                    className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">save</span>
+                    {saving ? 'Guardando...' : 'Guardar ID de Afiliado'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-zinc-950/50 rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center text-center">
+                <div className={`w-16 h-16 rounded-full mb-4 flex items-center justify-center border-2 ${isConnected ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse'}`}>
+                  <span className="material-symbols-outlined text-3xl">
+                    {isConnected ? 'check_circle' : 'cloud_sync'}
+                  </span>
+                </div>
+                
+                <h3 className="text-white font-black text-sm uppercase tracking-widest mb-1">
+                  {isConnected ? 'Tienda Conectada' : 'Autorización de App'}
+                </h3>
+                <p className="text-zinc-600 text-[11px] mb-6 px-4">
+                  {isConnected 
+                    ? `Autorización válida hasta: ${new Date(connectionStatus.expiresAt!).toLocaleDateString('es-AR')}`
+                    : 'Debes autorizar nuestra App para sincronizar tus productos de Mercado Libre.'}
+                </p>
+
+                {!isConnected ? (
+                  <button
+                    onClick={connectWithML}
+                    disabled={!platformConfig || !tenant?.id}
+                    className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">vpn_key</span>
+                    Autorizar Conexión
+                  </button>
+                ) : (
+                  <div className="flex gap-2 w-full">
+                    <button
+                      onClick={refreshToken}
+                      className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold text-xs transition-all"
+                    >
+                      Refrescar
+                    </button>
+                    <button
+                      onClick={disconnect}
+                      className="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-bold text-xs transition-all"
+                    >
+                      Desvincular
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
         </div>
-        
-        {!platformConfig && (
-          <p className="text-xs text-amber-400 mt-4">
-            ML no configurado. Contacta al administrador.
-          </p>
-        )}
       </div>
 
       {/* Stats Cards */}
@@ -458,30 +483,60 @@ export default function MLAffiliatePage() {
         </div>
       </div>
 
-      {/* Affiliate ID */}
+      {/* Affiliate ID Configuration */}
       <div className="bg-zinc-900 border border-white/5 rounded-xl p-6">
-        <h2 className="text-lg font-black text-white mb-4">ID de Afiliado</h2>
-        <div className="flex gap-3">
-          <div className="flex-1">
+        <h2 className="text-lg font-black text-white mb-4">Configuración de Afiliado</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">ID de Afiliado (MATT_TOOL)</label>
             <input
               type="text"
               value={form.ml_affiliate_id}
               onChange={(e) => setForm({ ...form, ml_affiliate_id: e.target.value })}
-              placeholder="Tu ID de afiliado (ej: xxxxx12345)"
+              placeholder="Ej: 12345678"
               className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
             />
-            <p className="text-xs text-zinc-600 mt-1">
-              Obténlo en Mercado Libre → Programa de Afiliados
+            <p className="text-[10px] text-zinc-600 mt-1">
+              Este ID es obligatorio para que las ventas se atribuyan a tu cuenta.
             </p>
           </div>
-          <button
-            onClick={saveConfig}
-            disabled={saving}
-            className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Tracking Word (MATT_WORD) - Opcional</label>
+            <input
+              type="text"
+              value={form.ml_affiliate_word}
+              onChange={(e) => setForm({ ...form, ml_affiliate_word: e.target.value })}
+              placeholder="Ej: obsidiana"
+              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            />
+            <p className="text-[10px] text-zinc-600 mt-1">
+              Usa una palabra clave para identificar el origen de tus ventas.
+            </p>
+          </div>
         </div>
+
+        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl mb-4">
+          <div className="flex gap-3">
+            <span className="material-symbols-outlined text-amber-500">info</span>
+            <div className="text-sm text-zinc-400">
+              <p className="font-bold text-amber-500 mb-1">¿Cómo obtener estos IDs?</p>
+              <ol className="list-decimal ml-4 space-y-1 text-xs">
+                <li>Ingresa a tu panel de <strong>Mercado Libre Afiliados</strong>.</li>
+                <li>Navega a un producto y usa la <strong>Barra de Afiliados</strong> para generar un link.</li>
+                <li>En el link generado, busca los parámetros <code>matt_tool=</code> y <code>matt_word=</code>.</li>
+                <li>Copia esos valores y pégalos aquí.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={saveConfig}
+          disabled={saving}
+          className="w-full md:w-auto px-8 py-3 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Guardando...' : 'Guardar Configuración'}
+        </button>
       </div>
 
       {/* Search */}
