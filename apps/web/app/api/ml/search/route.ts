@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('ML search error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error.message || String(error) },
+      { error: 'Internal server error [v3]', details: error.message || String(error) },
       { status: 500 }
     );
   }
