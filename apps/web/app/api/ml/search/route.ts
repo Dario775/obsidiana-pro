@@ -171,29 +171,36 @@ export async function POST(request: NextRequest) {
     const clientId = config?.app_client_id;
 
     const searchLimit = Math.min(Math.max(1, limit), 50);
-    // Try passing access_token in URL as well as header (more robust)
-    const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}&access_token=${accessToken}`;
+    // REMOVED token from URL to avoid duplicate auth suspicion
+    const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
     
+    // Diagnostic: Try to fetch a static item to see if the whole API is blocked
+    let testItemResponse = 'Not tested';
+    try {
+      const testItemRes = await fetch('https://api.mercadolibre.com/items/MLA1136423376', {
+        headers: { 'User-Agent': 'PostmanRuntime/7.32.3' }
+      });
+      testItemResponse = testItemRes.ok ? 'Success (IP is NOT blocked)' : `Failed (${testItemRes.status})`;
+    } catch (e: any) {
+      testItemResponse = `Exception: ${e.message}`;
+    }
+
     console.log('--- ML SEARCH DIAGNOSTICS ---');
-    console.log('URL (masked):', searchUrl.replace(accessToken, '***'));
+    console.log('URL:', searchUrl);
     console.log('Account:', accountInfo);
 
-    const commonHeaders: any = {
+    const headers: any = {
       'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Authorization': `Bearer ${accessToken}`,
+      'User-Agent': 'PostmanRuntime/7.32.3',
     };
 
     if (clientId) {
-      commonHeaders['X-Caller-Id'] = clientId;
+      headers['X-Caller-Id'] = clientId;
     }
 
     // ── Authorized search ──────────────────────────────────────────────────
-    let searchResponse = await fetch(searchUrl, {
-      headers: {
-        ...commonHeaders,
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
+    let searchResponse = await fetch(searchUrl, { headers });
 
     // ── Fallback: public search on 403 ────────────────────────────────────
     let wasFallbackTriggered = false;
@@ -201,10 +208,14 @@ export async function POST(request: NextRequest) {
       wasFallbackTriggered = true;
       console.log('Authorized search forbidden (403), trying public search...');
       
-      const publicSearchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}${clientId ? `&client_id=${clientId}` : ''}`;
+      const publicHeaders: any = {
+        'Accept': 'application/json',
+        'User-Agent': 'PostmanRuntime/7.32.3',
+      };
+      if (clientId) publicHeaders['X-Caller-Id'] = clientId;
 
-      searchResponse = await fetch(publicSearchUrl, {
-        headers: commonHeaders,
+      searchResponse = await fetch(searchUrl, {
+        headers: publicHeaders,
       });
     }
 
@@ -224,6 +235,7 @@ export async function POST(request: NextRequest) {
         search_url: searchUrl,
         site_id_used: siteId,
         account_details: accountInfo,
+        test_item_result: testItemResponse,
         fallback_triggered: wasFallbackTriggered,
         ml_response: mlError
       };
