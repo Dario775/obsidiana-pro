@@ -133,8 +133,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch regional site_id
+    // Fetch regional site_id and account info for diagnostics
     let siteId = ML_SITE_ID;
+    let accountInfo = 'No info';
     try {
       const userRes = await fetch('https://api.mercadolibre.com/users/me', {
         headers: {
@@ -145,13 +146,26 @@ export async function POST(request: NextRequest) {
       if (userRes.ok) {
         const userData = await userRes.json();
         siteId = userData.site_id || ML_SITE_ID;
+        accountInfo = JSON.stringify({
+          id: userData.id,
+          nickname: userData.nickname,
+          site_id: userData.site_id,
+          country_id: userData.country_id,
+          user_type: userData.user_type,
+          points: userData.points
+        });
+      } else {
+        accountInfo = `Error fetching user info: ${userRes.status}`;
       }
-    } catch (e) {
-      console.error('Failed to fetch siteId on the fly:', e);
+    } catch (e: any) {
+      accountInfo = `Exception fetching user info: ${e.message}`;
     }
 
     const searchLimit = Math.min(Math.max(1, limit), 50);
     const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
+    console.log('--- ML SEARCH DIAGNOSTICS ---');
+    console.log('URL:', searchUrl);
+    console.log('Account:', accountInfo);
 
     // ── Authorized search ──────────────────────────────────────────────────
     let searchResponse = await fetch(searchUrl, {
@@ -163,29 +177,22 @@ export async function POST(request: NextRequest) {
     });
 
     // ── Fallback: public search on 403 ────────────────────────────────────
+    let wasFallbackTriggered = false;
     if (searchResponse.status === 403) {
-      // ✅ Lee el body del 403 UNA VEZ y guárdalo en una variable
-      const forbiddenBody = await searchResponse.text();
-      console.error('Authorized search 403 body:', forbiddenBody);
-      console.log('Authorized search forbidden, trying public search...');
+      wasFallbackTriggered = true;
+      console.log('Authorized search forbidden (403), trying public search...');
 
-      // Reemplaza searchResponse con la respuesta pública
       searchResponse = await fetch(searchUrl, {
         headers: {
           Accept: 'application/json',
           'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)',
         },
       });
-
-      if (!searchResponse.ok) {
-        console.error('Public search failure, status:', searchResponse.status);
-      }
-    } // ✅ Solo una llave de cierre aquí — bug corregido
+    }
 
     // ── Error handling ─────────────────────────────────────────────────────
     if (!searchResponse.ok) {
       const status = searchResponse.status;
-      // ✅ El body de searchResponse solo se lee UNA VEZ aquí
       const errorText = await searchResponse.text();
       let mlError = errorText;
 
@@ -195,17 +202,21 @@ export async function POST(request: NextRequest) {
         // Stay as plain text
       }
 
+      const diagnostics = {
+        search_url: searchUrl,
+        site_id_used: siteId,
+        account_details: accountInfo,
+        fallback_triggered: wasFallbackTriggered,
+        ml_response: mlError
+      };
+
       console.error(`ML API Error (${status}):`, mlError);
 
-      if (status === 401) {
-        return NextResponse.json(
-          { error: 'ML session expired. Please reconnect.', needsReconnect: true, details: mlError },
-          { status: 401 }
-        );
-      }
-
       return NextResponse.json(
-        { error: `ML API Error (${status})`, details: mlError },
+        { 
+          error: `ML API Error (${status})`, 
+          details: JSON.stringify(diagnostics, null, 2) 
+        },
         { status }
       );
     }
