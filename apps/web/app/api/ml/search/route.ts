@@ -161,18 +161,37 @@ export async function POST(request: NextRequest) {
       accountInfo = `Exception fetching user info: ${e.message}`;
     }
 
+    // Get App Config for X-Caller-Id
+    const { data: configData } = await supabaseAdmin
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'ml_app_config')
+      .single();
+    const config = configData?.value as any;
+    const clientId = config?.app_client_id;
+
     const searchLimit = Math.min(Math.max(1, limit), 50);
-    const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
+    // Try passing access_token in URL as well as header (more robust)
+    const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}&access_token=${accessToken}`;
+    
     console.log('--- ML SEARCH DIAGNOSTICS ---');
-    console.log('URL:', searchUrl);
+    console.log('URL (masked):', searchUrl.replace(accessToken, '***'));
     console.log('Account:', accountInfo);
+
+    const commonHeaders: any = {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    };
+
+    if (clientId) {
+      commonHeaders['X-Caller-Id'] = clientId;
+    }
 
     // ── Authorized search ──────────────────────────────────────────────────
     let searchResponse = await fetch(searchUrl, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-        'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)',
+        ...commonHeaders,
+        'Authorization': `Bearer ${accessToken}`,
       },
     });
 
@@ -181,12 +200,11 @@ export async function POST(request: NextRequest) {
     if (searchResponse.status === 403) {
       wasFallbackTriggered = true;
       console.log('Authorized search forbidden (403), trying public search...');
+      
+      const publicSearchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}${clientId ? `&client_id=${clientId}` : ''}`;
 
-      searchResponse = await fetch(searchUrl, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)',
-        },
+      searchResponse = await fetch(publicSearchUrl, {
+        headers: commonHeaders,
       });
     }
 
