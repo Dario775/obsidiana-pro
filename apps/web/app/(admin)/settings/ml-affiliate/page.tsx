@@ -631,16 +631,14 @@ export default function MLAffiliatePage() {
                     const id = match[1].toUpperCase() + match[2];
                     
                     try {
-                      // Usamos modo 'no-referrer' para ocultar que venimos de Vercel y evitar el bloqueo de dominio
-                      const res = await fetch(`https://api.mercadolibre.com/items/${id}`, { 
-                        referrerPolicy: 'no-referrer'
-                      });
+                      // Usamos un proxy externo para saltar TODOS los bloqueos de Vercel y CORS de ML
+                      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(`https://api.mercadolibre.com/items/${id}`)}`;
+                      let res = await fetch(proxyUrl);
                       
                       // Si falla como ITEM, probamos como PRODUCTO
                       if (!res.ok) {
-                        const resProd = await fetch(`https://api.mercadolibre.com/products/${id}`, { 
-                          referrerPolicy: 'no-referrer'
-                        });
+                        const proxyUrlProd = `https://corsproxy.io/?${encodeURIComponent(`https://api.mercadolibre.com/products/${id}`)}`;
+                        const resProd = await fetch(proxyUrlProd);
                         
                         if (resProd.ok) {
                           const product = await resProd.json();
