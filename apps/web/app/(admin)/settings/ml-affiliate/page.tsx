@@ -533,45 +533,96 @@ export default function MLAffiliatePage() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search & Manual Import */}
       <div className="bg-zinc-900 border border-white/5 rounded-xl p-6">
-        <h2 className="text-lg font-black text-white mb-4">Buscar Productos</h2>
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600">search</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && searchMLProducts()}
-              placeholder="Buscar productos en Mercado Libre..."
-              className="w-full bg-zinc-950 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-            />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-black text-white">Importar Productos</h2>
+          <div className="flex gap-2">
+             <span className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-bold rounded uppercase">Buscador Bloqueado por ML</span>
           </div>
-          <button
-            onClick={searchMLProducts}
-            disabled={searching || !searchQuery.trim() || !isConnected}
-            className="px-6 py-3 bg-violet-500 hover:bg-violet-400 text-white rounded-xl font-bold disabled:opacity-50 flex items-center gap-2"
-          >
-            {searching ? (
-              <span className="material-symbols-outlined animate-spin">sync</span>
-            ) : (
-              <span className="material-symbols-outlined">search</span>
-            )}
-            Buscar
-          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Opción 1: Buscador (Sigue con 403 en algunos casos) */}
+          <div className="space-y-3">
+            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Opción A: Buscador de Catálogo</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchMLProducts()}
+                placeholder="Ej: Smart TV 50..."
+                className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-700 focus:outline-none"
+              />
+              <button
+                onClick={searchMLProducts}
+                disabled={searching || !searchQuery.trim()}
+                className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition-all disabled:opacity-50"
+              >
+                {searching ? <span className="material-symbols-outlined animate-spin text-sm">sync</span> : 'Buscar'}
+              </button>
+            </div>
+          </div>
+
+          {/* Opción 2: Importación Directa (MÁS ROBUSTA) */}
+          <div className="space-y-3">
+            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Opción B: Importar por Link o ID (Recomendado)</label>
+            <div className="flex gap-2">
+              <input
+                id="manual_import_input"
+                type="text"
+                placeholder="Pega el link de ML o ID (MLA123...)"
+                className="flex-1 bg-zinc-950 border border-amber-500/20 rounded-xl px-4 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/50"
+              />
+              <button
+                onClick={async () => {
+                  const input = (document.getElementById('manual_import_input') as HTMLInputElement);
+                  const val = input.value.trim();
+                  if (!val) return;
+                  
+                  // Extraer ID (MLA...) del link o usar el ID directo
+                  const idMatch = val.match(/(MLA|MLM|MLB|MLC|MCO|MLU|MPE)-\d+/i) || val.match(/\d+/);
+                  const itemId = idMatch ? idMatch[0].toUpperCase() : val.toUpperCase();
+
+                  if (!itemId.includes('ML')) {
+                    alert('ID no válido. Debe ser algo como MLA123456');
+                    return;
+                  }
+
+                  setLoading(true);
+                  try {
+                    const res = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
+                    if (!res.ok) throw new Error('Producto no encontrado');
+                    const product = await res.json();
+                    
+                    setSearchResults([product]);
+                    setSelectedIds([product.id]);
+                    input.value = '';
+                  } catch (e: any) {
+                    alert('Error al importar por ID: ' + e.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="px-4 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold transition-all"
+              >
+                Cargar
+              </button>
+            </div>
+          </div>
         </div>
 
         {searchResults.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-white/10">
+          <div className="mt-6 pt-6 border-t border-white/10">
             <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-zinc-400">{searchResults.length} resultados</p>
+              <p className="text-sm text-zinc-400">{searchResults.length} resultados encontrados</p>
               <button
                 onClick={importSelectedProducts}
                 disabled={selectedIds.length === 0}
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold text-sm disabled:opacity-50"
               >
-                Importar ({selectedIds.length})
+                Importar a Mi Tienda ({selectedIds.length})
               </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-80 overflow-y-auto">
@@ -586,17 +637,12 @@ export default function MLAffiliatePage() {
                   }`}
                 >
                   <div className="aspect-square bg-zinc-800">
-                    {product.thumbnail ? (
-                      <img src={product.thumbnail} alt={product.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="material-symbols-outlined text-4xl text-zinc-600">image</span>
-                      </div>
-                    )}
+                    <img src={product.pictures?.[0]?.url || product.thumbnail} alt={product.title} className="w-full h-full object-cover" />
                   </div>
                   <div className="p-2">
-                    <p className="text-xs text-white line-clamp-2">{product.title}</p>
-                    <p className="text-sm font-bold text-amber-400">
+                    <p className="text-[10px] text-zinc-500 mb-1">{product.id}</p>
+                    <p className="text-xs text-white line-clamp-2 leading-tight">{product.title}</p>
+                    <p className="text-sm font-bold text-amber-400 mt-1">
                       ${product.price?.toLocaleString('es-AR')}
                     </p>
                   </div>
