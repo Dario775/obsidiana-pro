@@ -602,36 +602,48 @@ export default function MLAffiliatePage() {
                   const val = input.value.trim();
                   if (!val) return;
                   
-                  // Regex mejorada para extraer el ID de cualquier link de ML
-                  const regex = /([A-Z]{2,3})[-]?([0-9]{8,15})/i;
-                  const match = val.match(regex);
-                  let itemId = '';
+                  // Regex para capturar TODOS los posibles IDs en el link
+                  const regex = /([A-Z]{2,3})[-]?([0-9]{5,15})/gi;
+                  const matches = Array.from(val.matchAll(regex));
                   
-                  if (match) {
-                    itemId = match[1].toUpperCase() + match[2];
-                  } else {
-                    itemId = val.trim().toUpperCase().replace(/[-]/g, '');
-                  }
-
-                  if (itemId.length < 5) {
-                    alert('ID no reconocido. Por favor pega el link completo del producto de Mercado Libre.');
+                  if (matches.length === 0) {
+                    alert('No se reconoció ningún ID en el link. Pega la URL completa de Mercado Libre.');
                     return;
                   }
 
                   setLoading(true);
-                  try {
-                    const res = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
-                    if (!res.ok) throw new Error('Producto no encontrado. Asegúrate de que el link sea de un producto real.');
-                    const product = await res.json();
+                  let success = false;
+                  
+                  // Probamos cada ID encontrado en el link
+                  for (const match of matches) {
+                    const id = match[1].toUpperCase() + match[2];
                     
-                    setSearchResults([product]);
-                    setSelectedIds([product.id]);
-                    input.value = '';
-                  } catch (e: any) {
-                    alert('Error: ' + e.message);
-                  } finally {
-                    setLoading(false);
+                    try {
+                      // Intento 1: Como ITEM (Publicación normal)
+                      let res = await fetch(`https://api.mercadolibre.com/items/${id}`);
+                      
+                      // Intento 2: Como PRODUCTO (Catálogo /p/) si el anterior falló
+                      if (!res.ok) {
+                        res = await fetch(`https://api.mercadolibre.com/products/${id}`);
+                      }
+
+                      if (res.ok) {
+                        const product = await res.json();
+                        setSearchResults([product]);
+                        setSelectedIds([product.id]);
+                        input.value = '';
+                        success = true;
+                        break; // ¡Encontrado!
+                      }
+                    } catch (e) {
+                      continue; // Probar el siguiente ID
+                    }
                   }
+
+                  if (!success) {
+                    alert('No pudimos encontrar el producto con ese link. Asegúrate de que sea un producto activo en Mercado Libre.');
+                  }
+                  setLoading(false);
                 }}
                 className="px-4 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold transition-all"
               >
