@@ -167,41 +167,56 @@ export async function POST(request: NextRequest) {
     const searchLimit = Math.min(Math.max(1, limit), 50);
     const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
     
-    // Diagnostic: Try to fetch a static item with mobile UA
+    // Diagnostic 1: Try to fetch a static item (Argentina)
     let testItemResponse = 'Not tested';
     try {
       const testItemRes = await fetch('https://api.mercadolibre.com/items/MLA1136423376', {
         headers: { 'User-Agent': mobileUA }
       });
-      testItemResponse = testItemRes.ok ? 'Success (Mobile UA worked!)' : `Failed (${testItemRes.status})`;
+      testItemResponse = testItemRes.ok ? 'Success' : `Failed (${testItemRes.status})`;
     } catch (e: any) {
       testItemResponse = `Exception: ${e.message}`;
     }
 
-    console.log('--- ML SEARCH DIAGNOSTICS (MOBILE SPOOF) ---');
+    // Diagnostic 2: Try to search in MEXICO (MLM) to see if it's a regional block
+    let testMlmResponse = 'Not tested';
+    try {
+      const mlmRes = await fetch('https://api.mercadolibre.com/sites/MLM/search?q=iphone&limit=1', {
+        headers: { 'User-Agent': mobileUA }
+      });
+      testMlmResponse = mlmRes.ok ? 'Success (Mexico works!)' : `Failed (${mlmRes.status})`;
+    } catch (e: any) {
+      testMlmResponse = `Exception: ${e.message}`;
+    }
+
+    console.log('--- ML SEARCH DIAGNOSTICS (REGIONAL TEST) ---');
     console.log('URL:', searchUrl);
 
+    const fullHeaders: any = {
+      'Authorization': `Bearer ${accessToken}`,
+      'User-Agent': mobileUA,
+      'Accept': 'application/json',
+      'Accept-Language': 'es-AR,es;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'Cache-Control': 'max-age=0'
+    };
+
     // ── Authorized search ──────────────────────────────────────────────────
-    // We send ONLY the essential headers to look like a mobile device
     let searchResponse = await fetch(searchUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'User-Agent': mobileUA,
-        'Accept': '*/*',
-        'Connection': 'keep-alive'
-      },
+      headers: fullHeaders
     });
 
     // ── Fallback: public search on 403 ────────────────────────────────────
     let wasFallbackTriggered = false;
     if (searchResponse.status === 403) {
       wasFallbackTriggered = true;
-      console.log('Authorized mobile search forbidden (403), trying public mobile search...');
+      console.log('Authorized search forbidden (403), trying public search with clean headers...');
       
       searchResponse = await fetch(searchUrl, {
         headers: {
           'User-Agent': mobileUA,
-          'Accept': '*/*'
+          'Accept': 'application/json'
         },
       });
     }
@@ -223,6 +238,7 @@ export async function POST(request: NextRequest) {
         site_id_used: siteId,
         account_details: accountInfo,
         test_item_result: testItemResponse,
+        test_mlm_result: testMlmResponse,
         fallback_triggered: wasFallbackTriggered,
         ml_response: mlError
       };
