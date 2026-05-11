@@ -14,25 +14,19 @@ async function getTenantInfo(tenantId: string) {
   return tenant;
 }
 
-/**
- * Helper: ensures we have a valid ML token for the tenant.
- * Auto-refreshes if expired.
- */
 async function getValidToken(tenantId: string): Promise<string | null> {
   const tenant = await getTenantInfo(tenantId);
   if (!tenant?.ml_access_token) return null;
 
-  // Check if token is still valid (with 5 min buffer)
   const expiresAt = tenant.ml_token_expires_at
     ? new Date(tenant.ml_token_expires_at)
     : new Date(0);
-  const now = new Date(Date.now() + 5 * 60 * 1000); // 5 min buffer
+  const now = new Date(Date.now() + 5 * 60 * 1000);
 
   if (expiresAt > now) {
     return tenant.ml_access_token;
   }
 
-  // Token expired — try to refresh
   if (!tenant.ml_refresh_token) return null;
 
   const { data: configData } = await supabaseAdmin
@@ -64,7 +58,6 @@ async function getValidToken(tenantId: string): Promise<string | null> {
     });
 
     if (!refreshResponse.ok) {
-      // Invalidate stored tokens
       await supabaseAdmin
         .from('tenants')
         .update({
@@ -78,7 +71,6 @@ async function getValidToken(tenantId: string): Promise<string | null> {
 
     const tokenData = await refreshResponse.json();
 
-    // Save new tokens
     await supabaseAdmin
       .from('tenants')
       .update({
@@ -98,13 +90,11 @@ async function getValidToken(tenantId: string): Promise<string | null> {
 
 /**
  * POST /api/ml/search
- * Server-side product search on Mercado Libre.
- * Access token never leaves the server.
- * 
  * Body: { query: string, tenant_id: string, limit?: number }
  */
 export async function POST(request: NextRequest) {
   try {
+    // ✅ El body se lee UNA SOLA VEZ aquí
     const body = await request.json();
     const { query, tenant_id, limit = 20 } = body;
 
@@ -115,10 +105,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Diagnostic: Test if ML is even reachable
+    // Diagnostic reachability check
     try {
       const testRes = await fetch('https://api.mercadolibre.com/sites', {
-        headers: { 'User-Agent': 'ObsidianaPro/1.0' }
+        headers: { 'User-Agent': 'ObsidianaPro/1.0' },
       });
       console.log('ML Sites Reachability:', testRes.status);
     } catch (e) {
@@ -126,7 +116,6 @@ export async function POST(request: NextRequest) {
     }
 
     const tenant = await getTenantInfo(tenant_id);
-    const accessToken = await getValidToken(tenant_id);
 
     if (!tenant) {
       return NextResponse.json(
@@ -135,6 +124,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const accessToken = await getValidToken(tenant_id);
+
     if (!accessToken) {
       return NextResponse.json(
         { error: 'ML not connected or token expired. Please reconnect.', needsReconnect: true },
@@ -142,14 +133,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch site_id on the fly from the token (ensures regional correctness)
+    // Fetch regional site_id
     let siteId = ML_SITE_ID;
     try {
       const userRes = await fetch('https://api.mercadolibre.com/users/me', {
-        headers: { 
-          'Authorization': `Bearer ${accessToken}`,
-          'User-Agent': 'ObsidianaPro/1.0'
-        }
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'User-Agent': 'ObsidianaPro/1.0',
+        },
       });
       if (userRes.ok) {
         const userData = await userRes.json();
@@ -159,47 +150,49 @@ export async function POST(request: NextRequest) {
       console.error('Failed to fetch siteId on the fly:', e);
     }
 
-    // Search ML API server-side
     const searchLimit = Math.min(Math.max(1, limit), 50);
     const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
-    
+
+    // ── Authorized search ──────────────────────────────────────────────────
     let searchResponse = await fetch(searchUrl, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-        'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)'
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)',
       },
     });
 
-    // Fallback to public search if authorized search is forbidden (common for some app types/categories)
+    // ── Fallback: public search on 403 ────────────────────────────────────
     if (searchResponse.status === 403) {
+      // ✅ Lee el body del 403 UNA VEZ y guárdalo en una variable
       const forbiddenBody = await searchResponse.text();
       console.error('Authorized search 403 body:', forbiddenBody);
-      
       console.log('Authorized search forbidden, trying public search...');
+
+      // Reemplaza searchResponse con la respuesta pública
       searchResponse = await fetch(searchUrl, {
         headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)'
+          Accept: 'application/json',
+          'User-Agent': 'ObsidianaPro/1.0 (https://obsidiana-pro.vercel.app)',
         },
       });
 
       if (!searchResponse.ok) {
         console.error('Public search failure, status:', searchResponse.status);
       }
-    }
-    }
+    } // ✅ Solo una llave de cierre aquí — bug corregido
 
+    // ── Error handling ─────────────────────────────────────────────────────
     if (!searchResponse.ok) {
       const status = searchResponse.status;
+      // ✅ El body de searchResponse solo se lee UNA VEZ aquí
       const errorText = await searchResponse.text();
       let mlError = errorText;
-      
+
       try {
-        // Try to pretty-print if it's JSON
         mlError = JSON.stringify(JSON.parse(errorText));
       } catch {
-        // Stay as plain text if not JSON
+        // Stay as plain text
       }
 
       console.error(`ML API Error (${status}):`, mlError);
@@ -213,13 +206,13 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         { error: `ML API Error (${status})`, details: mlError },
-        { status: status }
+        { status }
       );
     }
 
+    // ── Success ────────────────────────────────────────────────────────────
     const data = await searchResponse.json();
 
-    // Map results — only return safe fields (no tokens)
     const results = (data.results || []).map((item: any) => ({
       id: item.id,
       title: item.title,
