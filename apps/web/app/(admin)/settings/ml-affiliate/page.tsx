@@ -294,39 +294,48 @@ export default function MLAffiliatePage() {
       return;
     }
 
-    if (!isConnected) {
-      alert('Conecta con Mercado Libre primero');
-      return;
-    }
-
     setSearching(true);
     try {
-      // Search via server-side API — token never reaches browser
-      const response = await fetch('/api/ml/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: searchQuery,
-          tenant_id: tenant?.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.needsReconnect) {
-          setConnectionStatus({ isConnected: false, expiresAt: null });
-          alert(`Sesión expirada. Reconecta con Mercado Libre.\n\nDetalles: ${data.details || 'No hay detalles'}`);
-        } else {
-          alert(`${data.error || 'Error en la búsqueda'}\n\nDetalles: ${data.details || 'No hay detalles'}`);
+      // 1. Obtener el site_id (intentamos MLA por defecto o el que tenga la cuenta)
+      let siteId = 'MLA';
+      
+      // Intentamos obtener el site_id real de la cuenta conectada si existe
+      try {
+        const { data: tenantData } = await supabase
+          .from('tenants')
+          .select('ml_access_token')
+          .eq('id', tenant?.id)
+          .single();
+        
+        if (tenantData?.ml_access_token) {
+          const userRes = await fetch('https://api.mercadolibre.com/users/me', {
+            headers: { 'Authorization': `Bearer ${tenantData.ml_access_token}` }
+          });
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            siteId = userData.site_id || 'MLA';
+          }
         }
-        return;
+      } catch (e) {
+        console.warn('Usando site_id por defecto (MLA)');
       }
 
+      // 2. Búsqueda DIRECTA desde el navegador (evita bloqueo de IP de Vercel)
+      const response = await fetch(`https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(searchQuery)}&limit=20`);
+      
+      if (!response.ok) {
+        throw new Error(`Error de Mercado Libre: ${response.status}`);
+      }
+
+      const data = await response.json();
       setSearchResults(data.results || []);
-    } catch (error) {
+
+      if (data.results?.length === 0) {
+        alert('No se encontraron productos para esa búsqueda.');
+      }
+    } catch (error: any) {
       console.error('Search error:', error);
-      alert('Error al buscar');
+      alert('Error al buscar productos. Intenta de nuevo.\n\nDetalles: ' + (error.message || String(error)));
     } finally {
       setSearching(false);
     }
