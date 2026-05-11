@@ -631,18 +631,26 @@ export default function MLAffiliatePage() {
                     const id = match[1].toUpperCase() + match[2];
                     
                     try {
-                      const headers: any = {};
-                      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                      // Intento 1: Como ITEM (Publicación normal)
-                      let res = await fetch(`https://api.mercadolibre.com/items/${id}`, { headers });
+                      // Usamos modo 'no-referrer' para ocultar que venimos de Vercel y evitar el bloqueo de dominio
+                      const res = await fetch(`https://api.mercadolibre.com/items/${id}`, { 
+                        referrerPolicy: 'no-referrer'
+                      });
                       
-                      // Intento 2: Como PRODUCTO (Catálogo /p/)
+                      // Si falla como ITEM, probamos como PRODUCTO
                       if (!res.ok) {
-                        res = await fetch(`https://api.mercadolibre.com/products/${id}`, { headers });
-                      }
-
-                      if (res.ok) {
+                        const resProd = await fetch(`https://api.mercadolibre.com/products/${id}`, { 
+                          referrerPolicy: 'no-referrer'
+                        });
+                        
+                        if (resProd.ok) {
+                          const product = await resProd.json();
+                          setSearchResults([product]);
+                          setSelectedIds([product.id]);
+                          input.value = '';
+                          success = true;
+                          break;
+                        }
+                      } else {
                         const product = await res.json();
                         setSearchResults([product]);
                         setSelectedIds([product.id]);
