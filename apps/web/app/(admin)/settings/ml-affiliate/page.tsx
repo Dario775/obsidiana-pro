@@ -567,7 +567,28 @@ export default function MLAffiliatePage() {
 
           {/* Opción 2: Importación Directa (MÁS ROBUSTA) */}
           <div className="space-y-3">
-            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Opción B: Importar por Link o ID (Recomendado)</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Opción B: Importar por Link o ID (Recomendado)</label>
+              <button 
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const res = await fetch(`https://api.mercadolibre.com/items/MLA1136423376`);
+                    if (!res.ok) throw new Error('Error al conectar con ML');
+                    const product = await res.json();
+                    setSearchResults([product]);
+                    setSelectedIds([product.id]);
+                  } catch (e: any) {
+                    alert('Error en prueba: ' + e.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="text-[10px] text-amber-500 font-bold hover:underline"
+              >
+                Cargar Producto de Prueba
+              </button>
+            </div>
             <div className="flex gap-2">
               <input
                 id="manual_import_input"
@@ -587,10 +608,8 @@ export default function MLAffiliatePage() {
                   let itemId = '';
                   
                   if (match) {
-                    // Reconstruye el ID sin el guión (ej: MLA-123 -> MLA123)
                     itemId = match[1].toUpperCase() + match[2];
                   } else {
-                    // Si no hay match, probamos si puso el ID directo
                     itemId = val.trim().toUpperCase().replace(/[-]/g, '');
                   }
 
@@ -602,14 +621,14 @@ export default function MLAffiliatePage() {
                   setLoading(true);
                   try {
                     const res = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
-                    if (!res.ok) throw new Error('Producto no encontrado en Mercado Libre. Verifica el ID o link.');
+                    if (!res.ok) throw new Error('Producto no encontrado. Asegúrate de que el link sea de un producto real.');
                     const product = await res.json();
                     
                     setSearchResults([product]);
                     setSelectedIds([product.id]);
                     input.value = '';
                   } catch (e: any) {
-                    alert('Error al cargar: ' + e.message);
+                    alert('Error: ' + e.message);
                   } finally {
                     setLoading(false);
                   }
