@@ -614,18 +614,32 @@ export default function MLAffiliatePage() {
                   setLoading(true);
                   let success = false;
                   
+                  // Intentamos obtener el token para que ML no nos bloquee la petición
+                  let token = '';
+                  try {
+                    const { data: tenantData } = await supabase
+                      .from('tenants')
+                      .select('ml_access_token')
+                      .eq('id', tenant?.id)
+                      .single();
+                    token = tenantData?.ml_access_token || '';
+                  } catch (e) {}
+
                   // Probamos cada ID encontrado en el link
                   for (const match of matches) {
                     if (!match || !match[1] || !match[2]) continue;
                     const id = match[1].toUpperCase() + match[2];
                     
                     try {
+                      const headers: any = {};
+                      if (token) headers['Authorization'] = `Bearer ${token}`;
+
                       // Intento 1: Como ITEM (Publicación normal)
-                      let res = await fetch(`https://api.mercadolibre.com/items/${id}`);
+                      let res = await fetch(`https://api.mercadolibre.com/items/${id}`, { headers });
                       
-                      // Intento 2: Como PRODUCTO (Catálogo /p/) si el anterior falló
+                      // Intento 2: Como PRODUCTO (Catálogo /p/)
                       if (!res.ok) {
-                        res = await fetch(`https://api.mercadolibre.com/products/${id}`);
+                        res = await fetch(`https://api.mercadolibre.com/products/${id}`, { headers });
                       }
 
                       if (res.ok) {
@@ -634,7 +648,7 @@ export default function MLAffiliatePage() {
                         setSelectedIds([product.id]);
                         input.value = '';
                         success = true;
-                        break; // ¡Encontrado!
+                        break; 
                       }
                     } catch (e) {
                       continue; 
