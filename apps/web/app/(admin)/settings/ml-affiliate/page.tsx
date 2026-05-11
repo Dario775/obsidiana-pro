@@ -616,6 +616,7 @@ export default function MLAffiliatePage() {
                   
                   // Probamos cada ID encontrado en el link
                   for (const match of matches) {
+                    if (!match || !match[1] || !match[2]) continue;
                     const id = match[1].toUpperCase() + match[2];
                     
                     try {
