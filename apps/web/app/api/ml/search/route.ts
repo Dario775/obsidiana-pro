@@ -161,61 +161,48 @@ export async function POST(request: NextRequest) {
       accountInfo = `Exception fetching user info: ${e.message}`;
     }
 
-    // Get App Config for X-Caller-Id
-    const { data: configData } = await supabaseAdmin
-      .from('platform_settings')
-      .select('value')
-      .eq('key', 'ml_app_config')
-      .single();
-    const config = configData?.value as any;
-    const clientId = config?.app_client_id;
+    // iPhone User-Agent spoofing to bypass WAF
+    const mobileUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1';
 
     const searchLimit = Math.min(Math.max(1, limit), 50);
-    // REMOVED token from URL to avoid duplicate auth suspicion
     const searchUrl = `https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(query)}&limit=${searchLimit}`;
     
-    // Diagnostic: Try to fetch a static item to see if the whole API is blocked
+    // Diagnostic: Try to fetch a static item with mobile UA
     let testItemResponse = 'Not tested';
     try {
       const testItemRes = await fetch('https://api.mercadolibre.com/items/MLA1136423376', {
-        headers: { 'User-Agent': 'PostmanRuntime/7.32.3' }
+        headers: { 'User-Agent': mobileUA }
       });
-      testItemResponse = testItemRes.ok ? 'Success (IP is NOT blocked)' : `Failed (${testItemRes.status})`;
+      testItemResponse = testItemRes.ok ? 'Success (Mobile UA worked!)' : `Failed (${testItemRes.status})`;
     } catch (e: any) {
       testItemResponse = `Exception: ${e.message}`;
     }
 
-    console.log('--- ML SEARCH DIAGNOSTICS ---');
+    console.log('--- ML SEARCH DIAGNOSTICS (MOBILE SPOOF) ---');
     console.log('URL:', searchUrl);
-    console.log('Account:', accountInfo);
-
-    const headers: any = {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-      'User-Agent': 'PostmanRuntime/7.32.3',
-    };
-
-    if (clientId) {
-      headers['X-Caller-Id'] = clientId;
-    }
 
     // ── Authorized search ──────────────────────────────────────────────────
-    let searchResponse = await fetch(searchUrl, { headers });
+    // We send ONLY the essential headers to look like a mobile device
+    let searchResponse = await fetch(searchUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': mobileUA,
+        'Accept': '*/*',
+        'Connection': 'keep-alive'
+      },
+    });
 
     // ── Fallback: public search on 403 ────────────────────────────────────
     let wasFallbackTriggered = false;
     if (searchResponse.status === 403) {
       wasFallbackTriggered = true;
-      console.log('Authorized search forbidden (403), trying public search...');
+      console.log('Authorized mobile search forbidden (403), trying public mobile search...');
       
-      const publicHeaders: any = {
-        'Accept': 'application/json',
-        'User-Agent': 'PostmanRuntime/7.32.3',
-      };
-      if (clientId) publicHeaders['X-Caller-Id'] = clientId;
-
       searchResponse = await fetch(searchUrl, {
-        headers: publicHeaders,
+        headers: {
+          'User-Agent': mobileUA,
+          'Accept': '*/*'
+        },
       });
     }
 
