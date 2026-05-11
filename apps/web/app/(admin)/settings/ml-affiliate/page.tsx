@@ -581,26 +581,35 @@ export default function MLAffiliatePage() {
                   const val = input.value.trim();
                   if (!val) return;
                   
-                  // Extraer ID (MLA...) del link o usar el ID directo
-                  const idMatch = val.match(/(MLA|MLM|MLB|MLC|MCO|MLU|MPE)-\d+/i) || val.match(/\d+/);
-                  const itemId = idMatch ? idMatch[0].toUpperCase() : val.toUpperCase();
+                  // Regex mejorada para extraer el ID de cualquier link de ML
+                  const regex = /([A-Z]{2,3})[-]?([0-9]{8,15})/i;
+                  const match = val.match(regex);
+                  let itemId = '';
+                  
+                  if (match) {
+                    // Reconstruye el ID sin el guión (ej: MLA-123 -> MLA123)
+                    itemId = match[1].toUpperCase() + match[2];
+                  } else {
+                    // Si no hay match, probamos si puso el ID directo
+                    itemId = val.trim().toUpperCase().replace(/[-]/g, '');
+                  }
 
-                  if (!itemId.includes('ML')) {
-                    alert('ID no válido. Debe ser algo como MLA123456');
+                  if (itemId.length < 5) {
+                    alert('ID no reconocido. Por favor pega el link completo del producto de Mercado Libre.');
                     return;
                   }
 
                   setLoading(true);
                   try {
                     const res = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
-                    if (!res.ok) throw new Error('Producto no encontrado');
+                    if (!res.ok) throw new Error('Producto no encontrado en Mercado Libre. Verifica el ID o link.');
                     const product = await res.json();
                     
                     setSearchResults([product]);
                     setSelectedIds([product.id]);
                     input.value = '';
                   } catch (e: any) {
-                    alert('Error al importar por ID: ' + e.message);
+                    alert('Error al cargar: ' + e.message);
                   } finally {
                     setLoading(false);
                   }
