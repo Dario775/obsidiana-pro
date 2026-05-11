@@ -321,7 +321,9 @@ export default function MLAffiliatePage() {
       }
 
       // 2. Búsqueda DIRECTA desde el navegador (evita bloqueo de IP de Vercel)
-      const response = await fetch(`https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(searchQuery)}&limit=20`);
+      // Añadimos el client_id a la búsqueda pública para identificarnos ante ML
+      const clientIdParam = platformConfig?.app_client_id ? `&client_id=${platformConfig.app_client_id}` : '';
+      const response = await fetch(`https://api.mercadolibre.com/sites/${siteId}/search?q=${encodeURIComponent(searchQuery)}&limit=20${clientIdParam}`);
       
       if (!response.ok) {
         throw new Error(`Error de Mercado Libre: ${response.status}`);
