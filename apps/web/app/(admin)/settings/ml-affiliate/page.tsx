@@ -636,12 +636,16 @@ export default function MLAffiliatePage() {
                         break; // ¡Encontrado!
                       }
                     } catch (e) {
-                      continue; // Probar el siguiente ID
+                      continue; 
                     }
                   }
 
                   if (!success) {
-                    alert('No pudimos encontrar el producto con ese link. Asegúrate de que sea un producto activo en Mercado Libre.');
+                    if (val.includes('meli.la') || !val.includes('ML')) {
+                      alert('⚠️ Estás usando un Link Acortado o un Código de Afiliado.\n\nPor favor, abre el link en tu navegador y copia la dirección LARGA que aparece arriba (la que tiene el MLA...).');
+                    } else {
+                      alert('No pudimos encontrar el producto. Asegúrate de copiar el link completo del producto.');
+                    }
                   }
                   setLoading(false);
                 }}
