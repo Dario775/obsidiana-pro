@@ -33,7 +33,7 @@ export default function PlatformDashboard() {
         supabase.from('orders').select('*'),
         supabase.from('products').select('*'),
         supabase.from('customers').select('*'),
-        supabase.from('subscription_payments').select('*').eq('status', 'completed')
+        supabase.from('subscription_payments').select('*').order('created_at', { ascending: false })
       ]);
 
       setTenants(tenantsRes.data || []);
@@ -48,6 +48,40 @@ export default function PlatformDashboard() {
       setLoading(false);
     }
   }
+
+  const handleApprovePayment = async (payment: any) => {
+    if (!confirm('¿Confirmar aprobación de pago? Se activará la suscripción por 30 días.')) return;
+    
+    setLoading(true);
+    try {
+      const now = new Date();
+      const expiresAt = new Date();
+      expiresAt.setDate(now.getDate() + 30);
+
+      // 1. Update payment status
+      await supabase.from('subscription_payments')
+        .update({ status: 'completed' })
+        .eq('id', payment.id);
+
+      // 2. Update tenant subscription
+      await supabase.from('tenants')
+        .update({ 
+          plan_id: payment.plan_id,
+          subscription_status: 'active',
+          plan_started_at: now.toISOString(),
+          paid_until: expiresAt.toISOString()
+        })
+        .eq('id', payment.tenant_id);
+
+      alert('Suscripción activada con éxito');
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      alert('Error al aprobar pago');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,8 +109,9 @@ export default function PlatformDashboard() {
   };
 
   const platformGMV = orders.reduce((acc, order) => acc + (order.total_ars || 0), 0);
-  const saasRevenue = subscriptionPayments.reduce((acc, pay) => acc + (pay.amount || 0), 0);
+  const saasRevenue = subscriptionPayments.filter(p => p.status === 'completed').reduce((acc, pay) => acc + (pay.amount || 0), 0);
   const activeTenants = tenants.filter(t => t.status === 'active').length;
+  const pendingPayments = subscriptionPayments.filter(p => p.status === 'pending_confirmation');
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
@@ -141,6 +176,50 @@ export default function PlatformDashboard() {
         ))}
       </div>
 
+
+      {/* Pagos Pendientes (NUEVA SECCIÓN) */}
+      {pendingPayments.length > 0 && (
+        <div className="mb-10 bg-amber-500/5 border border-amber-500/20 rounded-[2rem] p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="material-symbols-outlined text-amber-500">pending_actions</span>
+            <h2 className="text-lg font-black uppercase tracking-tighter text-white">Pagos Pendientes de Aprobación</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {pendingPayments.map((pay) => {
+              const t = tenants.find(ten => ten.id === pay.tenant_id);
+              return (
+                <div key={pay.id} className="bg-zinc-900 border border-white/5 rounded-2xl p-6 flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Merchant</p>
+                      <p className="text-sm font-bold text-white">{t?.nombre || 'Desconocido'}</p>
+                    </div>
+                    <span className="text-[10px] font-black text-amber-400 uppercase bg-amber-400/10 px-2 py-0.5 rounded">Pendiente</span>
+                  </div>
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Monto</p>
+                      <p className="text-xl font-black text-white">{formatCurrency(pay.amount)}</p>
+                    </div>
+                    {pay.proof_url && (
+                      <a href={pay.proof_url} target="_blank" rel="noreferrer" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">image</span>
+                        Ver Comprobante
+                      </a>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => handleApprovePayment(pay)}
+                    className="w-full py-3 bg-primary text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-emerald-400 transition-all active:scale-95"
+                  >
+                    Confirmar y Activar Plan
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Tenant Activity & Infrastructure */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

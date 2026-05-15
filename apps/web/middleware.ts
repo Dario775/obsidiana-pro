@@ -1,0 +1,88 @@
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+
+export async function middleware(request: NextRequest) {
+  const url = request.nextUrl;
+  const hostname = request.headers.get('host') || '';
+  
+  // 1. Lógica de Subdominios (Multi-tenancy)
+  const rootDomains = ['obsidiana.com.ar', 'localhost:3000', 'obsidiana-pro.vercel.app'];
+  const currentHost = hostname
+    .replace(':3000', '')
+    .replace('.obsidiana.com.ar', '')
+    .replace('.obsidiana-pro.vercel.app', '');
+
+  const isRootDomain = rootDomains.some(domain => hostname === domain) || currentHost === 'www' || currentHost === '';
+
+  // Si es un subdominio de tienda (ej: tienda1.obsidiana.com.ar)
+  if (!isRootDomain) {
+    // Evitar bucles y proteger rutas internas
+    if (url.pathname.startsWith('/tienda') || url.pathname.startsWith('/_next') || url.pathname.startsWith('/api') || url.pathname.includes('.')) {
+      return NextResponse.next();
+    }
+    // Reescribir subdominio a la ruta de la tienda
+    return NextResponse.rewrite(new URL(`/tienda/${currentHost}${url.pathname}`, request.url));
+  }
+
+  // 2. Lógica de Autenticación (Solo para el dominio principal)
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          request.cookies.set({ name, value, ...options });
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          });
+          response.cookies.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          request.cookies.set({ name, value: '', ...options });
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          });
+          response.cookies.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Rutas que NO requieren login
+  const publicRoutes = ['/login', '/register', '/auth/callback', '/tienda', '/api/webhooks'];
+  const isPublicRoute = publicRoutes.some(route => url.pathname.startsWith(route)) || url.pathname === '/';
+
+  // Redirecciones de seguridad
+  if (!user && !isPublicRoute) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  if (user && (url.pathname === '/login' || url.pathname === '/register')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all paths except for:
+     * 1. /api/auth (internos de supabase)
+     * 2. /_next (Next.js internals)
+     * 3. static files (images, etc)
+     */
+    '/((?!api/auth|_next|_static|_vercel|[\\w-]+\\.\\w+).*)',
+  ],
+};
