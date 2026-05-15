@@ -31,35 +31,26 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error && data.user) {
-      // Check if user has a tenant
-      const userTenantId = data.user.user_metadata?.tenant_id;
-      
-      if (!userTenantId) {
-        // Double check in tenant_members table
-        const { data: memberData } = await supabase
-          .from('tenant_members')
-          .select('tenant_id')
-          .eq('user_id', data.user.id)
-          .maybeSingle();
-        
-        if (!memberData) {
-          // New user from Google without tenant -> redirect to registration/onboarding
-          return NextResponse.redirect(`${origin}/register`);
-        }
-      }
-      
-      // If we are here, user has a tenant or is an admin
-      // Check if is platform admin
-      const { data: tenantData } = await supabase
-        .from('tenants')
-        .select('is_platform_admin')
-        .eq('id', userTenantId || '')
+      // 1. Check for tenant association
+      const { data: memberData } = await supabase
+        .from('tenant_members')
+        .select('tenant_id, tenants(is_platform_admin)')
+        .eq('user_id', data.user.id)
         .maybeSingle();
       
-      if (tenantData?.is_platform_admin) {
+      // 2. If no tenant association found, send to registration
+      if (!memberData) {
+        return NextResponse.redirect(`${origin}/register`);
+      }
+
+      // 3. Check if the tenant is a platform admin (Super Admin)
+      const isPlatformAdmin = (memberData.tenants as any)?.is_platform_admin;
+
+      if (isPlatformAdmin) {
         return NextResponse.redirect(`${origin}/overview`);
       }
       
+      // 4. Default for regular merchants
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
