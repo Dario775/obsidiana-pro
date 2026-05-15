@@ -59,17 +59,21 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Rutas que NO requieren login
-  const publicRoutes = ['/login', '/register', '/auth/callback', '/tienda', '/api/webhooks'];
-  const isPublicRoute = publicRoutes.some(route => url.pathname.startsWith(route)) || url.pathname === '/';
+  // 3. Logic to handle protected vs public routes
+  const isPublicPath =
+    request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname === '/login' ||
+    request.nextUrl.pathname === '/register' ||
+    request.nextUrl.pathname.startsWith('/auth/') ||
+    request.nextUrl.pathname.startsWith('/tienda/');
 
-  // Redirecciones de seguridad
-  if (!user && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // Redirect authenticated users away from login/register to dashboard
+  if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  if (user && (url.pathname === '/login' || url.pathname === '/register')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  if (!user && !isPublicPath) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return response;

@@ -30,7 +30,11 @@ export async function GET(request: Request) {
     
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
-    if (!error && data.user) {
+    if (error) {
+      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`);
+    }
+
+    if (data.user) {
       // 1. Check for tenant association
       const { data: memberData } = await supabase
         .from('tenant_members')
@@ -38,9 +42,10 @@ export async function GET(request: Request) {
         .eq('user_id', data.user.id)
         .maybeSingle();
       
-      // 2. If no tenant association found, send to registration
+      // 2. If no tenant association found, this is a NEW user from Google
+      // Redirect to register but maybe with a flag
       if (!memberData) {
-        return NextResponse.redirect(`${origin}/register`);
+        return NextResponse.redirect(`${origin}/register?source=google`);
       }
 
       // 3. Check if the tenant is a platform admin (Super Admin)
@@ -56,5 +61,5 @@ export async function GET(request: Request) {
   }
 
   // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/login?error=Could not authenticate user`);
+  return NextResponse.redirect(`${origin}/login?error=Invalid session`);
 }
