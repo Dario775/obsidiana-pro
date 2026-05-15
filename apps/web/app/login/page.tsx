@@ -31,9 +31,40 @@ export default function LoginPage() {
 
       if (data.user) {
         let userTenantId = data.user.user_metadata?.tenant_id;
+        let tenantData = null;
 
-        // Fallback: try to match by store_name in metadata
-        if (!userTenantId && data.user.user_metadata?.store_name) {
+        // 1. Try with metadata tenant_id
+        if (userTenantId) {
+          const { data: t } = await supabase
+            .from('tenants')
+            .select('id, is_platform_admin')
+            .eq('id', userTenantId)
+            .maybeSingle();
+          tenantData = t;
+        }
+
+        // 2. Fallback: If not in metadata or tenant doesn't exist, check tenant_members
+        if (!tenantData) {
+          const { data: memberData } = await supabase
+            .from('tenant_members')
+            .select('tenant_id')
+            .eq('user_id', data.user.id)
+            .limit(1)
+            .maybeSingle();
+          
+          if (memberData) {
+            userTenantId = memberData.tenant_id;
+            const { data: t } = await supabase
+              .from('tenants')
+              .select('id, is_platform_admin')
+              .eq('id', userTenantId)
+              .maybeSingle();
+            tenantData = t;
+          }
+        }
+
+        // 3. Last fallback: try to match by store_name (legacy)
+        if (!tenantData && data.user.user_metadata?.store_name) {
           const sn = data.user.user_metadata.store_name;
           const { data: matchedTenant } = await supabase
             .from('tenants')
@@ -42,25 +73,19 @@ export default function LoginPage() {
             .limit(1)
             .maybeSingle();
           if (matchedTenant) {
+            tenantData = matchedTenant;
             userTenantId = matchedTenant.id;
           }
         }
 
-        // SECURITY: If we still don't have a tenant_id, show error instead of guessing
-        if (!userTenantId) {
+        // SECURITY: If we still don't have a tenant, show error
+        if (!tenantData) {
           setError('Tu cuenta no tiene un negocio asignado. Contactá al administrador o registra uno nuevo.');
           setLoading(false);
           return;
         }
 
-        // Check if this tenant is a platform admin
-        const { data: tenantData } = await supabase
-          .from('tenants')
-          .select('id, is_platform_admin')
-          .eq('id', userTenantId)
-          .maybeSingle();
-        
-        const isSuperAdmin = tenantData?.is_platform_admin === true;
+        const isSuperAdmin = tenantData.is_platform_admin === true;
         
         if (isSuperAdmin) {
           window.location.href = '/overview';
@@ -88,42 +113,6 @@ export default function LoginPage() {
           <h1 className="text-4xl font-black text-white mb-2">Obsidiana</h1>
           <p className="text-zinc-500">Inicia sesión en tu panel de administración</p>
         </div>
-
-        {/* ACCESO RÁPIDO — SOLO EN DESARROLLO (NODE_ENV === 'development') */}
-        {IS_DEV && (
-          <div className="mb-8 p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-amber-400 text-xl">🚀</span>
-              <h2 className="text-amber-400 font-black text-sm uppercase tracking-widest">
-                Acceso Rápido (Dev Only)
-              </h2>
-            </div>
-            
-            <div className="space-y-3">
-              <button
-                onClick={() => processLogin('demo@test.com', 'Demo1234')}
-                disabled={loading}
-                className="w-full min-h-11 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined shrink-0 text-[18px]">store</span>
-                <span className="leading-tight text-center">Entrar como Dueño de Tienda</span>
-              </button>
-              
-              <button
-                onClick={() => processLogin('admin@obsidiana.com', 'AdminObsidiana123')}
-                disabled={loading}
-                className="w-full min-h-11 bg-violet-600 hover:bg-violet-500 text-white px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined shrink-0 text-[18px]">admin_panel_settings</span>
-                <span className="leading-tight text-center">Entrar como Super Admin</span>
-              </button>
-            </div>
-            
-            <p className="mt-3 text-[10px] text-amber-500/60 text-center uppercase tracking-wider">
-              Oculto en producción — NODE_ENV: {process.env.NODE_ENV}
-            </p>
-          </div>
-        )}
 
         <form onSubmit={handleLogin} className="space-y-6">
           {error && (

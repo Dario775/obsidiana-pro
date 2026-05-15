@@ -6,9 +6,8 @@ import { createClient } from '@supabase/supabase-js';
  * This client bypasses RLS for admin operations.
  */
 
-// Hardcoding URLs to bypass Vercel env var misconfigurations
-const supabaseUrl = 'https://fjgwenrebdwssquebfay.supabase.co';
-const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZ3dlbnJlYmR3c3NxdWViZmF5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODM2MTYyNSwiZXhwIjoyMDkzOTM3NjI1fQ.g0LQrTqKkbpwiicea00pkl9374UizIhz46Y_Y1_fln4';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export const supabaseAdmin = createClient(
   supabaseUrl,

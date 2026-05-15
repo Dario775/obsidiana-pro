@@ -1,6 +1,14 @@
 -- Global Image Library Architecture
 -- Enables shared image catalog across tenants with crowdsourcing workflow
 
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'platform_admin') THEN
+    CREATE ROLE platform_admin;
+  END IF;
+END
+$$;
+
 -- Create extension if not exists
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pg_trgm;

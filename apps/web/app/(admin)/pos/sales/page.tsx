@@ -14,6 +14,9 @@ interface Order {
   financial_status: string;
   channel: string;
   placed_at: string;
+  customers?: {
+    nombre: string;
+  };
 }
 
 interface OrderItem {
@@ -21,9 +24,12 @@ interface OrderItem {
   order_id: string;
   quantity: number;
   unit_price_ars: number;
-  tax_ars: number;
-  title_snapshot: string;
-  sku_snapshot: string;
+  products?: {
+    title: string;
+  };
+  product_variants?: {
+    sku: string;
+  };
 }
 
 export default function POSSalesHistoryPage() {
@@ -51,7 +57,20 @@ export default function POSSalesHistoryPage() {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('id, number, total_ars, subtotal_ars, tax_ars, status, financial_status, channel, placed_at')
+        .select(`
+          id, 
+          number, 
+          total_ars, 
+          subtotal_ars, 
+          tax_ars, 
+          status, 
+          financial_status, 
+          channel, 
+          placed_at,
+          customers (
+            nombre
+          )
+        `)
         .eq('tenant_id', tenant.id)
         .eq('channel', 'pos')
         .order('placed_at', { ascending: false });
@@ -113,7 +132,18 @@ export default function POSSalesHistoryPage() {
     try {
       const { data, error } = await supabase
         .from('order_items')
-        .select('id, order_id, quantity, unit_price_ars, tax_ars, title_snapshot, sku_snapshot')
+        .select(`
+          id, 
+          order_id, 
+          quantity, 
+          unit_price_ars, 
+          products (
+            title
+          ),
+          product_variants (
+            sku
+          )
+        `)
         .eq('order_id', order.id);
 
       if (error) {
@@ -168,6 +198,9 @@ export default function POSSalesHistoryPage() {
           </div>
           <h1 className="font-headline-xl text-3xl font-black text-white mb-2">Ventas del Punto de Venta</h1>
           <p className="text-zinc-400 font-body-sm text-sm max-w-2xl">Registro de todas las transacciones realizadas en el local físico.</p>
+          <div className="mt-4 p-2 bg-zinc-900 rounded border border-white/5 text-[10px] font-mono text-zinc-500">
+            Tenant ID: {tenant?.id || 'NULL'} | Negocio: {tenant?.nombre || 'NULL'}
+          </div>
         </div>
         <div className="flex flex-wrap gap-3">
           <select
@@ -275,6 +308,7 @@ export default function POSSalesHistoryPage() {
             <thead>
               <tr className="bg-zinc-900/50 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
                 <th className="py-4 px-8">N° Orden</th>
+                <th className="py-4 px-8">Cliente</th>
                 <th className="py-4 px-8">Fecha / Hora</th>
                 <th className="py-4 px-8 text-right">Subtotal</th>
                 <th className="py-4 px-8 text-right">IVA</th>
@@ -286,13 +320,13 @@ export default function POSSalesHistoryPage() {
             <tbody className="divide-y divide-white/5 text-sm font-data-tabular text-white">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center text-zinc-500 font-black uppercase tracking-widest animate-pulse">
+                  <td colSpan={8} className="py-20 text-center text-zinc-500 font-black uppercase tracking-widest animate-pulse">
                     Cargando ventas...
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center text-zinc-500 font-black uppercase tracking-widest">
+                  <td colSpan={8} className="py-20 text-center text-zinc-500 font-black uppercase tracking-widest">
                     No hay ventas en el período seleccionado
                   </td>
                 </tr>
@@ -304,6 +338,9 @@ export default function POSSalesHistoryPage() {
                   <tr key={order.id} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="py-5 px-8">
                       <span className="font-black text-secondary">#{order.number}</span>
+                    </td>
+                    <td className="py-5 px-8">
+                      <span className="font-bold text-zinc-300">{order.customers?.nombre || 'Consumidor Final'}</span>
                     </td>
                     <td className="py-5 px-8">
                       <div className="flex flex-col">
@@ -378,8 +415,8 @@ export default function POSSalesHistoryPage() {
                     {orderItems.map((item) => (
                       <div key={item.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl border border-white/5">
                         <div className="flex-1">
-                          <p className="font-bold text-white text-sm">{item.title_snapshot || 'Producto'}</p>
-                          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">SKU: {item.sku_snapshot || 'N/A'}</p>
+                          <p className="font-bold text-white text-sm">{item.products?.title || 'Producto'}</p>
+                          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">SKU: {item.product_variants?.sku || 'N/A'}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-zinc-400 text-xs">{item.quantity} x $ {item.unit_price_ars?.toLocaleString('es-AR')}</p>

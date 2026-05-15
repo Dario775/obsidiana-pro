@@ -10,19 +10,23 @@ export function Sidebar() {
   const pathname = usePathname();
 
   const links = [
-    { href: '/overview', label: 'System Overview', icon: 'dashboard' },
-    { href: '/tenants', label: 'Tenants', icon: 'store' },
-    { href: '/settings/payments', label: 'Payment Settings', icon: 'credit_card' },
-    { href: '/settings/ml', label: 'ML Integration', icon: 'local_offer' },
-    { href: '/subscriptions', label: 'Subscriptions', icon: 'payments' },
-    { href: '/infrastructure', label: 'Infrastructure', icon: 'dns' }
+    { href: '/overview', label: 'Vista General', icon: 'dashboard' },
+    { href: '/tenants', label: 'Tiendas (Tenants)', icon: 'store' },
+    { href: '/settings/payments', label: 'Configuración de Pagos', icon: 'settings_suggest' },
+    { href: '/subscriptions', label: 'Planes y Pagos SaaS', icon: 'payments' },
+    { href: '/infrastructure', label: 'Infraestructura', icon: 'dns' }
   ];
 
   return (
-    <nav className="hidden lg:flex flex-col h-full py-6 bg-zinc-900 border-r border-white/10 w-64 fixed top-0 left-0 z-50">
+    <nav className="hidden lg:flex flex-col h-full py-6 bg-black border-r border-white/5 w-64 fixed top-0 left-0 z-50">
       <div className="px-6 mb-8 flex flex-col gap-1">
-        <h1 className="text-xl font-black text-white tracking-tighter uppercase">Obsidiana</h1>
-        <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Super Admin Panel</p>
+        <h1 className="text-xl font-black text-white tracking-tighter uppercase flex items-center gap-2">
+          <div className="w-6 h-6 bg-violet-500 rounded-lg flex items-center justify-center">
+            <span className="material-symbols-outlined text-white text-[14px]">diamond</span>
+          </div>
+          Obsidiana <span className="text-violet-500">Pro</span>
+        </h1>
+        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] mt-1">Panel de Super Admin</p>
       </div>
 
       <ul className="flex flex-col flex-1 px-4 gap-1">
@@ -55,8 +59,8 @@ export function Sidebar() {
               <span className="material-symbols-outlined text-zinc-500 text-[18px]">admin_panel_settings</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-white leading-none">Super User</span>
-              <span className="text-[9px] text-zinc-500 font-black uppercase mt-1">Global Root</span>
+              <span className="text-xs font-bold text-white leading-none">Súper Usuario</span>
+              <span className="text-[9px] text-zinc-500 font-black uppercase mt-1">Raíz Global</span>
             </div>
           </div>
           <button

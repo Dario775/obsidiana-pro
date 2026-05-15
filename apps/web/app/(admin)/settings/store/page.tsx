@@ -12,6 +12,7 @@ const THEME_COLORS = [
   { id: 'emerald', name: 'Verde', color: '#10b981', text: '#fff' },
   { id: 'rose', name: 'Rosa', color: '#f43f5e', text: '#fff' },
   { id: 'amber', name: 'Ámbar', color: '#f59e0b', text: '#000' },
+  { id: 'cyan', name: 'Cian', color: '#06b6d4', text: '#fff' },
   { id: 'slate', name: 'Gris', color: '#64748b', text: '#fff' },
 ];
 
@@ -34,7 +35,7 @@ type Appearance = {
   dark_mode: boolean;
 };
 
-type Tab = 'general' | 'apariencia' | 'envio' | 'social' | 'ml';
+type Tab = 'general' | 'apariencia' | 'envio' | 'social';
 
 export default function StoreSettingsPage() {
   const { tenant } = useTenant();
@@ -60,9 +61,9 @@ export default function StoreSettingsPage() {
     store_social_instagram: '',
     store_social_facebook: '',
     store_social_whatsapp: '',
-    // ML Affiliate
-    ml_affiliate_id: '',
-    ml_access_token: '',
+    store_mp_access_token: '',
+    store_mp_public_key: '',
+
   });
   
   const [uploading, setUploading] = useState(false);
@@ -97,8 +98,9 @@ export default function StoreSettingsPage() {
         store_social_instagram: t.store_social_instagram || '',
         store_social_facebook: t.store_social_facebook || '',
         store_social_whatsapp: t.store_social_whatsapp || '',
-        ml_affiliate_id: t.ml_affiliate_id || '',
-        ml_access_token: t.ml_access_token || '',
+        store_mp_access_token: t.store_mp_access_token || '',
+        store_mp_public_key: t.store_mp_public_key || '',
+
       });
       
       if (t.store_appearance) {
@@ -143,7 +145,7 @@ export default function StoreSettingsPage() {
     
     setSaving(true);
     try {
-      await supabase.from('tenants').update({
+      const { data, error } = await supabase.from('tenants').update({
         store_name: form.store_name,
         store_description: form.store_description,
         store_domain: form.store_domain,
@@ -162,13 +164,23 @@ export default function StoreSettingsPage() {
         store_social_instagram: form.store_social_instagram || null,
         store_social_facebook: form.store_social_facebook || null,
         store_social_whatsapp: form.store_social_whatsapp || null,
+        store_mp_access_token: form.store_mp_access_token || null,
+        store_mp_public_key: form.store_mp_public_key || null,
         store_appearance: appearance,
-        // ML Affiliate
-        ml_affiliate_id: form.ml_affiliate_id || null,
-        ml_access_token: form.ml_access_token || null,
-      }).eq('id', tenantId);
-    } catch (error) {
+      })
+      .eq('id', tenantId)
+      .select();
+
+      if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        alert('No se pudo actualizar el negocio. Puede que no tengas permisos.');
+      } else {
+        alert('Configuración guardada exitosamente');
+      }
+    } catch (error: any) {
       console.error('Error saving:', error);
+      alert('Error al guardar: ' + (error.message || 'Error desconocido'));
     } finally {
       setSaving(false);
     }
@@ -179,7 +191,8 @@ export default function StoreSettingsPage() {
     { id: 'apariencia', label: 'Apariencia', icon: 'palette' },
     { id: 'envio', label: 'Envío', icon: 'local_shipping' },
     { id: 'social', label: 'Social', icon: 'share' },
-    { id: 'ml', label: 'ML Afiliado', icon: 'shopping_cart' },
+    { id: 'pagos', label: 'Pagos', icon: 'payments' },
+
   ];
 
   const currentTheme = THEME_COLORS.find(t => t.id === appearance.theme_color) || THEME_COLORS[0];
@@ -365,59 +378,7 @@ export default function StoreSettingsPage() {
             )}
 
           {/* ML Affiliate Tab */}
-          {(activeTab === 'ml' as Tab) && (
-            <>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-4">
-                <div className="flex items-center gap-2 text-amber-400">
-                  <span className="material-symbols-outlined">info</span>
-                  <span className="text-sm font-medium">Programa de Afiliados Mercado Libre</span>
-                </div>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Vincula tu ID de afiliado y gana comisiones por cada venta realizada desde tu tienda.
-                </p>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">ID de Afiliado</label>
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-yellow-400">person</span>
-                  <input
-                    type="text"
-                    value={form.ml_affiliate_id}
-                    onChange={(e) => setForm(f => ({ ...f, ml_affiliate_id: e.target.value }))}
-                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
-                    placeholder="Tu ID de afiliado en ML"
-                  />
-                </div>
-                <p className="text-xs text-zinc-600 mt-1">
-                  Encontralo en tu perfil de Mercado Libre → Configuración → Programa de Afiliados
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Access Token (opcional)</label>
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-blue-400">key</span>
-                  <input
-                    type="password"
-                    value={form.ml_access_token}
-                    onChange={(e) => setForm(f => ({ ...f, ml_access_token: e.target.value }))}
-                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
-                    placeholder="Token para buscar productos (opcional)"
-                  />
-                </div>
-                <p className="text-xs text-zinc-600 mt-1">
-                  Necesario solo si quieres buscar productos desde ML automáticamente.
-                </p>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <p className="text-xs text-zinc-500">
-                  Una vez configurado, los productos de tu tienda que vengan de ML tendrán un botón "Ver en Mercado Libre" que dirigirá a los clientes a ML. Si compran cualquier producto, ganas comisión.
-                </p>
-              </div>
-            </>
-          )}
         </div>
                     {form.store_banners.length < 3 && (
                       <p className="text-xs text-zinc-500">Agregá hasta 3 imágenes. La primera será el banner principal.</p>
@@ -648,7 +609,44 @@ export default function StoreSettingsPage() {
               </div>
             </>
           )}
+
+          {/* Pagos Tab */}
+          {activeTab === 'pagos' && (
+            <>
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3">
+                <span className="material-symbols-outlined text-blue-400">info</span>
+                <p className="text-xs text-blue-100 leading-relaxed">
+                  Configurá tus credenciales de <strong>Mercado Pago</strong> para recibir pagos automáticos. 
+                  Podés encontrarlas en el panel de desarrolladores de Mercado Pago.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">MP Public Key</label>
+                <input
+                  type="text"
+                  value={form.store_mp_public_key}
+                  onChange={(e) => setForm(f => ({ ...f, store_mp_public_key: e.target.value }))}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono"
+                  placeholder="APP_USR-..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">MP Access Token</label>
+                <input
+                  type="password"
+                  value={form.store_mp_access_token}
+                  onChange={(e) => setForm(f => ({ ...f, store_mp_access_token: e.target.value }))}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono"
+                  placeholder="APP_USR-..."
+                />
+                <p className="text-[10px] text-zinc-500 mt-1">Este token es secreto y se usa para generar los cobros de forma segura.</p>
+              </div>
+            </>
+          )}
         </div>
+
 
         {/* Save Button */}
         <button

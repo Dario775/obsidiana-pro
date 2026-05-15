@@ -7,7 +7,7 @@ export interface PosCheckoutCartItem {
 
 export interface PosCheckoutPayload {
   p_tenant_id: string;
-  p_customer_id: string;
+  p_customer_id: string | null;
   p_items: Array<{
     variant_id: string;
     quantity: number;
@@ -21,7 +21,7 @@ export interface PosCheckoutPayload {
 
 export function buildPosCheckoutPayload(input: {
   tenantId: string;
-  customerId: string;
+  customerId: string | null;
   cart: PosCheckoutCartItem[];
   discountPercent: number;
   paymentMethod: string | null;

@@ -86,18 +86,23 @@ export default function CustomersPage() {
     setSaving(true);
 
     try {
+      const payload: any = {
+        tenant_id: tenant.id,
+        email: formData.email,
+        phone: formData.phone,
+        dni_cuit: formData.dni_cuit,
+        accepts_marketing: formData.accepts_marketing,
+        credit_limit: formData.credit_limit || 0
+      };
+
+      // Intentamos guardar en nombre o first_name/last_name según el esquema
+      payload.nombre = `${formData.first_name} ${formData.last_name}`.trim();
+      payload.first_name = formData.first_name;
+      payload.last_name = formData.last_name;
+
       const { error } = await supabase
         .from('customers')
-        .insert({
-          tenant_id: tenant.id,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          email: formData.email,
-          phone: formData.phone,
-          dni_cuit: formData.dni_cuit,
-          accepts_marketing: formData.accepts_marketing,
-          credit_limit: formData.credit_limit || 0
-        });
+        .insert(payload);
 
       if (error) throw error;
 
@@ -127,17 +132,21 @@ export default function CustomersPage() {
 
     setSaving(true);
     try {
+      const payload: any = {
+        email: formData.email,
+        phone: formData.phone,
+        dni_cuit: formData.dni_cuit,
+        accepts_marketing: formData.accepts_marketing,
+        credit_limit: formData.credit_limit || 0
+      };
+
+      payload.nombre = `${formData.first_name} ${formData.last_name}`.trim();
+      payload.first_name = formData.first_name;
+      payload.last_name = formData.last_name;
+
       const { error } = await supabase
         .from('customers')
-        .update({
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          email: formData.email,
-          phone: formData.phone,
-          dni_cuit: formData.dni_cuit,
-          accepts_marketing: formData.accepts_marketing,
-          credit_limit: formData.credit_limit || 0
-        })
+        .update(payload)
         .eq('id', selectedCustomer.id);
 
       if (error) throw error;
@@ -188,13 +197,13 @@ export default function CustomersPage() {
   }
 
   function getInitials(customer: Customer): string {
-    const first = customer.first_name?.[0] || '';
+    const first = customer.first_name?.[0] || customer.nombre?.[0] || '';
     const last = customer.last_name?.[0] || '';
-    return (first + last).toUpperCase() || '?';
+    return (first + last).toUpperCase() || customer.email?.[0]?.toUpperCase() || '?';
   }
 
   function getFullName(customer: Customer): string {
-    const name = `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
+    const name = customer.nombre || `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
     return name || 'Sin nombre';
   }
 

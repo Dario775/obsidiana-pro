@@ -204,14 +204,20 @@ export default function CustomerDetailPage() {
         const orderIds = ordersData.map(o => o.id);
         const { data: paymentsData, error: paymentsError } = await supabase
           .from('payments')
-          .select('id, order_id, amount_ars, status, method, processed_at')
+          .select('id, order_id, amount, status, method, created_at')
           .in('order_id', orderIds)
-          .order('processed_at', { ascending: false });
+          .order('created_at', { ascending: false });
 
         if (paymentsError) {
           console.error('Error fetching payments:', paymentsError);
         } else {
-          setPayments(paymentsData || []);
+          // Adaptar 'amount' a 'amount_ars' y 'created_at' a 'processed_at' para el estado local
+          const adaptedPayments = (paymentsData || []).map(p => ({
+            ...p,
+            amount_ars: (p as any).amount,
+            processed_at: p.created_at
+          }));
+          setPayments(adaptedPayments);
         }
       } else {
         setPayments([]);
@@ -229,13 +235,28 @@ export default function CustomerDetailPage() {
     try {
       const { data, error } = await supabase
         .from('order_items')
-        .select('id, title_snapshot, sku_snapshot, quantity, unit_price_ars, tax_ars')
+        .select(`
+          id, 
+          quantity, 
+          unit_price_ars,
+          products (
+            title
+          ),
+          product_variants (
+            sku
+          )
+        `)
         .eq('order_id', orderId);
 
       if (error) {
         console.error('Error fetching order items:', error);
       } else {
-        setOrderItems(prev => ({ ...prev, [orderId]: data || [] }));
+        const adaptedItems = (data || []).map((item: any) => ({
+          ...item,
+          title_snapshot: item.products?.title || 'Producto',
+          sku_snapshot: item.product_variants?.sku || 'N/A'
+        }));
+        setOrderItems(prev => ({ ...prev, [orderId]: adaptedItems }));
       }
     } catch (error) {
       console.error('Error:', error);
@@ -271,12 +292,10 @@ export default function CustomerDetailPage() {
         .insert({
           tenant_id: tenantId,
           order_id: selectedOrderForPayment.id,
-          gateway: gateway,
           status: 'paid',
-          amount_ars: Math.round(amount),
-          currency: 'ARS',
+          amount: Math.round(amount),
           method: paymentMethod,
-          processed_at: new Date().toISOString()
+          created_at: new Date().toISOString()
         });
 
       if (paymentError) throw paymentError;
@@ -284,11 +303,11 @@ export default function CustomerDetailPage() {
       // 2. Calcular total pagado para esta orden
       const { data: orderPayments } = await supabase
         .from('payments')
-        .select('amount_ars')
+        .select('amount')
         .eq('order_id', selectedOrderForPayment.id)
         .eq('status', 'paid');
 
-      const totalPaid = (orderPayments || []).reduce((acc, p) => acc + (p.amount_ars || 0), 0);
+      const totalPaid = (orderPayments || []).reduce((acc, p) => acc + (Number((p as any).amount) || 0), 0);
       const orderTotal = selectedOrderForPayment.total_ars || 0;
 
       // 3. Actualizar estado financiero de la orden
@@ -321,7 +340,7 @@ export default function CustomerDetailPage() {
         amount: Math.round(amount),
         method: paymentMethod,
         date: new Date().toLocaleString('es-AR'),
-        customerName: customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : 'Cliente'
+        customerName: customer ? (customer.nombre || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()) : 'Cliente'
       });
       
       alert(`Pago de $ ${amount.toLocaleString('es-AR')} registrado. Imprimiendo recibo...`);
@@ -429,13 +448,13 @@ export default function CustomerDetailPage() {
   }
 
   function getInitials(customer: any): string {
-    const first = customer?.first_name?.[0] || '';
+    const first = customer?.first_name?.[0] || customer?.nombre?.[0] || '';
     const last = customer?.last_name?.[0] || '';
     return (first + last).toUpperCase() || customer?.email?.[0]?.toUpperCase() || '?';
   }
 
   function getFullName(customer: any): string {
-    const name = `${customer?.first_name || ''} ${customer?.last_name || ''}`.trim();
+    const name = customer?.nombre || `${customer?.first_name || ''} ${customer?.last_name || ''}`.trim();
     return name || 'Sin nombre';
   }
 

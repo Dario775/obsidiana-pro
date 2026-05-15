@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         slug,
         status: 'active',
         online_store_enabled: true,
+        plan_id: 'free',
       }])
       .select('id')
       .single();

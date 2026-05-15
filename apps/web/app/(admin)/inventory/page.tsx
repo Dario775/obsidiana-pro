@@ -5,9 +5,10 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
 import { uploadImageToCloudinary, buildImageUrl, getThumbnailUrl, getPreviewUrl, getCloudinaryUrl } from '@/lib/cloudinary';
 import { findGlobalImage, contributeImageToGlobal } from '@/lib/global-catalog';
+import { FeatureGate } from '@/components/feature-gate';
 
 export default function InventoryPage() {
-  const { tenant } = useTenant();
+  const { tenant, plan } = useTenant();
   const [items, setItems] = useState<any[]>([]);
   const [filteredItems, setFilteredItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,11 +100,11 @@ export default function InventoryPage() {
     // Get variants with their products
     const { data: variantsData, error: varError } = await supabase
       .from('product_variants')
-      .select('id, sku, barcode, price_ars, product_id, images')
+      .select('id, sku, price_ars, product_id')
       .in('id', variantIds);
     
     if (varError) {
-      console.error('Error fetching variants:', varError.message, varError.details);
+      console.error('Error fetching variants:', varError.message, varError.details, varError.code);
       setLoading(false);
       return;
     }
@@ -115,7 +116,7 @@ export default function InventoryPage() {
     if (productIds.length > 0) {
       const { data: productsData } = await supabase
         .from('products')
-        .select('id, title, slug, available_online, online_reserved, images')
+        .select('id, title, available_online, online_reserved, images')
         .in('id', productIds);
       
       productsData?.forEach(p => {
@@ -129,14 +130,21 @@ export default function InventoryPage() {
       const product = variant ? productsMap[variant.product_id] : null;
       return {
         ...item,
+        available: (item.on_hand || 0) - (item.committed || 0),
         product_variants: {
           ...variant,
-          products: product
+          products: { ...product, title: product?.title || product?.nombre }
         }
       };
     }) || [];
     
-    setItems(enrichedData);
+    // Filtramos productos de MercadoLibre (SKU empieza con ML-) ya que no son para el POS
+    const filteredEnrichedData = (enrichedData || []).filter(item => {
+      const sku = item.product_variants?.sku || '';
+      return !sku.startsWith('ML-');
+    });
+    
+    setItems(filteredEnrichedData);
     setLoading(false);
 
     // Fetch product attributes for this tenant
@@ -196,6 +204,23 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       }
       const locationId = '00000000-0000-0000-0000-000000000001'; // Default location
 
+      // Check product limit
+      if (tenant?.plan_id) {
+        const { count, error: countError } = await supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId);
+        
+        if (!countError && count !== null) {
+          const maxProducts = plan?.max_products || 50; // Fallback to 50
+          if (count >= maxProducts) {
+            alert(`Has alcanzado el límite de productos de tu plan (${maxProducts}). Por favor, actualizá tu suscripción para agregar más.`);
+            setSaving(false);
+            return;
+          }
+        }
+      }
+
       // Generar slug único
       const baseSlug = formData.slug.trim() || formData.title.toLowerCase().replace(/\s+/g, '-');
       const uniqueSlug = await generateUniqueSlug(tenantId, baseSlug);
@@ -206,11 +231,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         .insert({
           tenant_id: tenantId,
           title: formData.title,
-          slug: uniqueSlug,
           description: formData.description,
           status: 'active',
           images: newProductImages,
-          seo: {},
           available_online: formData.available_online || false
         })
         .select()
@@ -222,16 +245,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       const { data: variant, error: variantError } = await supabase
         .from('product_variants')
         .insert({
-          tenant_id: tenantId,
           product_id: product.id,
           sku: formData.sku,
-          barcode: formData.barcode,
-          options: {},
-          price_ars: parseInt(formData.price_ars) || 0,
-          requires_shipping: true,
-          // Guardar referencia a imagen global si se auto-detectó
-          global_catalog_id: detectedGlobalId,
-          use_global_image: !!detectedGlobalId
+          price_ars: parseInt(formData.price_ars) || 0
         })
         .select()
         .single();
@@ -246,7 +262,6 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         .insert({
           tenant_id: tenantId,
           variant_id: variant.id,
-          location_id: locationId,
           on_hand: parseInt(formData.stock) || 0,
           committed: 0
         });
@@ -584,7 +599,10 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       try {
         const result = await findGlobalImage(null, name);
         
-        if (result.id && result.cloudinary_url) {
+        if (result.all_matches && result.all_matches.length > 0) {
+          setGlobalImageSuggestions(result.all_matches);
+          setShowGlobalSuggestions(true);
+        } else if (result.id && result.cloudinary_url) {
           setGlobalImageSuggestions([{
             id: result.id,
             cloudinary_url: result.cloudinary_url,
@@ -650,7 +668,6 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         .from('product_variants')
         .update({
           sku: formData.sku,
-          barcode: formData.barcode,
           price_ars: parseInt(formData.price_ars) || 0
         })
         .eq('id', variant.id);
@@ -662,8 +679,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         .from('inventory_levels')
         .update({ on_hand: parseInt(formData.stock) || 0 })
         .eq('tenant_id', tenantId)
-        .eq('variant_id', variant.id)
-        .eq('location_id', selectedItem.location_id);
+        .eq('variant_id', variant.id);
 
       if (inventoryError) throw inventoryError;
 
@@ -732,7 +748,6 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
           alert('Cargando tenant. Intenta de nuevo en unos segundos.');
           return;
         }
-        const locationId = '00000000-0000-0000-0000-000000000001';
         
         let imported = 0;
         let errors = 0;
@@ -791,7 +806,6 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
               .insert({
                 tenant_id: tenantId,
                 variant_id: variant.id,
-                location_id: locationId,
                 on_hand: stock,
                 committed: 0
               });
@@ -830,8 +844,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         .from('inventory_levels')
         .update({ on_hand: newStock })
         .eq('tenant_id', tenantId)
-        .eq('variant_id', item.variant_id)
-        .eq('location_id', item.location_id);
+        .eq('variant_id', item.variant_id);
       
       await fetchInventory();
       setShowStockModal(false);
@@ -869,7 +882,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
   }
 
   return (
-    <div className="max-w-[1440px] mx-auto flex flex-col gap-8 pb-32">
+    <FeatureGate feature="inventory">
+      <div className="max-w-[1440px] mx-auto flex flex-col gap-8 pb-32">
       {/* Page Header & Primary Actions */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/10 pb-8">
         <div>
@@ -1876,7 +1890,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
               {(previewItem.product_variants?.images?.[0] || previewItem.product_variants?.products?.images?.[0]) ? (
                 <img 
                   src={previewItem.product_variants?.images?.[0] || previewItem.product_variants?.products?.images?.[0]}
-                  alt={previewItem.product_variants?.products?.title}
+                  alt={previewItem.product_variants?.products?.title || previewItem.product_variants?.products?.nombre}
                   className="w-full h-64 object-cover"
                 />
               ) : (
@@ -1893,7 +1907,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
             </div>
             
             <div className="p-6">
-              <h2 className="text-2xl font-black text-white">{previewItem.product_variants?.products?.title || 'Sin nombre'}</h2>
+              <h2 className="text-2xl font-black text-white">{previewItem.product_variants?.products?.title || previewItem.product_variants?.products?.nombre || 'Sin nombre'}</h2>
               <p className="text-zinc-500 text-sm mt-1">SKU: {previewItem.product_variants?.sku || 'N/A'}</p>
               
               {previewItem.product_variants?.barcode && (
@@ -1942,5 +1956,6 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         </div>
       )}
     </div>
+    </FeatureGate>
   );
 }

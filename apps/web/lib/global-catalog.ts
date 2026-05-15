@@ -36,6 +36,7 @@ export interface ImageMatchResult {
   description?: string | null;
   default_price?: number | null;
   barcode_ean13?: string | null;
+  all_matches?: ImageMatchResult[];
 }
 
 export function normalizeForPublicId(input: string): string {
@@ -86,10 +87,9 @@ export async function findGlobalImage(
     if (barcode && barcode.length >= 12) {
       const { data, error } = await supabase
         .from('global_catalog')
-        .select('id, cloudinary_url, normalized_name, quality_score, status, description, default_price, barcode_ean13')
+        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13')
         .eq('barcode_ean13', barcode)
         .in('status', ['approved', 'featured'])
-        .order('quality_score', { ascending: false })
         .limit(1)
         .single();
       
@@ -119,26 +119,30 @@ export async function findGlobalImage(
 
       const { data, error } = await supabase
         .from('global_catalog')
-        .select('id, cloudinary_url, normalized_name, quality_score, status, description, default_price, barcode_ean13')
+        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13')
         .in('status', ['approved', 'featured'])
         .ilike('normalized_name', `%${normalizedSearch}%`)
-        .order('quality_score', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(5);
 
-      if (!error && data) {
-        const pid = extractPublicId(data.cloudinary_url);
-        return {
-          id: data.id,
-          cloudinary_url: data.cloudinary_url,
-          normalized_name: data.normalized_name,
-          quality_score: data.quality_score,
+      if (!error && data && data.length > 0) {
+        // Return first one as primary, but we'll use all for suggestions
+        const matches: ImageMatchResult[] = data.map(item => ({
+          id: item.id,
+          cloudinary_url: item.cloudinary_url,
+          normalized_name: item.normalized_name,
+          quality_score: item.quality_score,
           match_type: 'name',
           confidence: 0.7,
-          public_id: pid || null,
-          description: data.description,
-          default_price: data.default_price,
-          barcode_ean13: data.barcode_ean13
+          public_id: extractPublicId(item.cloudinary_url) || null,
+          description: item.description,
+          default_price: item.default_price,
+          barcode_ean13: item.barcode_ean13
+        }));
+        
+        // For backward compatibility, return first match with extra properties
+        return {
+          ...matches[0],
+          all_matches: matches
         };
       }
     }

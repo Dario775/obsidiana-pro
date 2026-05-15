@@ -43,8 +43,9 @@ export default function PlatformPaymentSettingsPage() {
         .from('platform_config')
         .select('*')
         .eq('key', 'payment_config')
-        .limit(1)
         .maybeSingle();
+
+      if (error) throw error;
 
       if (data) {
         setConfig({
@@ -58,41 +59,9 @@ export default function PlatformPaymentSettingsPage() {
           mp_enabled: data.value?.mp_enabled || false,
           transfer_enabled: data.value?.transfer_enabled !== false,
         });
-      } else {
-        const { data: newConfig } = await supabase
-          .from('platform_config')
-          .insert({
-            key: 'payment_config',
-            value: {
-              transfer_bank: '',
-              transfer_cbu: '',
-              transfer_alias: '',
-              mp_client_id: '',
-              mp_client_secret: '',
-              mp_link: '',
-              mp_enabled: false,
-              transfer_enabled: true,
-            },
-          })
-          .select()
-          .single();
-        
-        if (newConfig) {
-          setConfig({
-            id: newConfig.id,
-            transfer_bank: '',
-            transfer_cbu: '',
-            transfer_alias: '',
-            mp_client_id: '',
-            mp_client_secret: '',
-            mp_link: '',
-            mp_enabled: false,
-            transfer_enabled: true,
-          });
-        }
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Error fetching config:', err);
     } finally {
       setLoading(false);
     }
@@ -113,18 +82,25 @@ export default function PlatformPaymentSettingsPage() {
         transfer_enabled: config.transfer_enabled,
       };
 
+      // Usar upsert basado en la 'key' para evitar errores de ID undefined
       const { error } = await supabase
         .from('platform_config')
-        .update({ value })
-        .eq('id', config.id);
+        .upsert(
+          { 
+            key: 'payment_config', 
+            value 
+          }, 
+          { onConflict: 'key' }
+        );
 
       if (error) throw error;
       
       setSaved(true);
+      fetchConfig();
       setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      console.error(err);
-      alert('Error al guardar');
+    } catch (err: any) {
+      console.error('Error saving config:', err);
+      alert('Error al guardar: ' + err.message);
     } finally {
       setSaving(false);
     }

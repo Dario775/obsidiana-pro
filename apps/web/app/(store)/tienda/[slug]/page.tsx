@@ -17,6 +17,7 @@ interface Product {
   currency: string;
   available_online: boolean;
   online_reserved: number;
+  external_url?: string;
 }
 
 interface Appearance {
@@ -28,6 +29,7 @@ interface Appearance {
 
 const THEME_MAP: Record<string, { primary: string; primaryLight: string; bg: string; text: string }> = {
   violet: { primary: '#8b5cf6', primaryLight: '#a78bfa', bg: 'bg-violet-600', text: '#fff' },
+  blue: { primary: '#3b82f6', primaryLight: '#60a5fa', bg: 'bg-blue-600', text: '#fff' },
   emerald: { primary: '#10b981', primaryLight: '#34d399', bg: 'bg-emerald-600', text: '#fff' },
   rose: { primary: '#f43f5e', primaryLight: '#fb7185', bg: 'bg-rose-600', text: '#fff' },
   amber: { primary: '#f59e0b', primaryLight: '#fbbf24', bg: 'bg-amber-600', text: '#000' },
@@ -81,6 +83,39 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   const [mpConfirmed, setMpConfirmed] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState<Record<string, string>>({});
   const [productAttributes, setProductAttributes] = useState<Record<string, any>>({});
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState('all'); // all, local, ml
+  const [sortBy, setSortBy] = useState('newest'); // newest, price-asc, price-desc
+
+
+  const openProduct = (product: any) => {
+    setSelectedProduct(product);
+    setSelectedImageIndex(0);
+  };
+
+  const sendWhatsAppOrder = () => {
+    if (!tenant?.store_social_whatsapp) {
+      alert('El negocio no tiene configurado un número de WhatsApp en la sección de Redes Sociales.');
+      return;
+    }
+
+    const itemsText = cart.map(item => `- ${item.quantity}x ${item.title || item.nombre} (${formatPrice(item.precio * item.quantity, currency)})`).join('\n');
+    const cartTotal = cart.reduce((acc, item) => acc + (item.precio * item.quantity), 0);
+    
+    const message = `*NUEVO PEDIDO #${orderNumber}*\n\n` +
+      `*Cliente:* ${customerInfo.name}\n` +
+      `*Teléfono:* ${customerInfo.phone}\n` +
+      `*Dirección:* ${customerInfo.address}, ${customerInfo.city}, ${customerInfo.province}\n\n` +
+      `*Productos:*\n${itemsText}\n\n` +
+      `*TOTAL:* ${formatPrice(cartTotal, currency)}\n` +
+      `*Pago:* ${paymentMethod === 'cash' ? 'Efectivo/Acordar' : (paymentMethod === 'transfer' ? 'Transferencia' : 'Mercado Pago')}\n\n` +
+      `_Enviado desde mi tienda online_`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${tenant.store_social_whatsapp.replace(/\D/g, '')}?text=${encodedMessage}`;
+    
+    window.open(whatsappUrl, '_blank');
+  };
 
   const defaultAppearance: Appearance = {
     template: 'classic',
@@ -113,27 +148,51 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
     loadTenantData();
   }, [slug]);
 
+  // Auto-cambio de banner cada 7 segundos
+  useEffect(() => {
+    const banners = tenant?.store_banners || [];
+    if (banners.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentBanner((prev) => (prev + 1) % banners.length);
+    }, 7000);
+
+    return () => clearInterval(interval);
+  }, [tenant?.store_banners]);
+
   async function loadTenantData() {
     try {
+      // Obtenemos solo los datos públicos del tenant para evitar filtrar secretos (como el MP Access Token)
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
-        .select('*, ml_affiliate_id')
+        .select(`
+          id, nombre, slug, status, address, phone, email, logo_url, banner_url,
+          store_name, store_description, store_domain, store_active, store_theme,
+          store_template, store_banners, store_tagline, store_currency,
+          store_min_order_amount, store_shipping_enabled, store_shipping_cost,
+          store_shipping_free_threshold, store_social_instagram, store_social_facebook,
+          store_social_whatsapp, store_appearance, store_logo_url, store_banner_url,
+          store_mp_public_key
+        `)
         .eq('slug', slug)
         .single();
 
       if (tenantError || !tenantData) {
+        console.error('Tenant load error:', tenantError);
         setLoading(false);
         return;
       }
 
+      console.log('TIENDA LOADED:', tenantData);
       setTenant(tenantData);
       setCurrency(tenantData.store_currency || 'ARS');
-      const affiliateId = tenantData.ml_affiliate_id;
+
 
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select(`
           *,
+          external_url,
           product_variants (id, sku, price_ars)
         `)
         .eq('tenant_id', tenantData.id)
@@ -154,65 +213,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
       setProducts(productsWithPrice);
 
-      // Load ML Products
-      const { data: mlData } = await supabase
-        .from('ml_products')
-        .select('*')
-        .eq('tenant_id', tenantData.id);
 
-      if (mlData && mlData.length > 0) {
-        const itemIds = mlData.map((mp: any) => mp.ml_item_id).filter(Boolean);
-        let livePrices: Record<string, { price: number; currency: string }> = {};
-
-        if (itemIds.length > 0) {
-          try {
-            const pricesRes = await fetch('/api/ml/prices', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                item_ids: itemIds,
-                tenant_id: tenantData.id,
-              }),
-            });
-            const pricesData = await pricesRes.json();
-            livePrices = pricesData.prices || {};
-          } catch (e) {
-            console.error('Error fetching live prices:', e);
-          }
-        }
-
-        const mlProducts = mlData.map((mp: any) => {
-          const livePrice = livePrices[mp.ml_item_id];
-          const currentPrice = livePrice?.price || mp.price;
-          
-          let finalAffiliateUrl = '';
-          if (affiliateId && mp.permalink) {
-            const url = new URL(mp.permalink);
-            // MercadoLibre standard affiliate parameters
-            url.searchParams.set('matt_tool', affiliateId);
-            // Optional: If you had a matt_word stored, you'd set it here too
-            // url.searchParams.set('matt_word', affiliateWord); 
-            finalAffiliateUrl = url.toString();
-          }
-          
-          return {
-            id: `ml-${mp.id}`,
-            title: mp.title,
-            description: mp.description,
-            images: mp.pictures || [mp.thumbnail],
-            precio: currentPrice,
-            originalPrice: mp.price,
-            priceChanged: livePrice && livePrice.price !== mp.price,
-            sku: mp.ml_item_id,
-            currency: livePrice?.currency || mp.currency,
-            isMLProduct: true,
-            mlItemId: mp.ml_item_id,
-            affiliateUrl: finalAffiliateUrl,
-            hasAffiliate: !!affiliateId,
-          };
-        });
-        setProducts([...productsWithPrice, ...mlProducts]);
-      }
 
       const variantIds = productsWithPrice.map((p: any) => p.product_variants?.[0]?.id).filter(Boolean);
       
@@ -234,9 +235,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         setProductStock(stockMap);
       }
 
-      const updateStockFromAffiliate = (clicks: number, productId: string, existingStock: Record<string, number>) => {
-        existingStock[productId] = clicks > 0 ? clicks : 1;
-      };
+
 
       const { data: attrsData } = await supabase
         .from('product_attributes')
@@ -262,14 +261,25 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   }
 
   const filteredProducts = products.filter((p: any) => {
-    if (!searchQuery) return true;
+    // Búsqueda por texto
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch = !searchQuery || (
       p.title?.toLowerCase().includes(query) ||
       p.nombre?.toLowerCase().includes(query) ||
       p.sku?.toLowerCase().includes(query) ||
       p.description?.toLowerCase().includes(query)
     );
+
+    // Filtro por origen
+    const matchesCategory = selectedCategory === 'all' || 
+      (selectedCategory === 'ml' && p.external_url) ||
+      (selectedCategory === 'local' && !p.external_url);
+
+    return matchesSearch && matchesCategory;
+  }).sort((a: any, b: any) => {
+    if (sortBy === 'price-asc') return (a.precio || 0) - (b.precio || 0);
+    if (sortBy === 'price-desc') return (b.precio || 0) - (a.precio || 0);
+    return 0; // newest por defecto (mantener orden DB)
   });
 
   const cartTotal = cart.reduce((sum, item) => sum + item.precio * item.quantity, 0);
@@ -279,33 +289,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   const finalTotal = cartTotal + shippingCost;
 
   const addToCart = (product: any) => {
-    // ML Products redirect to Mercado Libre
-    if (product.isMLProduct) {
-      if (!product.hasAffiliate) {
-        // No affiliate configured - show warning
-        alert('Esta tienda no tiene configurado su ID de afiliado. No puedes comprar este producto.');
-        return;
-      }
-      
-      if (product.affiliateUrl) {
-        window.open(product.affiliateUrl, '_blank');
-        const productId = product.mlItemId;
-        const tenantId = tenant?.id;
-        if (productId && tenantId) {
-          fetch('/api/ml/track', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tenant_id: tenantId,
-              ml_item_id: productId,
-            }),
-          }).catch(() => {});
-        }
-      } else if (product.permalink) {
-        window.open(product.permalink, '_blank');
-      }
-      return;
-    }
+
 
     const variantKey = Object.values(selectedVariant).join('-') || 'default';
     const cartKey = `${product.id}-${variantKey}`;
@@ -391,9 +375,9 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           customer_province: customerInfo.province,
           customer_postal_code: customerInfo.postalCode,
           payment_method: paymentMethod,
-          subtotal: cartTotal,
-          shipping_cost: shippingCost,
-          total: finalTotal,
+          subtotal_ars: cartTotal,
+          shipping_ars: shippingCost,
+          total_ars: finalTotal,
           status: orderStatus,
           notes: customerInfo.notes ? `${customerInfo.notes} | ${paymentNotes}` : paymentNotes,
         })
@@ -402,14 +386,49 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
       if (orderError) throw orderError;
 
+      // 2. Descontar Stock de Inventario
       for (const item of cart) {
-        const currentReserved = item.online_reserved || 0;
-        const newReserved = Math.max(0, currentReserved - item.quantity);
+        // Obtenemos el ID de la variante (usamos la primera si no hay variantes específicas seleccionadas)
+        // Esto asume que el objeto 'item' tiene la información de sus variantes cargada
+        const variantId = item.product_variants?.[0]?.id;
         
-        await supabase
-          .from('products')
-          .update({ online_reserved: newReserved })
-          .eq('id', item.id);
+        if (variantId) {
+          // Consultamos el stock actual de la variante para evitar números negativos
+          const { data: invData } = await supabase
+            .from('inventory_levels')
+            .select('on_hand, online_reserved')
+            .eq('variant_id', variantId)
+            .single();
+
+          if (invData) {
+            const currentOnHand = invData.on_hand || 0;
+            const currentReserved = invData.online_reserved || 0;
+            
+            // Si hay stock reservado para la web, lo priorizamos
+            if (currentReserved >= item.quantity) {
+              await supabase
+                .from('inventory_levels')
+                .update({ online_reserved: currentReserved - item.quantity })
+                .eq('variant_id', variantId);
+            } else {
+              // Si no hay reserva suficiente, descontamos del stock físico general
+              const newOnHand = Math.max(0, currentOnHand - item.quantity);
+              await supabase
+                .from('inventory_levels')
+                .update({ on_hand: newOnHand })
+                .eq('variant_id', variantId);
+            }
+          }
+        }
+        
+        // También actualizamos el campo online_reserved en products por compatibilidad/legacy
+        const prodReserved = item.online_reserved || 0;
+        if (prodReserved > 0) {
+          await supabase
+            .from('products')
+            .update({ online_reserved: Math.max(0, prodReserved - item.quantity) })
+            .eq('id', item.id);
+        }
       }
 
       const orderItems = cart.map((item: any) => ({
@@ -422,6 +441,28 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
       
       if (itemsError) throw itemsError;
+
+      // 4. Si es Mercado Pago, generar link de pago real
+      if (paymentMethod === 'mp') {
+        const mpRes = await fetch('/api/checkout/mercadopago', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cart,
+            tenantId: tenant.id,
+            customerInfo,
+            orderId: orderData.id,
+          }),
+        });
+
+        const mpData = await mpRes.json();
+        if (mpData.init_point) {
+          window.location.href = mpData.init_point;
+          return; // No mostramos el éxito aún, esperamos al return de MP
+        } else {
+          throw new Error(mpData.error || 'Error al generar pago');
+        }
+      }
 
       const orderNum = `ORD-${Date.now().toString().slice(-6)}`;
       setOrderNumber(orderNum);
@@ -477,7 +518,48 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   const showCarousel = tenantBanners.length > 0;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: bgColor, color: textColor, fontFamily }}>
+    <div className="min-h-screen transition-colors duration-500" style={{ backgroundColor: bgColor, color: textColor, fontFamily }}>
+      <style>{`
+        @keyframes star-movement {
+          from { transform: translate(-50%, -50%) rotate(0deg); }
+          to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        .star-border-container {
+          position: relative;
+          padding: 1px;
+          border-radius: 1rem;
+          overflow: hidden;
+        }
+        .star-border-animation {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 200%;
+          height: 200%;
+          background: conic-gradient(
+            from 0deg,
+            transparent 0%,
+            transparent 30%,
+            ${currentTheme.primary} 40%,
+            ${currentTheme.primary} 60%,
+            transparent 70%,
+            transparent 100%
+          );
+          animation: star-movement 4s linear infinite;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          z-index: 0;
+        }
+        .star-border-container:hover .star-border-animation {
+          opacity: 1;
+        }
+        .star-border-content {
+          position: relative;
+          z-index: 1;
+          background: inherit;
+          border-radius: inherit;
+        }
+      `}</style>
       <header className="sticky top-0 z-50 backdrop-blur-xl shadow-sm border-b" style={{ backgroundColor: appearance.dark_mode ? 'rgba(9, 9, 11, 0.9)' : 'rgba(255, 255, 255, 0.98)', borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16 gap-4">
@@ -575,12 +657,49 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       )}
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <p className="text-xs font-bold tracking-[0.2em] uppercase mb-2" style={primaryText}>Catálogo</p>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight" style={{ color: textColor }}>Nuestros Productos</h2>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-12">
+          <div className="flex p-1 rounded-2xl shadow-inner w-full md:w-auto" style={{ backgroundColor: cardBg }}>
+            {[
+              { id: 'all', label: 'Todos', icon: 'grid_view' },
+              { id: 'local', label: 'Tienda Local', icon: 'storefront' },
+              { id: 'ml', label: 'Mercado Libre', icon: 'bolt' }
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  selectedCategory === cat.id ? 'shadow-lg text-white scale-105' : 'opacity-50 hover:opacity-100'
+                }`}
+                style={selectedCategory === cat.id ? primaryBg : { color: textColor }}
+              >
+                <span className="material-symbols-outlined text-[18px]">{cat.icon}</span>
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="relative flex-1 md:w-48">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full pl-4 pr-10 py-3 rounded-2xl text-xs font-bold appearance-none focus:outline-none shadow-sm cursor-pointer transition-all"
+                style={{ backgroundColor: cardBg, color: textColor }}
+              >
+                <option value="newest">Más recientes</option>
+                <option value="price-asc">Menor precio</option>
+                <option value="price-desc">Mayor precio</option>
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">unfold_more</span>
+            </div>
+            
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 hidden lg:block" style={{ color: textColor }}>
+              {filteredProducts.length} productos
+            </p>
+          </div>
         </div>
 
-        {products.length === 0 ? (
+        {filteredProducts.length === 0 ? (
           <div className="text-center py-16">
             <span className="material-symbols-outlined text-6xl text-zinc-600 mb-4">inventory_2</span>
             <p className="text-zinc-400">No hay productos disponibles</p>
@@ -590,67 +709,61 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
             {appearance.template === 'classic' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 justify-items-center">
                 {filteredProducts.map((product: any) => (
-                  <article 
-                    key={product.id} 
-                    className="max-w-[280px] w-full rounded-2xl overflow-hidden group hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 cursor-pointer"
-                    style={{ backgroundColor: cardBg }}
-                    onClick={() => setSelectedProduct(product)}
-                  >
-                    <div className="relative aspect-square overflow-hidden" style={{ backgroundColor: appearance.dark_mode ? '#3f3f46' : '#e5e5e5' }}>
-                      {product.images?.[0] ? (
-                        <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="material-symbols-outlined text-6xl" style={{ color: mutedColor }}>image</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    </div>
-                    <div className="p-4">
-{product.isMLProduct && (
-                          <div className="flex items-center gap-1 mb-1">
-                            <span className="text-[10px] bg-yellow-400 text-black px-1.5 py-0.5 rounded font-bold">ML</span>
-                            <span className="text-[10px] text-zinc-500">Mercado Libre</span>
-                            {!product.hasAffiliate && (
-                              <span className="text-[10px] text-red-400 ml-1">Sin afiliado</span>
-                            )}
+                  <div key={product.id} className="star-border-container group h-full">
+                    <div className="star-border-animation" />
+                    <article 
+                      className="star-border-content max-w-[280px] w-full h-full rounded-2xl overflow-hidden shadow-sm group-hover:shadow-2xl transition-all duration-500 cursor-pointer flex flex-col"
+                      style={{ backgroundColor: cardBg }}
+                      onClick={() => openProduct(product)}
+                    >
+                      <div className="relative aspect-square overflow-hidden shrink-0" style={{ backgroundColor: appearance.dark_mode ? '#3f3f46' : '#e5e5e5' }}>
+                        {product.images?.[0] ? (
+                          <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="material-symbols-outlined text-6xl" style={{ color: mutedColor }}>image</span>
                           </div>
                         )}
+                        {product.external_url && (
+                          <div className="absolute top-2 right-2 bg-[#FFE600] text-[#2D3277] px-1.5 py-0.5 rounded-md text-[8px] font-black flex items-center gap-0.5 shadow-md z-10 scale-90">
+                            <span className="material-symbols-outlined text-[10px]">bolt</span>
+                            ML
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col">
                         <p className="text-xs font-medium tracking-wider uppercase mb-1" style={{ color: mutedColor }}>
-                          {product.isMLProduct ? 'Afiliado' : 'Disponible'}
+                          {product.external_url ? 'Recomendación ML' : 'Disponible en Tienda'}
                         </p>
-                        <h3 className="font-bold text-lg mb-1" style={{ color: textColor }}>{product.title || product.nombre}</h3>
-                        <p className="text-sm mb-3 line-clamp-2" style={{ color: mutedColor }}>{product.description}</p>
-                        <div className="flex items-end justify-between">
+                        <h3 className="font-bold text-lg mb-1 line-clamp-2" style={{ color: textColor }}>{product.title || product.nombre}</h3>
+                        <p className="text-sm mb-4 line-clamp-2" style={{ color: mutedColor }}>{product.description}</p>
+                        
+                        <div className="mt-auto flex items-end justify-between">
                           <div>
-                            {!product.isMLProduct && (
-                              <p className="text-xs line-through" style={{ color: mutedColor }}>{formatPrice((product.precio || 0) * 1.2, currency)}</p>
-                            )}
-                            {product.isMLProduct && product.priceChanged && (
-                              <p className="text-xs line-through text-amber-400">{formatPrice(product.originalPrice || 0, currency)}</p>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <p className="text-2xl font-bold" style={{ color: textColor }}>{formatPrice(product.precio || 0, currency)}</p>
-                              {product.isMLProduct && (
-                                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">LIVE</span>
-                              )}
-                            </div>
+                            <p className="text-xs line-through" style={{ color: mutedColor }}>{formatPrice((product.precio || 0) * 1.2, currency)}</p>
+                            <p className="text-2xl font-bold" style={{ color: textColor }}>{formatPrice(product.precio || 0, currency)}</p>
                           </div>
                           <button 
-                            onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                            className={`p-3 rounded-full shadow-lg hover:shadow-xl transition-all ${
-                              product.isMLProduct ? 'bg-yellow-400 text-black hover:bg-yellow-300' : 'text-white'
-                            } ${product.isMLProduct && !product.hasAffiliate ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            style={product.isMLProduct ? {} : primaryBg}
-                            disabled={product.isMLProduct && !product.hasAffiliate}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              if (product.external_url) {
+                                window.open(product.external_url, '_blank');
+                              } else {
+                                addToCart(product); 
+                              }
+                            }}
+                            className="p-3 rounded-full shadow-lg hover:shadow-xl transition-all text-white flex items-center justify-center"
+                            style={product.external_url ? { backgroundColor: '#facc15', color: '#000' } : primaryBg}
                           >
                             <span className="material-symbols-outlined">
-                              {product.isMLProduct ? 'open_in_new' : 'add_shopping_cart'}
+                              {product.external_url ? 'open_in_new' : 'add_shopping_cart'}
                             </span>
                           </button>
                         </div>
-                    </div>
-                  </article>
+                      </div>
+                    </article>
+                  </div>
                 ))}
               </div>
             )}
@@ -662,7 +775,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                     key={product.id}
                     className="w-[200px] rounded-xl overflow-hidden group cursor-pointer"
                     style={{ backgroundColor: cardBg }}
-                    onClick={() => setSelectedProduct(product)}
+                    onClick={() => openProduct(product)}
                   >
                     <div className="relative aspect-square overflow-hidden" style={{ backgroundColor: appearance.dark_mode ? '#27272a' : '#f4f4f5' }}>
                       {product.images?.[0] ? (
@@ -672,14 +785,16 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                           <span className="material-symbols-outlined text-4xl" style={{ color: mutedColor }}>image</span>
                         </div>
                       )}
+                      {product.external_url && (
+                        <div className="absolute top-1 right-1 bg-[#FFE600] text-[#2D3277] p-0.5 rounded-md shadow-md z-10 scale-75">
+                          <span className="material-symbols-outlined text-[12px]">bolt</span>
+                        </div>
+                      )}
                     </div>
                     <div className="p-3">
                       <h3 className="font-bold text-sm mb-1 truncate" style={{ color: textColor }}>{product.title || product.nombre}</h3>
                       <div className="flex items-center gap-2">
                         <p className="font-bold" style={{ color: currentTheme.primary }}>{formatPrice(product.precio || 0, currency)}</p>
-                        {product.isMLProduct && (
-                          <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded">LIVE</span>
-                        )}
                       </div>
                     </div>
                   </article>
@@ -694,7 +809,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                     key={product.id}
                     className="flex gap-6 max-w-lg w-full rounded-2xl p-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
                     style={{ backgroundColor: cardBg }}
-                    onClick={() => setSelectedProduct(product)}
+                    onClick={() => openProduct(product)}
                   >
                     <div className="w-40 h-40 shrink-0 rounded-xl overflow-hidden shadow-lg" style={{ backgroundColor: appearance.dark_mode ? '#27272a' : '#f4f4f5' }}>
                       {product.images?.[0] ? (
@@ -705,45 +820,31 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                         </div>
                       )}
                     </div>
-                    <div className="flex-1">
-                      {product.isMLProduct && (
-                        <div className="flex items-center gap-1 mb-1">
-                          <span className="text-[10px] bg-yellow-400 text-black px-1.5 py-0.5 rounded font-bold">ML</span>
-                          <span className="text-[10px] text-zinc-500">Mercado Libre</span>
-                          {!product.hasAffiliate && (
-                            <span className="text-[10px] text-red-400 ml-1">Sin afiliado</span>
-                          )}
-                        </div>
-                      )}
-                      <p className="text-xs font-medium tracking-wider uppercase mb-1" style={{ color: mutedColor }}>
-                        {product.isMLProduct ? 'Afiliado' : 'Disponible'}
-                      </p>
-                      <h3 className="font-bold text-xl mb-2" style={{ color: textColor }}>{product.title || product.nombre}</h3>
-                      <p className="mb-4 line-clamp-2" style={{ color: mutedColor }}>{product.description}</p>
-<div className="flex items-end justify-between">
-                          <div>
-                            {!product.isMLProduct && (
-                              <p className="text-xs line-through" style={{ color: mutedColor }}>{formatPrice((product.precio || 0) * 1.15, currency)}</p>
-                            )}
-                            {product.isMLProduct && product.priceChanged && (
-                              <p className="text-xs line-through text-amber-400">{formatPrice(product.originalPrice || 0, currency)}</p>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <p className="text-3xl font-bold" style={{ color: textColor }}>{formatPrice(product.precio || 0, currency)}</p>
-                              {product.isMLProduct && (
-                                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">LIVE</span>
-                              )}
-                            </div>
-                          </div>
+                    <div className="flex-1 flex flex-col">
+                        <p className="text-[10px] font-bold tracking-widest uppercase mb-1" style={primaryText}>
+                          {product.external_url ? 'Mercado Libre' : 'En Stock'}
+                        </p>
+                        <h3 className="font-bold text-xl mb-1" style={{ color: textColor }}>{product.title || product.nombre}</h3>
+                        <p className="text-sm line-clamp-2 mb-4" style={{ color: mutedColor }}>{product.description}</p>
+                        
+                        <div className="mt-auto flex items-center justify-between">
+                          <p className="text-2xl font-black" style={{ color: textColor }}>{formatPrice(product.precio || 0, currency)}</p>
                           <button
-                          onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                          className={`px-6 py-3 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all hover:scale-105 ${
-                            product.isMLProduct && !product.hasAffiliate ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          style={product.isMLProduct ? { backgroundColor: '#facc15', color: '#000' } : primaryBg}
-                          disabled={product.isMLProduct && !product.hasAffiliate}
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (product.external_url) {
+                              window.open(product.external_url, '_blank');
+                            } else {
+                              addToCart(product); 
+                            }
+                          }}
+                          className="px-6 py-3 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+                          style={product.external_url ? { backgroundColor: '#facc15', color: '#000' } : primaryBg}
                         >
-                          {product.isMLProduct ? (product.hasAffiliate ? 'Ver en ML' : 'Sin afiliado') : 'Agregar'}
+                          <span className="material-symbols-outlined text-[18px]">
+                            {product.external_url ? 'open_in_new' : 'add_shopping_cart'}
+                          </span>
+                          {product.external_url ? 'Comprar ahora' : 'Agregar'}
                         </button>
                       </div>
                     </div>
@@ -766,14 +867,26 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                 <h3 className="text-3xl font-bold mb-2" style={{ color: textColor }}>¡Pedido Confirmado!</h3>
                 <p className="mb-2" style={{ color: mutedColor }}>Tu número de pedido:</p>
                 <p className="text-4xl font-black mb-6 px-8 py-4 rounded-xl" style={{ backgroundColor: cardBg, color: textColor }}>#{orderNumber}</p>
-                <p className="text-sm mb-8" style={{ color: mutedColor }}>Te contactaremos pronto para confirmar el envío.</p>
-                <button 
-                  onClick={() => { setShowCart(false); setOrderComplete(false); setCheckoutStep(1); }} 
-                  className="px-8 py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all" 
-                  style={primaryBg}
-                >
-                  Continuar Comprando
-                </button>
+                <p className="text-sm mb-8" style={{ color: mutedColor }}>Para agilizar tu entrega, envíanos el resumen por WhatsApp:</p>
+                
+                <div className="flex flex-col w-full gap-3">
+                  <button 
+                    onClick={sendWhatsAppOrder}
+                    className="w-full py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2" 
+                    style={{ backgroundColor: '#25D366' }}
+                  >
+                    <span className="material-symbols-outlined font-black">chat</span>
+                    Enviar por WhatsApp
+                  </button>
+                  
+                  <button 
+                    onClick={() => { setShowCart(false); setOrderComplete(false); setCheckoutStep(1); }} 
+                    className="w-full py-4 rounded-xl font-bold opacity-60 hover:opacity-100 transition-all" 
+                    style={{ color: textColor }}
+                  >
+                    Cerrar y volver a la tienda
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -1058,50 +1171,99 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
       {selectedProduct && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4" 
-          style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm" 
+          style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
           onClick={() => { setSelectedProduct(null); setSelectedVariant({}); }}
         >
           <div 
-            className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col md:flex-row" 
+            className="w-full max-w-4xl rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-300" 
             style={{ backgroundColor: cardBg }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full md:w-1/2 aspect-square md:aspect-auto" style={{ backgroundColor: appearance.dark_mode ? '#27272a' : '#f4f4f5' }}>
-              {selectedProduct.images?.[0] ? (
-                <img src={selectedProduct.images[0]} alt={selectedProduct.title} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="material-symbols-outlined text-6xl text-zinc-700">image</span>
+            {/* Gallery Section */}
+            <div className="w-full md:w-1/2 flex flex-col" style={{ backgroundColor: appearance.dark_mode ? '#121214' : '#f8f8f8' }}>
+              <div className="relative aspect-square overflow-hidden group">
+                <img 
+                  src={selectedProduct.images?.[selectedImageIndex || 0] || selectedProduct.images?.[0]} 
+                  alt={selectedProduct.title} 
+                  className="w-full h-full object-contain p-4 hover:scale-110 transition-transform duration-500" 
+                />
+                {selectedProduct.external_url && (
+                  <div className="absolute top-4 left-4 bg-[#FFE600] text-black text-[10px] font-black uppercase px-2 py-1 rounded shadow-lg flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[12px] font-black">bolt</span>
+                    Mercado Libre
+                  </div>
+                )}
+              </div>
+              
+              {/* Thumbnails */}
+              {selectedProduct.images?.length > 1 && (
+                <div className="flex gap-2 p-4 overflow-x-auto scrollbar-hide bg-black/5">
+                  {selectedProduct.images.map((img: string, idx: number) => (
+                    <button 
+                      key={idx}
+                      onClick={() => setSelectedImageIndex(idx)}
+                      className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
+                        (selectedImageIndex || 0) === idx ? 'border-yellow-400' : 'border-transparent opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={img} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
-            <div className="p-8 flex flex-col">
-              <p className="text-xs text-zinc-500 font-medium tracking-wider uppercase mb-2">Nuevo</p>
-              <h2 className="font-bold text-2xl text-white mb-4">{selectedProduct.title || selectedProduct.nombre}</h2>
-              <p className="text-zinc-400 mb-2 flex-1">{selectedProduct.description}</p>
+
+            {/* Info Section */}
+            <div className="p-8 flex-1 flex flex-col relative">
+              <button 
+                onClick={() => { setSelectedProduct(null); setSelectedVariant({}); }}
+                className="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center hover:bg-black/10 transition-colors"
+                style={{ color: mutedColor }}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+
+              <div className="mb-2">
+                <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: currentTheme.primary }}>
+                  {selectedProduct.external_url ? 'Recomendado' : 'Producto Premium'}
+                </p>
+              </div>
+              
+              <h2 className="font-black text-3xl mb-4 leading-tight" style={{ color: textColor }}>
+                {selectedProduct.title || selectedProduct.nombre}
+              </h2>
+              
+              <div className="flex-1 overflow-y-auto max-h-[200px] mb-6 scrollbar-hide">
+                <p className="text-sm leading-relaxed" style={{ color: mutedColor }}>
+                  {selectedProduct.description}
+                </p>
+              </div>
               
               {/* Variant Selector */}
               {Object.entries(productAttributes).length > 0 && (
-                <div className="mb-4 space-y-3">
+                <div className="mb-6 space-y-4">
                   {Object.entries(productAttributes).map(([slug, attr]: [string, any]) => (
                     <div key={slug}>
-                      <p className="text-xs text-zinc-500 font-bold uppercase mb-2">{attr[0]?.name}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: mutedColor }}>{attr[0]?.name}</p>
                       <div className="flex flex-wrap gap-2">
                         {attr[0]?.options?.map((opt: any) => (
                           <button
                             key={opt.id}
                             onClick={() => setSelectedVariant({ ...selectedVariant, [slug]: opt.slug })}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            className={`px-4 py-2 rounded-xl text-xs font-black transition-all border ${
                               selectedVariant[slug] === opt.slug
-                                ? 'text-white'
-                                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                                ? 'border-transparent shadow-lg shadow-yellow-500/20'
+                                : 'border-white/5 hover:border-white/20'
                             }`}
-                            style={selectedVariant[slug] === opt.slug ? primaryBg : undefined}
+                            style={selectedVariant[slug] === opt.slug 
+                              ? { backgroundColor: currentTheme.primary, color: '#fff' } 
+                              : { backgroundColor: appearance.dark_mode ? '#27272a' : '#f1f1f1', color: mutedColor }
+                            }
                           >
                             {attr[0]?.type === 'color' && opt.color && (
                               <span 
-                                className="inline-block w-3 h-3 rounded-full mr-1" 
+                                className="inline-block w-3 h-3 rounded-full mr-2 shadow-sm" 
                                 style={{ backgroundColor: opt.color }}
                               />
                             )}
@@ -1114,40 +1276,42 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                 </div>
               )}
               
-              {selectedProduct.sku && (
-                <p className="text-xs text-zinc-600 mb-2">SKU: {selectedProduct.sku}</p>
-              )}
-              <div className="mt-auto">
-                {selectedProduct.isMLProduct && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs bg-yellow-400 text-black px-2 py-1 rounded font-bold">ML</span>
-                    <span className="text-xs text-zinc-400">Producto de Mercado Libre</span>
+              <div className="mt-auto space-y-4">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest mb-1" style={{ color: mutedColor }}>Precio Final</p>
+                    <p className="text-4xl font-black" style={{ color: textColor }}>{formatPrice(selectedProduct.precio || 0, currency)}</p>
                   </div>
-                )}
-                {selectedProduct.isMLProduct && !selectedProduct.hasAffiliate && (
-                  <div className="mb-3 p-2 bg-red-500/20 border border-red-500/30 rounded-lg">
-                    <p className="text-xs text-red-400">Esta tienda no tiene afiliado configurado.</p>
-                  </div>
-                )}
-                {!selectedProduct.isMLProduct && (
-                  <p className="text-xs text-zinc-500 line-through">{formatPrice((selectedProduct.precio || 0) * 1.2, currency)}</p>
-                )}
-                <p className="text-3xl font-bold text-white mb-4">{formatPrice(selectedProduct.precio || 0, currency)}</p>
+                  {selectedProduct.sku && (
+                    <p className="text-[10px] font-medium opacity-40 mb-1" style={{ color: textColor }}>REF: {selectedProduct.sku}</p>
+                  )}
+                </div>
+
                 <button 
-                  onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }} 
-                  className={`w-full py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 ${
-                    selectedProduct.isMLProduct ? 'bg-yellow-400 text-black hover:bg-yellow-300' : 'text-white'
-                  } ${selectedProduct.isMLProduct && !selectedProduct.hasAffiliate ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  style={selectedProduct.isMLProduct ? {} : primaryBg}
-                  disabled={selectedProduct.isMLProduct && !selectedProduct.hasAffiliate}
+                  onClick={() => { 
+                    if (selectedProduct.external_url) {
+                      window.open(selectedProduct.external_url, '_blank');
+                    } else {
+                      addToCart(selectedProduct); 
+                      setSelectedProduct(null); 
+                    }
+                  }} 
+                  className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 ${
+                    selectedProduct.external_url ? 'bg-[#FFE600] text-black' : 'text-white'
+                  }`}
+                  style={!selectedProduct.external_url ? primaryBg : undefined}
                 >
-                  <span className="material-symbols-outlined">
-                    {selectedProduct.isMLProduct ? 'open_in_new' : 'add_shopping_cart'}
+                  <span className="material-symbols-outlined font-black">
+                    {selectedProduct.external_url ? 'bolt' : 'shopping_basket'}
                   </span>
-                  {selectedProduct.isMLProduct 
-                    ? (selectedProduct.hasAffiliate ? 'Ver en Mercado Libre' : 'Sin afiliado')
-                    : 'Agregar al Carrito'}
+                  {selectedProduct.external_url ? 'Comprar en Mercado Libre' : 'Agregar al Pedido'}
                 </button>
+                
+                {selectedProduct.external_url && (
+                  <p className="text-[9px] text-center font-bold uppercase tracking-tighter opacity-50" style={{ color: mutedColor }}>
+                    Serás redirigido a la publicación oficial para completar tu compra de forma segura.
+                  </p>
+                )}
               </div>
             </div>
           </div>

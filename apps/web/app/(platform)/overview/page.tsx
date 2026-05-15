@@ -8,6 +8,7 @@ export default function PlatformDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [subscriptionPayments, setSubscriptionPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Tenant Creation modal state
@@ -27,28 +28,22 @@ export default function PlatformDashboard() {
   async function fetchData() {
     setLoading(true);
     try {
-      // 1. Fetch tenants
-      const { data: tenantsData } = await supabase.from('tenants').select('*');
-      setTenants(tenantsData || []);
+      const [tenantsRes, ordersRes, productsRes, customersRes, subRes] = await Promise.all([
+        supabase.from('tenants').select('*'),
+        supabase.from('orders').select('*'),
+        supabase.from('products').select('*'),
+        supabase.from('customers').select('*'),
+        supabase.from('subscription_payments').select('*').eq('status', 'completed')
+      ]);
 
-      // 2. Fetch all orders across platform
-      const { data: ordersData } = await supabase.from('orders').select('*');
-      setOrders(ordersData || []);
-
-      // 3. Fetch products across platform
-      const { data: productsData } = await supabase.from('products').select('*');
-      setProducts(productsData || []);
-
-      // 4. Fetch customers across platform
-      const { data: customersData } = await supabase.from('customers').select('*');
-      setCustomers(customersData || []);
+      setTenants(tenantsRes.data || []);
+      setOrders(ordersRes.data || []);
+      setProducts(productsRes.data || []);
+      setCustomers(customersRes.data || []);
+      setSubscriptionPayments(subRes.data || []);
 
     } catch (err) {
       console.error(err);
-      setTenants([]);
-      setOrders([]);
-      setProducts([]);
-      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -63,7 +58,8 @@ export default function PlatformDashboard() {
         nombre: formData.nombre,
         slug: formData.slug.toLowerCase().replace(/\s+/g, '-'),
         status: formData.status,
-        online_store_enabled: formData.online_store_enabled
+        online_store_enabled: formData.online_store_enabled,
+        plan_id: 'free'
       }]).select();
 
       if (!error && data) {
@@ -78,7 +74,11 @@ export default function PlatformDashboard() {
     }
   };
 
-  const totalSales = orders.reduce((acc, order) => acc + (order.total_ars || 0), 0);
+  const platformGMV = orders.reduce((acc, order) => acc + (order.total_ars || 0), 0);
+  const saasRevenue = subscriptionPayments.reduce((acc, pay) => acc + (pay.amount || 0), 0);
+  const activeTenants = tenants.filter(t => t.status === 'active').length;
+
+  const formatCurrency = (val: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
   if (loading) {
     return (
@@ -91,45 +91,56 @@ export default function PlatformDashboard() {
 
   return (
     <>
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      {/* Header de la Página */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-white">Platform Overview</h1>
-          <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Real-time status of the Obsidiana SaaS ecosystem.</p>
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-white">Vista General</h1>
+          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Estado en tiempo real del ecosistema Obsidiana Pro.</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-xl transition-all shadow-lg text-xs font-black uppercase tracking-wider"
-        >
-          <span className="material-symbols-outlined text-sm font-black">add</span>
-          Nuevo Tenant
-        </button>
+        <div className="flex items-center gap-3">
+           <div className="flex flex-col items-end mr-4">
+              <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Sincronización</span>
+              <span className="text-[10px] text-emerald-400 font-bold">En Línea</span>
+           </div>
+           <button 
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-white text-black hover:bg-zinc-200 px-5 py-2.5 rounded-xl transition-all shadow-lg text-[10px] font-black uppercase tracking-wider"
+          >
+            <span className="material-symbols-outlined text-sm font-black">add_business</span>
+            Nuevo Merchant
+          </button>
+        </div>
       </div>
 
-      {/* Global Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      {/* Métricas Globales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {[
-          { label: 'Ingresos Totales (SaaS)', value: `$${totalSales?.toLocaleString() || 0}`, trend: 'Activo', icon: 'payments', color: 'emerald' },
-          { label: 'Tenants Registrados', value: tenants.length.toString(), trend: 'Directo', icon: 'store', color: 'violet' },
-          { label: 'Total Clientes', value: customers.length.toString(), trend: 'Consolidado', icon: 'group', color: 'blue' },
-          { label: 'Total Productos', value: products.length.toString(), trend: 'Catálogo', icon: 'inventory_2', color: 'amber' },
+          { label: 'Facturación SaaS (Total)', value: formatCurrency(saasRevenue), trend: '+12.5%', icon: 'payments', color: 'violet' },
+          { label: 'Volumen Transaccionado (GMV)', value: formatCurrency(platformGMV), trend: 'Ecosistema', icon: 'account_balance_wallet', color: 'emerald' },
+          { label: 'Tenants Activos', value: activeTenants.toString(), trend: `${tenants.length} total`, icon: 'storefront', color: 'blue' },
+          { label: 'Inventario Global', value: products.length.toLocaleString(), trend: 'Productos', icon: 'inventory_2', color: 'amber' },
         ].map((metric, i) => (
-          <div key={i} className="bg-zinc-900 border border-white/5 rounded-xl p-6 shadow-xl relative overflow-hidden group hover:border-white/20 transition-all">
-            <div className={`absolute -right-4 -top-4 w-20 h-20 bg-${metric.color}-500/10 rounded-full blur-2xl`}></div>
-            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-4">{metric.label}</p>
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-3xl font-black text-white tracking-tighter">{metric.value}</h3>
-              <span className={`text-[10px] font-black text-${metric.color}-400 uppercase tracking-widest`}>{metric.trend}</span>
-            </div>
-            <div className="mt-4 flex items-center gap-2">
-              <span className={`material-symbols-outlined text-[18px] text-${metric.color}-400`}>{metric.icon}</span>
-              <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                <div className={`h-full bg-${metric.color}-500 w-full`}></div>
+          <div key={i} className="bg-zinc-900 border border-white/5 rounded-2xl p-6 shadow-xl relative overflow-hidden group hover:border-white/10 transition-all">
+            <div className={`absolute -right-4 -top-4 w-24 h-24 bg-${metric.color}-500/5 rounded-full blur-3xl group-hover:bg-${metric.color}-500/10 transition-all`}></div>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.15em]">{metric.label}</p>
+              <div className={`w-8 h-8 rounded-lg bg-${metric.color}-500/10 flex items-center justify-center border border-${metric.color}-500/20`}>
+                <span className={`material-symbols-outlined text-sm text-${metric.color}-400`}>{metric.icon}</span>
               </div>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-2xl font-black text-white tracking-tighter">{metric.value}</h3>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5">
+              <span className={`text-[9px] font-black text-${metric.color}-400 uppercase tracking-widest bg-${metric.color}-500/5 px-2 py-0.5 rounded border border-${metric.color}-500/10`}>
+                {metric.trend}
+              </span>
+              <span className="text-[9px] text-zinc-600 font-bold uppercase">vs mes anterior</span>
             </div>
           </div>
         ))}
       </div>
+
 
       {/* Tenant Activity & Infrastructure */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

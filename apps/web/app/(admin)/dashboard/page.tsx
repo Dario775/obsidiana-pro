@@ -17,7 +17,7 @@ interface Order {
 }
 
 export default function AdminHomePage() {
-  const { tenant } = useTenant();
+  const { tenant, plan } = useTenant();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [criticalStock, setCriticalStock] = useState(0);
@@ -119,17 +119,40 @@ export default function AdminHomePage() {
         <div className="absolute top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-[120px] -ml-48 -mt-48 pointer-events-none group-hover:bg-primary/15 transition-all duration-1000"></div>
         
         <div className="relative z-10">
-<div className="flex items-center gap-3 mb-3">
+          <div className="flex flex-wrap items-center gap-3 mb-3">
               <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-black text-[9px] uppercase tracking-widest flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
                  Sistema Online
               </span>
-              {tenant?.plan_started_at && tenant?.paid_until && (
-                <span className="px-3 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 font-black text-[9px] uppercase tracking-widest flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[12px]">workspace_premium</span>
-                  Plan: {tenant.paid_until ? Math.ceil((new Date(tenant.paid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0} días restantes
-                </span>
-              )}
+              
+              {/* Plan Badge */}
+              <a 
+                href="/settings/billing"
+                className={`px-3 py-1 rounded-full ${plan?.id === 'free' ? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'} border font-black text-[9px] uppercase tracking-widest flex items-center gap-2 hover:bg-violet-500/20 transition-all cursor-pointer group/plan`}
+              >
+                <span className="material-symbols-outlined text-[12px] group-hover/plan:rotate-12 transition-transform">{plan?.id === 'free' ? 'auto_awesome' : 'workspace_premium'}</span>
+                Plan: {plan?.name || plan?.nombre || 'Cargando...'}
+              </a>
+
+              {/* Status & Days Remaining */}
+              <a 
+                href="/settings/billing"
+                className={`px-3 py-1 rounded-full ${
+                  tenant?.paid_until && new Date(tenant.paid_until) > new Date() 
+                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' 
+                    : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                } border font-black text-[9px] uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer`}
+              >
+                <span className="material-symbols-outlined text-[12px]">event</span>
+                {tenant?.paid_until ? (
+                  new Date(tenant.paid_until) > new Date() 
+                    ? `${Math.ceil((new Date(tenant.paid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} días restantes`
+                    : 'Suscripción Vencida'
+                ) : plan?.id === 'free' ? (
+                  'Acceso Vitalicio'
+                ) : 'Estado Desconocido'}
+              </a>
+
               <span className="text-zinc-600 font-black text-[9px] uppercase tracking-[0.2em]">Última sincronización: En tiempo real</span>
            </div>
           <h1 className="font-headline-xl text-4xl font-black text-white tracking-tight">Panel de Control</h1>

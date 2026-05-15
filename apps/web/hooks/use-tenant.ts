@@ -63,9 +63,17 @@ export interface Tenant {
 
 export interface Plan {
   id: string;
-  nombre: string;
-  precio_mensual: number;
+  name: string;
+  nombre?: string;
+  precio_mensual?: number;
+  monthly_price: number;
+  yearly_price: number;
+  max_products: number;
+  max_branches: number;
+  online_store?: boolean;
+  pos?: boolean;
   features: Record<string, any>;
+  description?: string | null;
   created_at: string;
 }
 
@@ -90,7 +98,21 @@ export function useTenant() {
           return;
         }
 
-        const tenantId = user.user_metadata?.tenant_id;
+        let tenantId = user.user_metadata?.tenant_id;
+ 
+        if (!tenantId) {
+          // Fallback: Check tenant_members
+          const { data: memberData } = await supabase
+            .from('tenant_members')
+            .select('tenant_id')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle();
+          
+          if (memberData) {
+            tenantId = memberData.tenant_id;
+          }
+        }
 
         if (!tenantId) {
           // User has no tenant assigned — this is a configuration issue
@@ -135,16 +157,22 @@ export function useTenant() {
   }, []);
 
   const hasFeature = (featureName: string): boolean => {
-    if (!tenant) return false;
+    if (!tenant || !plan) return false;
     
-    // Direct feature flags on tenant
-    if (featureName === 'online_store') {
-      return tenant.online_store_enabled === true;
+    // 1. Check direct boolean columns in the plan table (legacy/core)
+    if (featureName === 'online_store' && plan.online_store === true) return true;
+    if (featureName === 'pos' && plan.pos === true) return true;
+
+    // 2. Check granular features in the JSONB object
+    if (plan.features && plan.features[featureName] === true) {
+      return true;
     }
     
-    // Check plan features
-    if (plan?.features && plan.features[featureName] === true) {
-      return true;
+    // 3. Specific business rules
+    if (featureName === 'online_store') {
+      // Must be allowed by plan AND enabled by tenant
+      const planAllows = plan.online_store === true || plan.features?.['online_store'] === true;
+      return !!(planAllows && tenant.online_store_enabled);
     }
     
     return false;
@@ -152,7 +180,7 @@ export function useTenant() {
 
   const getPlanName = (): string => {
     if (!plan) return 'Sin Plan';
-    return plan.nombre;
+    return plan.name || plan.nombre || 'Sin Nombre';
   };
 
   return {

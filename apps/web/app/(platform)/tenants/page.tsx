@@ -162,12 +162,11 @@ export default function TenantsPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-white/5 bg-white/5">
-                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Tenant</th>
-                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Slug</th>
-                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">CUIT</th>
-                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Plan</th>
-                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Status</th>
-                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Tienda Online</th>
+                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Tienda / Tenant</th>
+                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Identificador</th>
+                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Plan Actual</th>
+                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Estado</th>
+                <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Vencimiento</th>
                 <th className="py-3 px-6 text-right text-[10px] font-black uppercase tracking-widest text-zinc-500">Acciones</th>
               </tr>
             </thead>
@@ -178,24 +177,33 @@ export default function TenantsPage() {
                   <tr key={t.id || i} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-zinc-800 border border-white/10 flex items-center justify-center font-black text-[10px]">
+                        <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center font-black text-[10px] text-zinc-500">
                           {t.nombre ? t.nombre.charAt(0).toUpperCase() : 'T'}
                         </div>
-                        <span className="text-xs font-bold text-white">{t.nombre}</span>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-white">{t.nombre}</span>
+                          <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{t.cuit || 'Sin CUIT'}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t.slug}</td>
-                    <td className="py-4 px-6 text-xs text-zinc-300">{t.cuit || '-'}</td>
-                    <td className="py-4 px-6 text-[10px] font-black text-violet-400 uppercase tracking-widest">{plan ? plan.nombre : 'Sin Plan'}</td>
+                    <td className="py-4 px-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t.slug}</td>
+                    <td className="py-4 px-6">
+                       <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest bg-violet-500/5 px-2 py-0.5 rounded border border-violet-500/10">
+                          {plan ? (plan.name || plan.nombre) : 'Sin Plan'}
+                       </span>
+                    </td>
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${t.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'}`}>
-                        {t.status || 'active'}
+                        {t.status === 'active' ? 'Activo' : t.status === 'trial' ? 'Prueba' : 'Inactivo'}
                       </span>
                     </td>
                     <td className="py-4 px-6">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${t.online_store_enabled ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'}`}>
-                        {t.online_store_enabled ? 'Habilitada' : 'Deshabilitada'}
-                      </span>
+                       <div className="flex flex-col">
+                          <span className={`text-[10px] font-bold ${t.paid_until && new Date(t.paid_until) < new Date() ? 'text-red-400' : 'text-zinc-300'}`}>
+                            {t.paid_until ? new Date(t.paid_until).toLocaleDateString('es-AR') : 'Sin fecha'}
+                          </span>
+                          <span className="text-[8px] text-zinc-500 font-black uppercase">Mensual</span>
+                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
                       <div className="flex items-center justify-end gap-2">

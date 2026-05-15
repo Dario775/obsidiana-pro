@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
 import { useRouter } from 'next/navigation';
+import { FeatureGate } from '@/components/feature-gate';
 
 interface ProductData {
   id: string;
@@ -11,6 +12,7 @@ interface ProductData {
   slug: string;
   available_online: boolean;
   online_reserved: number;
+  external_url?: string;
 }
 
 interface VariantData {
@@ -36,7 +38,7 @@ interface OrderStats {
 }
 
 export default function OnlineCatalogPage() {
-  const { tenant } = useTenant();
+  const { tenant, hasFeature } = useTenant();
   const router = useRouter();
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,20 @@ export default function OnlineCatalogPage() {
   const [filterOnline, setFilterOnline] = useState('');
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState<OrderStats>({ totalOrders: 0, pendingOrders: 0, totalRevenue: 0 });
+  
+  // Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<CatalogItem | null>(null);
+  const [importUrl, setImportUrl] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [scrapedData, setScrapedData] = useState<any>(null);
+  const [importError, setImportError] = useState('');
+
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    price: 0
+  });
 
   useEffect(() => {
     if (tenant?.id) {
@@ -59,7 +75,7 @@ export default function OnlineCatalogPage() {
     // Fetch products with their variants and inventory
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, title, slug, available_online, online_reserved, tenant_id')
+      .select('id, title, slug, available_online, online_reserved, tenant_id, external_url')
       .eq('tenant_id', tenant.id)
       .eq('status', 'active')
       .order('title');
@@ -114,6 +130,7 @@ export default function OnlineCatalogPage() {
             slug: product.slug,
             available_online: product.available_online,
             online_reserved: product.online_reserved,
+            external_url: product.external_url,
           },
           variant: {
             id: variant.id,
@@ -133,19 +150,19 @@ export default function OnlineCatalogPage() {
     
     const { data: orders } = await supabase
       .from('orders')
-      .select('id, status, total')
+      .select('id, status, total_ars')
       .eq('tenant_id', tenant.id)
       .in('status', ['pending', 'processing', 'shipped']);
 
     const { data: allOrders } = await supabase
       .from('orders')
-      .select('id, total')
+      .select('id, total_ars')
       .eq('tenant_id', tenant.id)
       .in('status', ['completed', 'delivered']);
 
     const pendingCount = orders?.length || 0;
     const totalCount = (allOrders?.length || 0) + pendingCount;
-    const revenue = (allOrders || []).reduce((sum, o) => sum + (o.total || 0), 0);
+    const revenue = (allOrders || []).reduce((sum, o) => sum + (o.total_ars || 0), 0);
 
     setStats({
       totalOrders: totalCount,
@@ -212,8 +229,149 @@ export default function OnlineCatalogPage() {
   const totalStock = items.reduce((acc, i) => acc + (i.available || 0), 0);
   const totalOnlineReserved = items.reduce((acc, i) => acc + (i.product.online_reserved || 0), 0);
 
+  async function handleAnalyze(manualUrl?: string) {
+    const urlToUse = manualUrl || importUrl;
+    if (!urlToUse) return;
+    setAnalyzing(true);
+    setImportError('');
+    
+    try {
+      // Extract URL if pasted with text
+      let targetUrl = urlToUse.trim();
+      const urlMatch = targetUrl.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        targetUrl = urlMatch[0];
+      }
+
+      const response = await fetch('/api/ml/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetUrl })
+      });
+      const data = await response.json();
+      
+      if (data.error) throw new Error(data.error);
+      
+      setScrapedData(data);
+    } catch (err: any) {
+      setImportError(err.message || 'Error al analizar el link');
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleImport() {
+    if (!scrapedData || !tenant?.id) return;
+    setSaving(true);
+    try {
+      if (editingItem) {
+        // UPDATE MODE
+        // 1. Update Product
+        const { error: pError } = await supabase
+          .from('products')
+          .update({
+            title: scrapedData.title,
+            description: scrapedData.description,
+            images: scrapedData.images || []
+          })
+          .eq('id', editingItem.product.id);
+
+        if (pError) throw pError;
+
+        // 2. Update Variant
+        const { error: vError } = await supabase
+          .from('product_variants')
+          .update({
+            price_ars: scrapedData.price || 0
+          })
+          .eq('id', editingItem.variant.id);
+
+        if (vError) throw vError;
+
+        alert('Producto actualizado exitosamente');
+      } else {
+        // INSERT MODE
+        const slug = (scrapedData.title || 'producto-ml').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+        
+        // 1. Create Product
+        const { data: product, error: pError } = await supabase
+          .from('products')
+          .insert({
+            title: scrapedData.title,
+            description: scrapedData.description,
+            slug: `${slug}-${Date.now()}`,
+            status: 'active',
+            tenant_id: tenant.id,
+            available_online: true,
+            external_url: importUrl,
+            images: scrapedData.images || []
+          })
+          .select()
+          .single();
+
+        if (pError) throw pError;
+
+        // 2. Create Variant
+        const { data: variant, error: vError } = await supabase
+          .from('product_variants')
+          .insert({
+            product_id: product.id,
+            sku: `ML-${Date.now().toString().slice(-6)}`,
+            price_ars: scrapedData.price || 0
+          })
+          .select()
+          .single();
+
+        if (vError) throw vError;
+
+        // 3. Create Inventory (Affiliate products have high virtual stock)
+        const { error: iError } = await supabase
+          .from('inventory_levels')
+          .insert({
+            variant_id: variant.id,
+            tenant_id: tenant.id,
+            on_hand: 999
+          });
+
+        if (iError) throw iError;
+        alert('Producto importado exitosamente');
+      }
+
+      setShowImportModal(false);
+      setScrapedData(null);
+      setImportUrl('');
+      setEditingItem(null);
+      fetchInventory();
+    } catch (err: any) {
+      alert('Error al procesar: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+
+  async function handleDeleteProduct(item: CatalogItem) {
+    if (!confirm('¿Estás seguro de que deseas eliminar este producto del catálogo? Esta acción no se puede deshacer.')) return;
+    setSaving(true);
+    try {
+      // Delete in correct order for FK constraints
+      await supabase.from('inventory_levels').delete().eq('variant_id', item.variant.id);
+      await supabase.from('product_variants').delete().eq('id', item.variant.id);
+      const { error } = await supabase.from('products').delete().eq('id', item.product.id);
+      
+      if (error) throw error;
+      fetchInventory();
+      alert('Producto eliminado exitosamente');
+    } catch (err: any) {
+      alert('Error al eliminar: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className="space-y-8">
+    <FeatureGate feature="online_store">
+      <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -221,6 +379,22 @@ export default function OnlineCatalogPage() {
           <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">
             Controlá qué productos se venden en tu tienda online
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {hasFeature('ml_sync') ? (
+            <button 
+              onClick={() => setShowImportModal(true)}
+              className="bg-[#FFE600] text-black px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-[#FFE600]/90 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,230,0,0.1)]"
+            >
+              <span className="material-symbols-outlined text-[18px] font-black">add_shopping_cart</span>
+              Importar de Mercado Libre
+            </button>
+          ) : (
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] text-zinc-600 font-black uppercase tracking-widest">Sincronización ML</span>
+              <span className="text-[9px] text-amber-500/50 font-bold italic">No incluida en tu plan</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -362,10 +536,27 @@ export default function OnlineCatalogPage() {
                   <td className="py-4 px-6">
                     <div className="flex items-center gap-1">
                       <button 
-                        onClick={() => router.push(`/inventory?product=${item.product.id}`)}
+                        onClick={() => {
+                          if (item.product.external_url) {
+                            setEditingItem(item);
+                            setImportUrl(item.product.external_url);
+                            setScrapedData(null); // Clear previous data so they see the "Analyze" button
+                            setShowImportModal(true);
+                          } else {
+                            router.push(`/inventory?product=${item.product.id}`);
+                          }
+                        }}
                         className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white"
+                        title={item.product.external_url ? 'Verificar y Actualizar ML' : 'Editar en Inventario'}
                       >
                         <span className="material-symbols-outlined text-sm">edit</span>
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteProduct(item)}
+                        className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-red-400"
+                        title="Eliminar producto"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
                       </button>
                     </div>
                   </td>
@@ -381,15 +572,154 @@ export default function OnlineCatalogPage() {
         <div className="flex items-start gap-3">
           <span className="material-symbols-outlined text-violet-400">info</span>
           <div>
-            <p className="text-sm font-bold text-white">¿Cómo funciona?</p>
+            <p className="text-sm font-bold text-white">Gestión de Catálogo Híbrido</p>
             <p className="text-xs text-zinc-400 mt-1">
-              Seleccioná <strong>"Publicar"</strong> para mostrar un producto en tu tienda online. 
-              El campo <strong>"Reservado Web"</strong> te permite indicar cuántas unidades se reservan exclusivamente para ventas online, 
-              evitando que se venda más stock del disponible en la tienda física.
+              Podés publicar productos de tu inventario local o <strong>Importar de Mercado Libre</strong> para vender como afiliado. 
+              Usa el botón amarillo superior para agregar productos externos rápidamente pegando solo el link.
             </p>
           </div>
         </div>
       </div>
-    </div>
+      {/* Import/Edit Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="w-full max-w-6xl bg-[#0a0a0a] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-500 flex flex-col h-[85vh]">
+            {/* Header - Browser Style */}
+            <div className="bg-[#111] px-6 py-4 border-b border-white/5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/50" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/50" />
+                </div>
+                <span className="ml-4 text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">
+                  {editingItem ? 'Verification & Sync Engine' : 'Live Import Engine & Verification'}
+                </span>
+              </div>
+              <button onClick={() => { setShowImportModal(false); setScrapedData(null); setEditingItem(null); setImportUrl(''); }} className="text-zinc-500 hover:text-white transition-colors">
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left Side: Data Panel */}
+              <div className="w-[380px] border-r border-white/5 p-8 overflow-y-auto custom-scrollbar bg-[#0a0a0a]">
+                {!scrapedData ? (
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-violet-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">link</span> URL o Texto del Producto
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="Pegá el link o el texto de ML aquí..."
+                        className="w-full bg-[#111] border border-white/5 rounded-2xl px-6 py-4 text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 transition-all text-sm"
+                        value={importUrl}
+                        onChange={(e) => setImportUrl(e.target.value)}
+                        disabled={!!editingItem}
+                      />
+                    </div>
+                    
+                    {importError && (
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <p className="text-xs text-red-400 font-bold">{importError}</p>
+                      </div>
+                    )}
+
+                    <button 
+                      onClick={() => handleAnalyze()}
+                      disabled={analyzing || !importUrl}
+                      className="w-full py-5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:shadow-[0_0_40px_-10px_rgba(124,58,237,0.5)] transition-all disabled:opacity-50"
+                    >
+                      {analyzing ? 'Procesando...' : (editingItem ? 'Re-Analizar Link' : 'Analizar Producto')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-8 animate-in slide-in-from-left duration-500">
+                    <div className="space-y-6">
+                      <div className="aspect-square rounded-2xl bg-[#111] border border-white/5 overflow-hidden">
+                        {scrapedData.images?.[0] && (
+                          <img src={scrapedData.images[0]} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Título</label>
+                          <input 
+                            type="text" 
+                            value={scrapedData.title}
+                            onChange={(e) => setScrapedData({...scrapedData, title: e.target.value})}
+                            className="w-full bg-transparent border-b border-white/5 text-white font-black text-sm focus:outline-none focus:border-violet-500 py-1"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">payments</span> Precio Final en Tienda
+                          </label>
+                          <div className="relative">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/50 font-black text-xl">$</div>
+                            <input 
+                              type="text" 
+                              value={scrapedData.price}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9.]/g, '');
+                                setScrapedData({...scrapedData, price: val ? parseFloat(val) : 0});
+                              }}
+                              className="w-full bg-[#111] border border-white/5 rounded-2xl pl-10 pr-4 py-5 text-emerald-400 font-black text-3xl focus:outline-none focus:border-emerald-500/50 transition-all"
+                            />
+                          </div>
+                          <p className="text-[9px] text-zinc-600 font-medium italic">Velo a la derecha y corregilo acá si hace falta.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => setScrapedData(null)}
+                        className="flex-1 py-4 bg-zinc-900 text-zinc-500 rounded-xl font-bold uppercase tracking-widest text-[9px] hover:text-white transition-all"
+                      >
+                        Volver
+                      </button>
+                      <button 
+                        onClick={handleImport}
+                        disabled={saving}
+                        className={`flex-[2] py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-lg ${editingItem ? 'bg-violet-600 hover:bg-violet-500 shadow-violet-500/20' : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20'} text-white`}
+                      >
+                        {saving ? 'Procesando...' : (editingItem ? 'Sincronizar y Guardar' : 'Confirmar e Importar')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Side: Live View / Iframe */}
+              <div className="flex-1 bg-white relative group">
+                {importUrl && (importUrl.startsWith('http') || importUrl.includes('meli.la')) ? (
+                  <iframe 
+                    src={`/api/proxy?url=${encodeURIComponent(importUrl.match(/https?:\/\/[^\s]+/)?.[0] || importUrl)}`}
+                    className="w-full h-full border-none"
+                    title="Mercado Libre Live View"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] text-zinc-700">
+                    <span className="material-symbols-outlined text-6xl mb-4 opacity-20">language</span>
+                    <p className="text-xs font-bold uppercase tracking-[0.3em]">Esperando URL de Producto</p>
+                  </div>
+                )}
+                
+                {/* Overlay Hint */}
+                <div className="absolute top-4 right-4 bg-black/80 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <p className="text-[9px] font-black text-white uppercase tracking-widest">Vista en Vivo (Verificá el precio aquí)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    </FeatureGate>
   );
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { FeatureGate } from '../../../components/feature-gate';
 import { useTenant } from '@/hooks/use-tenant';
 import { supabase } from '@/lib/supabase';
+import { reverseOrderStock } from '@/lib/stock-utils';
 
 interface OrderItem {
   id: string;
@@ -83,21 +84,37 @@ export default function OrdersPage() {
   }
 
   async function updateStatus(newStatus: string) {
-    if (!selectedOrder) return;
+    if (!selectedOrder || !tenant?.id) return;
     setUpdatingStatus(true);
-    const { error } = await supabase
-      .from('orders')
-      .update({ 
-        status: newStatus,
-        financial_status: newStatus === 'paid' ? 'paid' : newStatus === 'cancelled' ? 'refunded' : 'pending'
-      })
-      .eq('id', selectedOrder.id);
 
-    if (!error) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
-      fetchOrders();
+    try {
+      // 1. If cancelling, reverse stock
+      if (newStatus === 'cancelled' && selectedOrder.status !== 'cancelled') {
+        const { success, error: stockError } = await reverseOrderStock(selectedOrder.id, tenant.id);
+        if (!success) {
+          console.error('Failed to reverse stock:', stockError);
+          // We continue anyway, but maybe log this to a future audit table
+        }
+      }
+
+      // 2. Update order status
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: newStatus,
+          financial_status: newStatus === 'paid' ? 'paid' : newStatus === 'cancelled' ? 'refunded' : 'pending'
+        })
+        .eq('id', selectedOrder.id);
+
+      if (!error) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+        fetchOrders();
+      }
+    } catch (err) {
+      console.error('Error updating status:', err);
+    } finally {
+      setUpdatingStatus(false);
     }
-    setUpdatingStatus(false);
   }
 
   // Sanitize user input to prevent XSS in print labels

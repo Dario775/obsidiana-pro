@@ -129,17 +129,7 @@ export function Sidebar() {
                 </div>
               </Link>
             </li>
-            <li>
-              <Link href="/settings/ml-affiliate" className={`${navItemClasses('/settings/ml-affiliate')} ${!isOnlineStoreEnabled && !isPlatformAdmin ? 'opacity-60 hover:opacity-100' : ''}`}>
-                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/settings/ml-affiliate') ? "'FILL' 1" : "" }}>local_offer</span>
-                <div className="flex flex-col">
-                  <span>ML Afiliado</span>
-                  {!isOnlineStoreEnabled && !isPlatformAdmin && (
-                    <span className="text-[9px] text-amber-500/70 font-medium">Sujeto a suscripción</span>
-                  )}
-                </div>
-              </Link>
-            </li>
+
           </ul>
         </div>
 

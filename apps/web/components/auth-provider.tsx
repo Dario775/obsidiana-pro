@@ -98,7 +98,22 @@ export function PlatformGuard({ children }: { children: React.ReactNode }) {
 
       try {
         // First check user_metadata for tenant_id
-        const tenantId = user.user_metadata?.tenant_id;
+        let tenantId = user.user_metadata?.tenant_id;
+        
+        if (!tenantId) {
+          // Fallback: check tenant_members
+          const { data: memberData } = await supabase
+            .from('tenant_members')
+            .select('tenant_id')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle();
+          
+          if (memberData) {
+            tenantId = memberData.tenant_id;
+          }
+        }
+
         if (!tenantId) {
           // No tenant — redirect
           window.location.href = '/dashboard';
@@ -109,7 +124,7 @@ export function PlatformGuard({ children }: { children: React.ReactNode }) {
           .from('tenants')
           .select('is_platform_admin')
           .eq('id', tenantId)
-          .single();
+          .maybeSingle();
 
         if (tenant?.is_platform_admin === true) {
           setIsAdmin(true);

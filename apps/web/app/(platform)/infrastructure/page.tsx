@@ -48,7 +48,7 @@ export default function InfrastructurePage() {
 
           <div className="border border-white/5 rounded-xl p-4 bg-white/5 flex flex-col gap-2">
             <div className="flex justify-between items-center">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Database Pool Size</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Tamaño del Pool de Datos</p>
               <span className="text-xs font-bold text-white">24 / 100</span>
             </div>
             <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">

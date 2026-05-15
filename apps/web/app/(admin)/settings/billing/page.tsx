@@ -10,6 +10,7 @@ export default function BillingPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [productCount, setProductCount] = useState(0);
 
   // Platform payment config
   const [platformConfig, setPlatformConfig] = useState<any>(null);
@@ -26,14 +27,16 @@ export default function BillingPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const [plansRes, paymentsRes, platformRes] = await Promise.all([
-        supabase.from('plans').select('*'),
+      const [plansRes, paymentsRes, platformRes, productsRes] = await Promise.all([
+        supabase.from('plans').select('*').order('monthly_price', { ascending: true }),
         tenant ? supabase.from('subscription_payments').select('*').eq('tenant_id', tenant.id).order('paid_at', { ascending: false }) : Promise.resolve({ data: [] }),
-        supabase.from('platform_config').select('*').eq('key', 'payment_config').limit(1).maybeSingle()
+        supabase.from('platform_config').select('*').eq('key', 'payment_config').limit(1).maybeSingle(),
+        tenant ? supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenant.id) : Promise.resolve({ count: 0 })
       ]);
       if (plansRes.data) setPlans(plansRes.data);
       if (paymentsRes.data) setPayments(paymentsRes.data);
       if (platformRes.data) setPlatformConfig(platformRes.data.value);
+      if (productsRes.count !== null) setProductCount(productsRes.count);
     } catch (err) {
       console.error(err);
     } finally {
@@ -51,53 +54,64 @@ export default function BillingPage() {
     
     setUpdating(true);
     try {
-      const now = new Date();
-      const paidUntil = new Date(now);
-      paidUntil.setMonth(paidUntil.getMonth() + 1);
-
-      let proofUrl = '';
-      
-      if (transferProof && paymentMethod === 'transferencia') {
-        const reader = new FileReader();
-        proofUrl = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(transferProof);
+      if (paymentMethod === 'mp') {
+        const response = await fetch('/api/platform/checkout/mercadopago', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: selectedPlan.id,
+            tenantId: tenant.id
+          })
         });
+
+        const data = await response.json();
+        if (data.init_point) {
+          window.location.href = data.init_point;
+        } else {
+          throw new Error(data.error || 'Error al iniciar pago');
+        }
+        return;
+      }
+
+      // Manual Transfer Logic
+      const now = new Date();
+      let proofUrl = null;
+
+      if (transferProof) {
+        const fileExt = transferProof.name.split('.').pop();
+        const fileName = `${tenant.id}/${now.getTime()}.${fileExt}`;
+        const filePath = `payment-proofs/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('platform_assets')
+          .upload(filePath, transferProof);
+
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('platform_assets')
+            .getPublicUrl(filePath);
+          proofUrl = publicUrl;
+        }
       }
 
       const { error: paymentError } = await supabase.from('subscription_payments').insert({
         tenant_id: tenant.id,
         plan_id: selectedPlan.id,
-        amount: selectedPlan.precio_mensual,
+        amount: selectedPlan.monthly_price ?? 0,
         currency: 'ARS',
-        payment_method: paymentMethod,
-        status: paymentMethod === 'transferencia' ? 'pending_confirmation' : 'completed',
+        payment_method: 'transferencia',
+        status: 'pending_confirmation',
         paid_at: now.toISOString(),
-        proof_image: proofUrl || null
+        proof_url: proofUrl
       });
 
       if (paymentError) throw paymentError;
 
-      const newStatus = paymentMethod === 'transferencia' ? 'pending_confirmation' : 'active';
-      const { error: tenantError } = await supabase.from('tenants')
-        .update({ 
-          plan_id: selectedPlan.id,
-          plan_started_at: now.toISOString(),
-          paid_until: paidUntil.toISOString(),
-          subscription_status: newStatus
-        })
-        .eq('id', tenant.id);
-
-      if (tenantError) throw tenantError;
-
+      alert('¡Pago informado! Verificaremos tu transferencia a la brevedad.');
       setShowPaymentModal(false);
-      
-      if (paymentMethod === 'transferencia') {
-        alert('¡Pago informado! Tu suscripción será activada una vez que el administrador verifique el comprobante.');
-      } else {
-        alert('¡Pago registrado! Tu suscripción está activa.');
-      }
-      window.location.reload();
+      setTransferProof(null);
+      setInformPaymentStep(false);
+      fetchData();
     } catch (error: any) {
       console.error(error);
       alert('Error al procesar pago: ' + error.message);
@@ -108,36 +122,6 @@ export default function BillingPage() {
 
   const transferConfig = platformConfig?.transfer_enabled ? platformConfig : null;
   const mpConfig = platformConfig?.mp_enabled ? platformConfig : null;
-
-  const handleChangePlan = async (planId: string) => {
-    if (!tenant?.id) return;
-    if (!confirm('¿Estás seguro de que querés cambiar de plan?')) return;
-
-    setUpdating(true);
-    try {
-      const now = new Date();
-      const paidUntil = new Date(now);
-      paidUntil.setMonth(paidUntil.getMonth() + 1);
-
-      const { error } = await supabase.from('tenants')
-        .update({ 
-          plan_id: planId,
-          plan_started_at: now.toISOString(),
-          paid_until: paidUntil.toISOString(),
-          subscription_status: 'active'
-        })
-        .eq('id', tenant.id);
-
-      if (error) throw error;
-      alert('¡Plan actualizado con éxito!');
-      window.location.reload();
-    } catch (error: any) {
-      console.error(error);
-      alert('Error al cambiar plan: ' + error.message);
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const currentPlan = plans.find(p => p.id === tenant?.plan_id);
   const planStarted = tenant?.plan_started_at ? new Date(tenant.plan_started_at) : null;
@@ -163,24 +147,39 @@ export default function BillingPage() {
     return new Date(date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
+    const base = "text-[9px] font-black uppercase px-2 py-0.5 rounded-full border";
     switch (status) {
-      case 'active': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'pending': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'expired': return 'bg-red-500/10 text-red-400 border-red-500/20';
-      default: return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
+      case 'completed': return `${base} bg-emerald-500/10 text-emerald-400 border-emerald-500/20`;
+      case 'pending_confirmation': return `${base} bg-amber-500/10 text-amber-400 border-amber-500/20`;
+      case 'rejected': return `${base} bg-red-500/10 text-red-400 border-red-500/20`;
+      default: return `${base} bg-zinc-500/10 text-zinc-400 border-zinc-500/20`;
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
+  const formatCurrency = (amount: number | null | undefined) => {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount ?? 0);
+  };
+
+  const featureLabels: Record<string, string> = {
+    pos: 'Punto de Venta Profesional',
+    ml_sync: 'Sincronización Mercado Libre',
+    inventory: 'Gestión de Stock Avanzada',
+    mercadopago: 'Integración Mercado Pago',
+    multi_branch: 'Gestión Multisucursal',
+    online_store: 'E-commerce Propio',
+    custom_domain: 'Dominio Personalizado',
+    reports_basic: 'Analíticas de Ventas',
+    reports_advanced: 'Inteligencia de Negocio',
+    ai_tools: 'Asistente IA para Productos',
+    multi_user: 'Múltiples Accesos Staff'
   };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-zinc-500 font-bold uppercase tracking-widest text-xs gap-3">
-        <span className="material-symbols-outlined text-4xl animate-spin text-primary">autorenew</span>
-        Cargando...
+      <div className="flex flex-col items-center justify-center min-h-[600px] gap-4">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">Sincronizando Facturación...</span>
       </div>
     );
   }
@@ -189,285 +188,354 @@ export default function BillingPage() {
   const usagePercent = getUsagePercentage();
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="mb-10">
-        <h1 className="text-3xl font-black uppercase tracking-tighter text-white">Planes y Facturación</h1>
-        <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">
-          Gestioná tu plan de suscripción y verificate el tiempo restante
-        </p>
+    <div className="max-w-[1400px] mx-auto p-4 lg:p-10 flex flex-col gap-12 pb-32">
+      {/* Page Header */}
+      <div className="relative group">
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-[120px] pointer-events-none group-hover:bg-primary/15 transition-all duration-1000"></div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="px-3 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 font-black text-[9px] uppercase tracking-widest flex items-center gap-2">
+              <span className="material-symbols-outlined text-[12px]">verified</span>
+              Módulo de Suscripción
+            </span>
+          </div>
+          <h1 className="text-4xl font-black text-white tracking-tight uppercase tracking-[-0.02em]">Planes & Facturación</h1>
+          <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs mt-2 max-w-2xl">
+            Gestioná el crecimiento de tu negocio escalando tu infraestructura SaaS y controlando tus límites operativos.
+          </p>
+        </div>
       </div>
 
-      {/* Current Subscription Status */}
-      <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-2xl mb-8">
-        <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
-          <div className="flex-1">
-            <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest block mb-2">Tu Plan Actual</span>
-            <h2 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2 mb-2">
-              {currentPlan?.nombre || 'Sin Plan'}
-              {subscriptionStatus === 'active' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Activo
-                </span>
-              )}
-              {subscriptionStatus === 'expired' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20">
-                  Vencido
-                </span>
-              )}
-            </h2>
-            <div className="text-2xl font-black text-white">
-              {currentPlan ? formatCurrency(currentPlan.precio_mensual) : 'Gratis'}
-              <span className="text-zinc-500 text-sm font-normal">/mes</span>
-            </div>
+      {/* Subscription Status Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-8 bg-[#121212] border border-white/5 rounded-[3rem] p-10 relative overflow-hidden group shadow-2xl">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[100px] -mr-32 -mt-32 group-hover:bg-primary/10 transition-all duration-1000"></div>
+          
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-10 relative z-10">
+             <div className="flex-1">
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-4">Suscripción Actual</p>
+                <div className="flex items-baseline gap-4 mb-4">
+                   <h2 className="text-5xl font-black text-white tracking-tighter uppercase">{currentPlan?.name || currentPlan?.nombre || 'Free'}</h2>
+                   <span className={`px-4 py-1 rounded-full ${getStatusBadge(subscriptionStatus)}`}>
+                      {subscriptionStatus === 'active' ? '● Activa' : 'Expirada'}
+                   </span>
+                </div>
+                <div className="flex items-center gap-6">
+                   <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Inversión Mensual</span>
+                      <span className="text-xl font-black text-white">{formatCurrency(currentPlan?.monthly_price ?? 0)}</span>
+                   </div>
+                   <div className="w-px h-10 bg-white/10"></div>
+                   <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Vencimiento</span>
+                      <span className="text-xl font-black text-white">{formatDate(tenant?.paid_until)}</span>
+                   </div>
+                </div>
+             </div>
+
+             {/* Days Remaining Ring */}
+             <div className="relative w-40 h-40 flex items-center justify-center">
+                <svg className="w-full h-full -rotate-90">
+                   <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-zinc-900" />
+                   <circle 
+                      cx="80" cy="80" r="70" 
+                      stroke="currentColor" strokeWidth="8" fill="transparent" 
+                      strokeDasharray={440}
+                      strokeDashoffset={440 - (440 * (100 - usagePercent)) / 100}
+                      strokeLinecap="round"
+                      className={`transition-all duration-1000 ${daysRemaining <= 5 ? 'text-red-500' : 'text-primary'}`} 
+                   />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                   <span className="text-3xl font-black text-white">{daysRemaining}</span>
+                   <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Días</span>
+                </div>
+             </div>
           </div>
 
-          {/* Subscription Timer */}
-          {subscriptionStatus === 'active' && paidUntil && (
-            <div className="bg-zinc-800/50 p-4 rounded-xl min-w-[200px]">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-zinc-500 font-bold uppercase">Tiempo restante</span>
-                <span className={`text-xs font-black uppercase ${daysRemaining <= 7 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {daysRemaining} días
-                </span>
-              </div>
-              <div className="w-full h-2 bg-zinc-700 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full transition-all ${daysRemaining <= 7 ? 'bg-red-500' : 'bg-emerald-500'}`}
-                  style={{ width: `${100 - usagePercent}%` }}
-                />
-              </div>
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] text-zinc-500">{formatDate(tenant?.plan_started_at)}</span>
-                <span className="text-[10px] text-zinc-500">{formatDate(tenant?.paid_until)}</span>
-              </div>
-            </div>
-          )}
-
-          {subscriptionStatus === 'expired' && (
-            <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
-              <div className="flex items-center gap-2 text-red-400">
-                <span className="material-symbols-outlined">error</span>
-                <span className="text-sm font-bold">Suscripción vencida</span>
-              </div>
-              <p className="text-xs text-zinc-400 mt-1">Renová tu plan para continuar</p>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-4 mt-12 pt-10 border-t border-white/5 relative z-10">
+             <button 
+                onClick={() => handleRenewClick(currentPlan)}
+                className="px-8 py-4 bg-white text-black hover:bg-zinc-200 transition-all rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95"
+             >
+                {subscriptionStatus === 'expired' ? 'Renovar Suscripción' : 'Extender Plan'}
+             </button>
+             <button 
+                onClick={() => document.getElementById('available-plans')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-8 py-4 bg-zinc-900 border border-white/10 text-white hover:bg-zinc-800 transition-all rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95"
+             >
+                Cambiar de Plan
+             </button>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-white/5">
-          {(subscriptionStatus === 'expired' || daysRemaining <= 7) && currentPlan && (
-            <button 
-              onClick={() => handleRenewClick(currentPlan)}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold uppercase rounded-lg"
-            >
-              Renovar Ahora
-            </button>
-          )}
-          {(subscriptionStatus !== 'expired' && daysRemaining > 7) && currentPlan && (
-            <button 
-              onClick={() => handleRenewClick(currentPlan)}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold uppercase rounded-lg"
-            >
-              Cambiar Plan
-            </button>
-          )}
-          <button className="px-4 py-2 border border-white/10 text-white text-xs font-bold uppercase rounded-lg hover:bg-white/5">
-            Ver Historial
-          </button>
+        {/* Resources Usage Bento */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
+           <div className="bg-[#121212] border border-white/5 rounded-[2.5rem] p-8 flex-1 relative overflow-hidden group">
+              <div className="flex items-center justify-between mb-8">
+                 <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Límite de Catálogo</span>
+                    <h3 className="text-xl font-black text-white uppercase">Productos</h3>
+                 </div>
+                 <span className="material-symbols-outlined text-primary/50 text-3xl">inventory_2</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                 <div className="flex justify-between items-baseline font-black">
+                    <span className="text-3xl text-white tracking-tighter">{productCount} <span className="text-sm text-zinc-600 font-bold">/ {currentPlan?.max_products || 50}</span></span>
+                    <span className="text-xs text-primary">{Math.round((productCount / (currentPlan?.max_products || 50)) * 100)}%</span>
+                 </div>
+                 <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden p-[2px] border border-white/5">
+                    <div 
+                       className="h-full bg-primary rounded-full transition-all duration-1000" 
+                       style={{ width: `${(productCount / (currentPlan?.max_products || 50)) * 100}%` }}
+                    ></div>
+                 </div>
+              </div>
+           </div>
+
+           <div className="bg-[#121212] border border-white/5 rounded-[2.5rem] p-8 flex-1 relative overflow-hidden group">
+              <div className="flex items-center justify-between mb-8">
+                 <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Infraestructura</span>
+                    <h3 className="text-xl font-black text-white uppercase">Sucursales</h3>
+                 </div>
+                 <span className="material-symbols-outlined text-secondary/50 text-3xl">hub</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                 <div className="flex justify-between items-baseline font-black">
+                    <span className="text-3xl text-white tracking-tighter">1 <span className="text-sm text-zinc-600 font-bold">/ {currentPlan?.max_branches || 1}</span></span>
+                    <span className="text-xs text-secondary">{Math.round((1 / (currentPlan?.max_branches || 1)) * 100)}%</span>
+                 </div>
+                 <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden p-[2px] border border-white/5">
+                    <div 
+                       className="h-full bg-secondary rounded-full transition-all duration-1000" 
+                       style={{ width: `${(1 / (currentPlan?.max_branches || 1)) * 100}%` }}
+                    ></div>
+                 </div>
+              </div>
+           </div>
         </div>
       </div>
 
-      {/* Payment History */}
-      {payments.length > 0 && (
-        <div className="mb-8">
-          <h3 className="text-sm font-black uppercase tracking-wider text-zinc-400 mb-4">Historial de Pagos</h3>
-          <div className="bg-zinc-900/30 border border-white/5 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left text-[10px] text-zinc-500 font-black uppercase tracking-widest p-4">Fecha</th>
-                  <th className="text-left text-[10px] text-zinc-500 font-black uppercase tracking-widest p-4">Plan</th>
-                  <th className="text-left text-[10px] text-zinc-500 font-black uppercase tracking-widest p-4">Monto</th>
-                  <th className="text-left text-[10px] text-zinc-500 font-black uppercase tracking-widest p-4">Método</th>
-                  <th className="text-left text-[10px] text-zinc-500 font-black uppercase tracking-widest p-4">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((payment) => {
-                  const plan = plans.find(p => p.id === payment.plan_id);
-                  return (
-                    <tr key={payment.id} className="border-b border-white/5 last:border-0">
-                      <td className="p-4 text-sm text-zinc-300">{formatDate(payment.paid_at)}</td>
-                      <td className="p-4 text-sm text-white font-bold">{plan?.nombre || '-'}</td>
-                      <td className="p-4 text-sm text-white">{formatCurrency(payment.amount)}</td>
-                      <td className="p-4 text-sm text-zinc-400 capitalize">{payment.payment_method || '-'}</td>
-                      <td className="p-4">
-                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusColor(payment.status)}`}>
-                          {payment.status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
+      {/* Available Plans Section */}
+      <div id="available-plans" className="pt-20">
+         <div className="text-center mb-16">
+            <h3 className="text-xs font-black text-primary uppercase tracking-[0.4em] mb-4">Pricing</h3>
+            <h2 className="text-5xl font-black text-white tracking-tighter uppercase leading-[0.9]">Elegí el plan perfecto<br/><span className="text-zinc-700">para tu crecimiento</span></h2>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {plans.map((p) => {
+               const isCurrent = tenant?.plan_id === p.id;
+               const isPro = p.id === 'pro';
+               
+               return (
+                  <div 
+                     key={p.id}
+                     className={`bg-[#121212] rounded-[3rem] p-10 border ${isCurrent ? 'border-primary/50' : 'border-white/5'} relative overflow-hidden flex flex-col group hover:border-white/20 transition-all duration-500 shadow-2xl h-full`}
+                  >
+                     {isPro && (
+                        <div className="absolute top-0 right-10 bg-primary text-black px-6 py-2 rounded-b-2xl font-black text-[9px] uppercase tracking-widest shadow-xl">
+                           Más Recomendado
+                        </div>
+                     )}
+
+                     <div className="mb-10">
+                        <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">{isCurrent ? 'Tu Plan Actual' : 'Plan'}</h3>
+                        <h4 className="text-3xl font-black text-white uppercase tracking-tighter">{p.name || p.nombre}</h4>
+                     </div>
+
+                     <div className="mb-10 flex items-baseline gap-2">
+                        <span className="text-5xl font-black text-white tracking-tighter">${(p.monthly_price ?? 0).toLocaleString()}</span>
+                        <span className="text-zinc-600 font-bold uppercase text-[10px] tracking-widest">/ Mes</span>
+                     </div>
+
+                     <div className="space-y-6 mb-12 flex-1">
+                        <p className="text-[9px] font-black text-zinc-700 uppercase tracking-[0.2em] border-b border-white/5 pb-4">Funcionalidades Incluidas</p>
+                        <div className="space-y-4">
+                           {p.features && typeof p.features === 'object' && Object.entries(p.features)
+                              .filter(([_, enabled]) => enabled === true)
+                              .slice(0, 8)
+                              .map(([feat, _], fi) => (
+                                 <div key={fi} className="flex items-center gap-3 group/feat">
+                                    <div className="w-5 h-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center group-hover/feat:bg-primary transition-all">
+                                       <span className="material-symbols-outlined text-[14px] text-primary group-hover/feat:text-black">check</span>
+                                    </div>
+                                    <span className="text-xs font-bold text-zinc-400 group-hover/feat:text-white transition-colors">{featureLabels[feat] || feat}</span>
+                                 </div>
+                              ))
+                           }
+                           <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-zinc-800 border border-white/5 flex items-center justify-center">
+                                 <span className="material-symbols-outlined text-[14px] text-zinc-500">inventory_2</span>
+                              </div>
+                              <span className="text-xs font-bold text-zinc-400">Hasta {p.max_products} productos</span>
+                           </div>
+                           <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-zinc-800 border border-white/5 flex items-center justify-center">
+                                 <span className="material-symbols-outlined text-[14px] text-zinc-500">store</span>
+                              </div>
+                              <span className="text-xs font-bold text-zinc-400">{p.max_branches} Sucursales permitidas</span>
+                           </div>
+                        </div>
+                     </div>
+
+                     <button 
+                        disabled={isCurrent || updating}
+                        onClick={() => handleRenewClick(p)}
+                        className={`w-full py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 disabled:opacity-50 ${
+                           isCurrent 
+                              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5' 
+                              : isPro 
+                                 ? 'bg-primary text-black hover:bg-emerald-400' 
+                                 : 'bg-white text-black hover:bg-zinc-200'
+                        }`}
+                     >
+                        {isCurrent ? 'Plan Activo' : 'Seleccionar Plan'}
+                     </button>
+                  </div>
+               );
+            })}
+         </div>
+      </div>
+
+      {/* Transaction History - Modern Table */}
+      <div className="mt-20">
+         <div className="flex items-center justify-between mb-10">
+            <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Historial de Pagos</h3>
+            <button className="text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors">Descargar Reporte</button>
+         </div>
+
+         <div className="bg-[#121212] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <table className="w-full text-left">
+               <thead>
+                  <tr className="bg-zinc-950/50 border-b border-white/5">
+                     <th className="p-6 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Referencia / Fecha</th>
+                     <th className="p-6 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Plan Suscrito</th>
+                     <th className="p-6 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Inversión</th>
+                     <th className="p-6 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Método</th>
+                     <th className="p-6 text-[10px] font-black text-zinc-600 uppercase tracking-widest text-right">Estado</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-white/5">
+                  {payments.length === 0 ? (
+                     <tr><td colSpan={5} className="p-20 text-center text-zinc-600 font-black text-xs uppercase tracking-widest">No hay transacciones registradas</td></tr>
+                  ) : payments.map((pay) => {
+                     const p = plans.find(pl => pl.id === pay.plan_id);
+                     return (
+                        <tr key={pay.id} className="hover:bg-white/[0.02] transition-colors group">
+                           <td className="p-6">
+                              <p className="text-xs font-black text-white mb-1">#{pay.id.slice(0, 8).toUpperCase()}</p>
+                              <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{formatDate(pay.paid_at)}</p>
+                           </td>
+                           <td className="p-6">
+                              <span className="text-xs font-bold text-zinc-300">{p?.name || p?.nombre || 'Suscripción'}</span>
+                           </td>
+                           <td className="p-6">
+                              <span className="text-sm font-black text-white">{formatCurrency(pay.amount)}</span>
+                           </td>
+                           <td className="p-6">
+                              <div className="flex items-center gap-2">
+                                 <span className="material-symbols-outlined text-[16px] text-zinc-500">{pay.payment_method === 'mp' ? 'payment' : 'account_balance'}</span>
+                                 <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest capitalize">{pay.payment_method}</span>
+                              </div>
+                           </td>
+                           <td className="p-6 text-right">
+                              <span className={getStatusBadge(pay.status)}>{pay.status}</span>
+                           </td>
+                        </tr>
+                     );
+                  })}
+               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* Available Plans */}
-      <div>
-        <h3 className="text-sm font-black uppercase tracking-wider text-zinc-400 mb-4">Planes Disponibles</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((p) => {
-            const isCurrentPlan = tenant?.plan_id === p.id;
-            return (
-              <div
-                key={p.id}
-                className={`bg-zinc-900 border ${isCurrentPlan ? 'border-primary/50 ring-2 ring-primary/20' : 'border-white/5'} hover:border-white/10 p-6 rounded-2xl transition-all shadow-xl flex flex-col justify-between gap-6 relative overflow-hidden h-full group`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-black uppercase tracking-wider text-white">{p.nombre}</h3>
-                    {isCurrentPlan && (
-                      <span className="text-[9px] font-black uppercase bg-primary text-white px-2 py-0.5 rounded-full">
-                        Actual
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mb-6">
-                    <span className="text-3xl font-black text-white">${p.precio_mensual.toLocaleString()}</span>
-                    <span className="text-zinc-500 text-xs font-bold lowercase tracking-normal">/mes</span>
-                  </div>
-
-                  <div className="flex flex-col gap-3 mb-6">
-                    <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest border-b border-white/5 pb-2">
-                      Funcionalidades
-                    </p>
-                    {p.features && Object.keys(p.features).map((feat, fi) => (
-                      <div key={fi} className="flex items-center gap-2 text-xs text-zinc-300">
-                        <span className="material-symbols-outlined text-emerald-400 text-base">check_circle</span>
-                        <span className="font-bold text-zinc-300 capitalize">{String(feat).replace('_', ' ')}</span>
-                      </div>
-                    ))}
-                    {(!p.features || Object.keys(p.features).length === 0) && (
-                      <span className="text-zinc-500 text-xs italic">Sin funciones extra</span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  disabled={isCurrentPlan || updating}
-                  onClick={() => handleRenewClick(p)}
-                  className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${isCurrentPlan ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-primary hover:bg-primary-hover text-white shadow-lg'}`}
-                >
-                  {updating ? (
-                    <span className="material-symbols-outlined text-sm animate-spin">autorenew</span>
-                  ) : isCurrentPlan ? (
-                    'Plan Actual'
-                  ) : (
-                    'Cambiar Plan'
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal Refined */}
       {showPaymentModal && selectedPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-black text-white uppercase mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-400">payment</span>
-              Completar Pago
-            </h3>
-            
-            <div className="space-y-4 mb-6">
-              <div className="bg-zinc-800 p-4 rounded-xl">
-                <p className="text-xs text-zinc-500">Plan seleccionado</p>
-                <p className="text-lg font-bold text-white">{selectedPlan.nombre}</p>
-                <p className="text-emerald-400 font-bold">{formatCurrency(selectedPlan.precio_mensual)}/mes</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-zinc-500 mb-2">Método de pago</p>
-                <div className="space-y-2">
-                  {transferConfig && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('transferencia')}
-                      className={`w-full p-3 rounded-xl text-left ${paymentMethod === 'transferencia' ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-zinc-800 border border-white/10'}`}
-                    >
-                      <span className="material-symbols-outlined text-emerald-400 mr-2">account_balance</span>
-                      <span className="text-white">Transferencia</span>
-                      <p className="text-xs text-zinc-500">
-                        Banco: {transferConfig.transfer_bank} • Alias: {transferConfig.transfer_alias}
-                      </p>
-                    </button>
-                  )}
-                  
-                  {mpConfig && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('mp')}
-                      className={`w-full p-3 rounded-xl text-left ${paymentMethod === 'mp' ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-zinc-800 border border-white/10'}`}
-                    >
-                      <span className="material-symbols-outlined text-blue-400 mr-2">payment</span>
-                      <span className="text-white">MercadoPago</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {paymentMethod === 'transferencia' && transferConfig && (
-                <div className="bg-zinc-800 p-4 rounded-xl text-xs">
-                  <p className="text-zinc-500 mb-2">Datos para transferir:</p>
-                  <p className="text-white font-bold">Banco: {transferConfig.transfer_bank}</p>
-                  <p className="text-white">CBU: {transferConfig.transfer_cbu}</p>
-                  <p className="text-white">Alias: {transferConfig.transfer_alias}</p>
-                  <p className="text-emerald-400 font-bold mt-2">Total: {formatCurrency(selectedPlan.precio_mensual)}</p>
-                  
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <p className="text-zinc-400 mb-2">Adjuntá el comprobante de transferencia:</p>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={(e) => setTransferProof(e.target.files?.[0] || null)}
-                      className="w-full text-zinc-400 text-xs"
-                    />
-                    {transferProof && (
-                      <p className="text-emerald-400 mt-2">✓ {transferProof.name}</p>
-                    )}
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+          <div className="bg-[#121212] border border-white/10 rounded-[3rem] w-full max-w-xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-300">
+            <div className="p-10">
+               <div className="flex items-center justify-between mb-10">
+                  <div>
+                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Procesar Suscripción</h3>
+                     <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-1">Plan Seleccionado: {selectedPlan.name || selectedPlan.nombre}</p>
                   </div>
-                </div>
-              )}
+                  <button onClick={() => setShowPaymentModal(false)} className="w-10 h-10 rounded-full bg-zinc-900 border border-white/5 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+                     <span className="material-symbols-outlined">close</span>
+                  </button>
+               </div>
 
-              {paymentMethod === 'mp' && mpConfig && (
-                <div className="bg-zinc-800 p-4 rounded-xl">
-                  <p className="text-zinc-500 text-xs mb-2">Serás redirigido a MercadoPago para completar el pago</p>
-                  <p className="text-white font-bold">Total: {formatCurrency(selectedPlan.precio_mensual)}</p>
-                </div>
-              )}
-            </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+                  {transferConfig && (
+                     <button 
+                        onClick={() => setPaymentMethod('transferencia')}
+                        className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'transferencia' ? 'bg-primary border-primary' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
+                     >
+                        <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'transferencia' ? 'text-black' : 'text-zinc-600 group-hover/btn:text-white'}`}>account_balance</span>
+                        <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'transferencia' ? 'text-black/60' : 'text-zinc-500'}`}>Método Directo</p>
+                        <h4 className={`text-sm font-black uppercase ${paymentMethod === 'transferencia' ? 'text-black' : 'text-white'}`}>Transferencia</h4>
+                     </button>
+                  )}
+                  {mpConfig && (
+                     <button 
+                        onClick={() => setPaymentMethod('mp')}
+                        className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'mp' ? 'bg-blue-600 border-blue-600' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
+                     >
+                        <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'mp' ? 'text-white' : 'text-zinc-600 group-hover/btn:text-white'}`}>payment</span>
+                        <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'mp' ? 'text-white/60' : 'text-zinc-500'}`}>Automático</p>
+                        <h4 className={`text-sm font-black uppercase text-white`}>MercadoPago</h4>
+                     </button>
+                  )}
+               </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="flex-1 py-3 bg-zinc-800 text-zinc-400 rounded-xl font-bold"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handlePayment}
-                disabled={updating || (paymentMethod === 'transferencia' && informPaymentStep)}
-                className="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold disabled:opacity-50"
-              >
-                {updating ? 'Procesando...' : paymentMethod === 'transferencia' ? 'Informar Pago' : 'Pagar'}
-              </button>
+               {paymentMethod === 'transferencia' && transferConfig && (
+                  <div className="bg-zinc-950 rounded-[2rem] border border-white/5 p-8 mb-10 space-y-6">
+                     <div className="grid grid-cols-2 gap-6">
+                        <div>
+                           <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Entidad Bancaria</p>
+                           <p className="text-xs font-bold text-white">{transferConfig.transfer_bank}</p>
+                        </div>
+                        <div>
+                           <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Titular / Alias</p>
+                           <p className="text-xs font-bold text-white">{transferConfig.transfer_alias}</p>
+                        </div>
+                        <div className="col-span-2">
+                           <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">CBU / CVU</p>
+                           <div className="flex items-center justify-between bg-black/40 p-3 rounded-xl border border-white/5">
+                              <code className="text-[11px] font-bold text-primary tracking-wider">{transferConfig.transfer_cbu}</code>
+                              <button onClick={() => navigator.clipboard.writeText(transferConfig.transfer_cbu)} className="material-symbols-outlined text-xs text-zinc-500 hover:text-white transition-colors">content_copy</button>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="pt-6 border-t border-white/5">
+                        <label className="block text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-3">Adjuntar Comprobante (JPG, PNG, PDF)</label>
+                        <div className="relative group/file">
+                           <input 
+                              type="file" 
+                              onChange={(e) => setTransferProof(e.target.files?.[0] || null)}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                           />
+                           <div className="bg-zinc-900 border-2 border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 group-hover/file:border-primary/30 transition-all">
+                              <span className="material-symbols-outlined text-zinc-600">upload_file</span>
+                              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{transferProof ? transferProof.name : 'Click para subir archivo'}</span>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               )}
+
+               <div className="flex gap-4">
+                  <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-5 rounded-[1.5rem] bg-zinc-950 text-zinc-500 font-black text-[10px] uppercase tracking-widest border border-white/5 hover:text-white transition-all active:scale-95">Cerrar</button>
+                  <button 
+                     onClick={handlePayment}
+                     disabled={updating || (paymentMethod === 'transferencia' && !transferProof)}
+                     className="flex-1 py-5 rounded-[1.5rem] bg-primary text-black font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/10 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                     {updating ? 'Procesando...' : paymentMethod === 'transferencia' ? 'Informar Pago' : 'Pagar Ahora'}
+                  </button>
+               </div>
             </div>
           </div>
         </div>

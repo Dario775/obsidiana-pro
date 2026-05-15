@@ -45,21 +45,20 @@ export default function POSTerminalPage() {
         .select(`
           id,
           sku,
-          barcode,
           price_ars,
           product_id,
-          products (
+          products!inner (
             id,
             title,
-            slug,
             images,
-            online_reserved
+            online_reserved,
+            tenant_id
           )
         `)
-        .eq('tenant_id', tenant.id);
+        .eq('products.tenant_id', tenant.id);
 
       if (variantsError) {
-        console.error('Error fetching variants:', variantsError);
+        console.error('Error fetching variants:', variantsError.message, variantsError.details, variantsError.code);
         setLoading(false);
         return;
       }
@@ -75,7 +74,7 @@ export default function POSTerminalPage() {
 
       const { data: inventory, error: inventoryError } = await supabase
         .from('inventory_levels')
-        .select('variant_id, on_hand, committed, available')
+        .select('variant_id, on_hand, committed')
         .eq('tenant_id', tenant.id)
         .in('variant_id', variantIds);
 
@@ -91,6 +90,7 @@ export default function POSTerminalPage() {
 
       // Combine data — FIX: use variant.products for online_reserved instead of stale state
       const formattedProducts: Product[] = (variants || [])
+        .filter((v: any) => !(v.sku || '').startsWith('ML-'))
         .map((variant: any) => {
           const product = variant.products;
           const inv = inventoryMap.get(variant.id);
@@ -106,8 +106,8 @@ export default function POSTerminalPage() {
             name: product?.title || 'Sin nombre',
             sku: variant.sku || 'N/A',
             price: variant.price_ars || 0,
-            stock: posAvailable,
-            img: product?.images?.[0] || ''
+            stock: Math.max(0, onHand - reserved),
+            img: product?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&h=400&auto=format&fit=crop'
           };
         })
         .filter((p: Product) => p.stock > 0);
@@ -175,8 +175,6 @@ export default function POSTerminalPage() {
 
     setProcessing(true);
     try {
-      const locationId = '00000000-0000-0000-0000-000000000001';
-
       // 1. Get next order number for this tenant
       const { data: lastOrder } = await supabase
         .from('orders')
@@ -236,7 +234,6 @@ export default function POSTerminalPage() {
         const { error: stockError } = await supabase.rpc('decrement_stock', {
           p_tenant_id: tenant.id,
           p_variant_id: item.id,
-          p_location_id: locationId,
           p_quantity: item.quantity,
         });
 
@@ -250,7 +247,6 @@ export default function POSTerminalPage() {
             .select('on_hand')
             .eq('tenant_id', tenant.id)
             .eq('variant_id', item.id)
-            .eq('location_id', locationId)
             .single();
 
           if (currentInv) {
@@ -259,8 +255,7 @@ export default function POSTerminalPage() {
               .from('inventory_levels')
               .update({ on_hand: newOnHand })
               .eq('tenant_id', tenant.id)
-              .eq('variant_id', item.id)
-              .eq('location_id', locationId);
+              .eq('variant_id', item.id);
           }
         }
       }

@@ -1,10 +1,11 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { buildPosCheckoutPayload } from '@/lib/pos-checkout';
 
 import { useTenant } from '@/hooks/use-tenant';
+import { FeatureGate } from '@/components/feature-gate';
 
 interface Product {
   id: string;
@@ -37,7 +38,7 @@ export default function POSPage() {
   const [lastSale, setLastSale] = useState<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
-  // Venta a crÃ©dito
+  // Venta a crédito
   const [isCreditSale, setIsCreditSale] = useState(false);
   
   // Cliente seleccionado
@@ -94,20 +95,19 @@ export default function POSPage() {
         .select(`
           id,
           sku,
-          barcode,
           price_ars,
           product_id,
-          products (
+          products!inner (
             id,
             title,
-            slug,
-            images
+            images,
+            tenant_id
           )
         `)
-        .eq('tenant_id', tenant.id);
+        .eq('products.tenant_id', tenant.id);
 
       if (variantsError) {
-        console.error('Error fetching variants:', variantsError);
+        console.error('Error fetching variants:', variantsError.message, variantsError.details, variantsError.code);
         setLoading(false);
         return;
       }
@@ -115,7 +115,7 @@ export default function POSPage() {
       const variantIds = variants?.map(v => v.id) || [];
       const { data: inventory, error: inventoryError } = await supabase
         .from('inventory_levels')
-        .select('variant_id, on_hand, committed, available')
+        .select('variant_id, on_hand, committed')
         .eq('tenant_id', tenant.id)
         .in('variant_id', variantIds);
 
@@ -128,7 +128,7 @@ export default function POSPage() {
         inventoryMap.set(inv.variant_id, inv);
       });
 
-       const formattedProducts = (variants || []).map((variant: any) => {
+       const formattedProducts = (variants || []).filter((v: any) => !(v.sku || '').startsWith('ML-')).map((variant: any) => {
         const product = variant.products;
         const inv = inventoryMap.get(variant.id);
         
@@ -137,8 +137,8 @@ export default function POSPage() {
           nombre: product?.title || 'Sin nombre',
           precio: variant.price_ars || 0,
           sku: variant.sku || 'N/A',
-          barcode: variant.barcode || '',
-          available: inv?.available || 0,
+          barcode: '', // Temporarily empty since column is missing
+          available: (inv?.on_hand || 0) - (inv?.committed || 0),
           img: product?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&h=400&auto=format&fit=crop'
         };
       });
@@ -154,11 +154,12 @@ export default function POSPage() {
   async function fetchCustomers() {
     if (!tenant?.id) return;
     try {
+      // Intenta obtener columnas que podrían existir en diferentes esquemas
       const { data, error } = await supabase
         .from('customers')
-        .select('id, first_name, last_name, email, phone, dni_cuit, credit_limit')
-        .eq('tenant_id', tenant.id)
-        .order('last_name', { ascending: true });
+        .select('*')
+        .eq('tenant_id', tenant.id);
+        // Eliminamos .order('nombre') porque si la columna no existe fallará la consulta completa
 
       if (error) {
         console.error('Error fetching customers:', error);
@@ -214,7 +215,7 @@ export default function POSPage() {
 
   const clearCart = () => {
     if (cart.length === 0) return;
-    if (confirm('Â¿Limpiar el carrito?')) {
+    if (confirm('¿Limpiar el carrito?')) {
       setCart([]);
       setPaymentMethod(null);
       setCashReceived('');
@@ -254,15 +255,16 @@ export default function POSPage() {
   async function completeSale() {
     if (cart.length === 0) return;
     
-    // Validar que ventas a crÃ©dito solo se hagan a clientes registrados
-    const customerId = selectedCustomer?.id || DEFAULT_CUSTOMER_ID;
-    if (isCreditSale && customerId === DEFAULT_CUSTOMER_ID) {
-      alert('Las ventas a crÃ©dito solo pueden realizarse a clientes registrados. Por favor, seleccionÃ¡ un cliente.');
+    // Si es el ID por defecto de Consumidor Final, enviamos null para que la DB lo maneje como venta rápida
+    const customerId = (selectedCustomer?.id === DEFAULT_CUSTOMER_ID || !selectedCustomer) ? null : selectedCustomer.id;
+
+    if (isCreditSale && !customerId) {
+      alert('Las ventas a crédito solo pueden realizarse a clientes registrados. Por favor, seleccioná un cliente.');
       setIsCreditSale(false);
       return;
     }
 
-    // Validar lÃ­mite de crÃ©dito
+    // Validar límite de crédito
     if (isCreditSale && selectedCustomer?.credit_limit > 0) {
       // Calcular deuda actual del cliente
       const { data: customerOrders } = await supabase
@@ -286,18 +288,18 @@ export default function POSPage() {
       
       if (currentPending + finalTotal > selectedCustomer.credit_limit) {
         const available = Math.max(0, selectedCustomer.credit_limit - currentPending);
-        alert(`LÃ­mite de crÃ©dito excedido. Disponible: $${available.toLocaleString('es-AR')}. Pedido: $${finalTotal.toLocaleString('es-AR')}`);
+        alert(`Limite de credito excedido. Disponible: $${available.toLocaleString('es-AR')}. Pedido: $${finalTotal.toLocaleString('es-AR')}`);
         return;
       }
     }
     
-    // Solo requerir mÃ©todo de pago si NO es venta a crÃ©dito
+    // Solo requerir método de pago si NO es venta a crédito
     if (!isCreditSale && !paymentMethod) {
-      alert('SeleccionÃ¡ un mÃ©todo de pago o marcÃ¡ la venta como CrÃ©dito');
+      alert('Seleccioná un método de pago o marcá la venta como Crédito');
       return;
     }
     
-    // Validar pago en efectivo solo si NO es crÃ©dito
+    // Validar pago en efectivo solo si NO es crédito
     if (!isCreditSale && paymentMethod === 'efectivo' && (!cashReceived || parseFloat(cashReceived) < finalTotal)) {
       alert('El monto recibido debe ser mayor o igual al total');
       return;
@@ -309,7 +311,7 @@ export default function POSPage() {
 
       const checkoutPayload = buildPosCheckoutPayload({
         tenantId,
-        customerId,
+        customerId: customerId, // Ahora puede ser null
         cart,
         discountPercent: discount,
         paymentMethod,
@@ -325,7 +327,6 @@ export default function POSPage() {
         p_payment_method: checkoutPayload.p_payment_method,
         p_cash_received: checkoutPayload.p_cash_received,
         p_is_credit_sale: checkoutPayload.p_is_credit_sale,
-        p_location_id: checkoutPayload.p_location_id,
       });
 
       if (checkoutError) throw checkoutError;
@@ -374,7 +375,8 @@ export default function POSPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6">
+    <FeatureGate feature="pos">
+      <div className="h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6">
       {/* Product Selection Area */}
       <div className="flex-1 flex flex-col gap-6 overflow-hidden">
         {/* Search Bar */}
@@ -383,7 +385,7 @@ export default function POSPage() {
           <input 
             ref={searchInputRef}
             type="text" 
-            placeholder="Buscar por nombre, SKU o CÃ³d. Barras... (Alt+B)"
+            placeholder="Buscar por nombre, SKU o Cód. Barras... (Alt+B)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-[#1C1C1C]/80 border border-white/5 rounded-2xl py-4 pl-12 pr-12 text-sm text-white font-medium focus:ring-2 focus:ring-violet-500/50 outline-none transition-all placeholder:text-zinc-600 backdrop-blur-xl shadow-inner shadow-black/10"
@@ -470,7 +472,7 @@ export default function POSPage() {
             <div className="relative">
               <input
                 type="text"
-                value={selectedCustomer ? `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim() || selectedCustomer.email : customerSearch}
+                value={selectedCustomer ? (selectedCustomer.nombre || `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim() || selectedCustomer.email) : customerSearch}
                 onChange={(e) => {
                   setCustomerSearch(e.target.value);
                   setSelectedCustomer(null);
@@ -489,8 +491,9 @@ export default function POSPage() {
                 {customers
                   .filter(c => {
                     const searchPattern = customerSearch.toLowerCase();
-                    const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
-                    return fullName.includes(searchPattern) || c.email?.toLowerCase().includes(searchPattern) || c.dni_cuit?.toLowerCase().includes(searchPattern);
+                    const fullName = (c.nombre || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '').toLowerCase();
+                    const document = (c.document_number || c.dni_cuit || '').toLowerCase();
+                    return fullName.includes(searchPattern) || c.email?.toLowerCase().includes(searchPattern) || document.includes(searchPattern);
                   })
                   .slice(0, 5)
                   .map((customer) => (
@@ -504,18 +507,20 @@ export default function POSPage() {
                       className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 flex items-center gap-3"
                     >
                       <div className="w-8 h-8 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-[10px] font-black uppercase">
-                        {(customer.first_name?.[0] || '') + (customer.last_name?.[0] || '')}
+                        {(customer.nombre?.[0] || customer.first_name?.[0] || 'C')}
                       </div>
                       <div>
-                        <p className="text-white text-sm font-bold leading-tight">{`${customer.first_name || ''} ${customer.last_name || ''}`.trim() || customer.email}</p>
-                        <p className="text-zinc-500 text-[10px] mt-0.5">{customer.dni_cuit || customer.email}</p>
+                        <p className="text-white text-sm font-bold leading-tight">
+                          {customer.nombre || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || customer.email}
+                        </p>
+                        <p className="text-zinc-500 text-[10px] mt-0.5">{customer.document_number || customer.dni_cuit || customer.email}</p>
                       </div>
                     </button>
                   ))}
                 {customers.filter(c => {
                   const searchPattern = customerSearch.toLowerCase();
-                  const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
-                  return fullName.includes(searchPattern) || c.email?.toLowerCase().includes(searchPattern) || c.dni_cuit?.toLowerCase().includes(searchPattern);
+                  const fullName = (c.nombre || '').toLowerCase();
+                  return fullName.includes(searchPattern) || c.email?.toLowerCase().includes(searchPattern) || c.document_number?.toLowerCase().includes(searchPattern);
                 }).length === 0 && (
                   <div className="px-4 py-3 text-zinc-500 text-xs">No se encontraron clientes</div>
                 )}
@@ -526,7 +531,9 @@ export default function POSPage() {
             {selectedCustomer && (
               <div className="mt-2.5 flex items-center justify-between bg-violet-500/5 p-2 rounded-xl border border-violet-500/10">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">{selectedCustomer.dni_cuit && `DNI/CUIT: ${selectedCustomer.dni_cuit}`}</span>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                    {(selectedCustomer.document_number || selectedCustomer.dni_cuit) && `DOC: ${selectedCustomer.document_number || selectedCustomer.dni_cuit}`}
+                  </span>
                 </div>
                 <button
                   onClick={() => {
@@ -547,7 +554,7 @@ export default function POSPage() {
                 </p>
                 <p className="text-[10px] text-amber-500/70 font-medium flex items-center gap-1.5 leading-relaxed">
                   <span className="material-symbols-outlined text-[13px]">info</span>
-                  SeleccionÃ¡ un cliente para ventas a crÃ©dito
+                  Seleccioná un cliente para ventas a crédito
                 </p>
               </div>
             )}
@@ -558,7 +565,7 @@ export default function POSPage() {
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-4 opacity-50 select-none">
               <span className="material-symbols-outlined text-6xl">shopping_basket</span>
-              <p className="text-[10px] font-black uppercase tracking-widest">El carrito estÃ¡ vacÃ­o</p>
+              <p className="text-[10px] font-black uppercase tracking-widest">El carrito está vacío</p>
             </div>
           ) : cart.map((item) => (
             <div key={item.id} className="flex items-center gap-3 bg-zinc-900/40 p-3.5 rounded-2xl border border-white/5 hover:border-white/10 hover:bg-zinc-900/60 transition-all duration-300 relative group overflow-hidden">
@@ -627,7 +634,7 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Discount & Venta a CrÃ©dito combined in a grid */}
+          {/* Discount & Venta a Crédito combined in a grid */}
           <div className="grid grid-cols-2 gap-3">
             {/* Discount */}
             <div className="flex items-center gap-2 bg-zinc-950/60 p-1 rounded-xl border border-white/5">
@@ -643,12 +650,12 @@ export default function POSPage() {
               />
             </div>
 
-            {/* Venta a CrÃ©dito Switch Compact */}
+            {/* Venta a Crédito Switch Compact */}
             <div 
               onClick={() => {
                 const isDefaultCustomer = !selectedCustomer || selectedCustomer.id === DEFAULT_CUSTOMER_ID;
                 if (isDefaultCustomer) {
-                  alert('Para ventas a crÃ©dito debÃ©s seleccionar un cliente registrado');
+                  alert('Para ventas a crédito debés seleccionar un cliente registrado');
                   return;
                 }
                 setIsCreditSale(!isCreditSale);
@@ -663,14 +670,14 @@ export default function POSPage() {
                   : 'bg-zinc-950/40 border-white/5 hover:border-white/10'
               } ${(!selectedCustomer || selectedCustomer.id === DEFAULT_CUSTOMER_ID) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <span className={`text-[10px] font-black uppercase tracking-wider ${isCreditSale ? 'text-amber-400' : 'text-zinc-400'}`}>CrÃ©dito</span>
+              <span className={`text-[10px] font-black uppercase tracking-wider ${isCreditSale ? 'text-amber-400' : 'text-zinc-400'}`}>Crédito</span>
               <div className={`w-8 h-4.5 rounded-full p-0.5 transition-all duration-300 flex items-center ${isCreditSale ? 'bg-amber-500' : 'bg-zinc-700'}`}>
                 <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-300 ${isCreditSale ? 'translate-x-3.5' : 'translate-x-0'}`} />
               </div>
             </div>
           </div>
 
-          {/* Payment Methods (ocultos si es crÃ©dito) */}
+          {/* Payment Methods (ocultos si es crédito) */}
           {!isCreditSale && (
             <div className="grid grid-cols-3 gap-2">
               {[
@@ -735,7 +742,7 @@ export default function POSPage() {
             ) : isCreditSale ? (
               <>
                 <span className="material-symbols-outlined text-base">account_balance_wallet</span>
-                Registrar CrÃ©dito
+                Registrar Crédito
               </>
             ) : (
               <>
@@ -752,7 +759,7 @@ export default function POSPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-white text-black rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
             <div className="p-6 text-center border-b border-gray-200">
-              <h2 className="text-xl font-black">{lastSale.isCreditSale ? 'VENTA A CRÃ‰DITO' : 'RECIBO DE VENTA'}</h2>
+              <h2 className="text-xl font-black">{lastSale.isCreditSale ? 'VENTA A CRÉDITO' : 'RECIBO DE VENTA'}</h2>
               <p className="text-gray-500 text-sm mt-1">Obsidiana POS</p>
               <p className="text-gray-400 text-xs">{lastSale.date.toLocaleString('es-AR')}</p>
               {lastSale.isCreditSale && (
@@ -797,9 +804,9 @@ export default function POSPage() {
               
               <div className="pt-2 space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">MÃ©todo de Pago</span>
+                  <span className="text-gray-500">Método de Pago</span>
                   <span className={`font-medium uppercase ${lastSale.isCreditSale ? 'text-amber-600' : ''}`}>
-                    {lastSale.isCreditSale ? 'CrÃ©dito - Cuenta Corriente' : lastSale.paymentMethod}
+                    {lastSale.isCreditSale ? 'Crédito - Cuenta Corriente' : lastSale.paymentMethod}
                   </span>
                 </div>
                 {!lastSale.isCreditSale && lastSale.paymentMethod === 'efectivo' && (
@@ -814,30 +821,20 @@ export default function POSPage() {
                     </div>
                   </>
                 )}
-                {lastSale.isCreditSale && (
-                  <div className="bg-amber-50 p-3 rounded-lg mt-2">
-                    <p className="text-amber-700 text-xs font-bold text-center uppercase tracking-widest">
-                      Pendiente de Pago
-                    </p>
-                    <p className="text-amber-600 text-[10px] text-center mt-1">
-                      Registrar pago en Cuenta Corriente del cliente
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
 
-            <div className="p-4 bg-gray-50 border-t border-gray-200 flex gap-3">
-              <button
+            <div className="p-4 bg-gray-50 flex gap-3">
+              <button 
                 onClick={() => window.print()}
-                className="flex-1 py-3 bg-gray-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                className="flex-1 bg-black text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2"
               >
-                <span className="material-symbols-outlined">print</span>
+                <span className="material-symbols-outlined text-sm">print</span>
                 Imprimir
               </button>
-              <button
+              <button 
                 onClick={() => setShowReceipt(false)}
-                className="flex-1 py-3 bg-gray-200 text-gray-900 rounded-xl font-bold text-sm"
+                className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-xl font-black text-xs uppercase tracking-widest"
               >
                 Cerrar
               </button>
@@ -846,5 +843,6 @@ export default function POSPage() {
         </div>
       )}
     </div>
+    </FeatureGate>
   );
 }

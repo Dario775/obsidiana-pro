@@ -3,6 +3,18 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
+const AVAILABLE_FEATURES = [
+  { key: 'ml_sync', label: 'Sincronización ML' },
+  { key: 'inventory', label: 'Gestión de Inventario' },
+  { key: 'mercadopago', label: 'Pagos Mercado Pago' },
+  { key: 'multi_branch', label: 'Multisucursal' },
+  { key: 'custom_domain', label: 'Dominio Propio' },
+  { key: 'reports_basic', label: 'Reportes Básicos' },
+  { key: 'reports_advanced', label: 'Reportes Avanzados' },
+  { key: 'ai_tools', label: 'Herramientas AI' },
+  { key: 'multi_user', label: 'Multiusuario' },
+];
+
 export default function SubscriptionsPage() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
@@ -26,9 +38,16 @@ export default function SubscriptionsPage() {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [planFormData, setPlanFormData] = useState({
-    nombre: '',
-    precio_mensual: '',
-    features: ''
+    id: '',
+    name: '',
+    monthly_price: '',
+    yearly_price: '',
+    max_products: '50',
+    max_branches: '1',
+    online_store: false,
+    pos: true,
+    features: {} as Record<string, boolean>,
+    description: ''
   });
 
   // Platform payment config
@@ -119,36 +138,53 @@ export default function SubscriptionsPage() {
   const handleVerifyPayment = async (paymentId: string, approve: boolean) => {
     setVerifyingPayment(true);
     try {
-      const payment = pendingPayments.find(p => p.id === paymentId);
-      if (!payment) return;
+      const payment = allPayments.find(p => p.id === paymentId);
+      if (!payment) {
+        alert('Pago no encontrado');
+        return;
+      }
 
-      const newStatus = approve ? 'completed' : 'rejected';
+      const tenant = tenants.find(t => t.id === payment.tenant_id);
       
-      const { error } = await supabase.from('subscription_payments')
-        .update({ status: newStatus })
-        .eq('id', paymentId);
-
-      if (error) throw error;
-
       if (approve) {
         const now = new Date();
         const paidUntil = new Date(now);
         paidUntil.setMonth(paidUntil.getMonth() + 1);
 
-        await supabase.from('tenants')
+        // Determine the plan ID to activate
+        const targetPlanId = payment.plan_id || tenant?.plan_id;
+        
+        if (!targetPlanId) {
+          throw new Error('No se pudo determinar el plan para este tenant');
+        }
+
+        // 1. Update Tenant Plan and Expiry
+        const { error: tenantError } = await supabase.from('tenants')
           .update({
             paid_until: paidUntil.toISOString(),
-            subscription_status: 'active'
+            subscription_status: 'active',
+            plan_id: targetPlanId,
+            plan_started_at: now.toISOString()
           })
           .eq('id', payment.tenant_id);
+        
+        if (tenantError) throw tenantError;
       }
 
+      // 2. Update Payment Status
+      const newStatus = approve ? 'completed' : 'rejected';
+      const { error: paymentError } = await supabase.from('subscription_payments')
+        .update({ status: newStatus })
+        .eq('id', paymentId);
+
+      if (paymentError) throw paymentError;
+
+      alert(approve ? '¡Pago verificado y plan activado exitosamente!' : 'Pago rechazado.');
       fetchData();
       setShowPendingModal(false);
-      alert(approve ? 'Pago verificado y aprobado!' : 'Pago rechazado.');
-    } catch (err) {
-      console.error(err);
-      alert('Error al verificar pago');
+    } catch (err: any) {
+      console.error('Error en verificación de pago:', err);
+      alert('Error al verificar pago: ' + (err.message || 'Error desconocido'));
     } finally {
       setVerifyingPayment(false);
     }
@@ -237,16 +273,32 @@ export default function SubscriptionsPage() {
     if (p) {
       setSelectedPlan(p);
       setPlanFormData({
-        nombre: p.nombre,
-        precio_mensual: String(p.precio_mensual || p.monthly_price || 0),
-        features: p.features ? Object.keys(p.features).join(', ') : ''
+        id: p.id,
+        name: p.name || p.nombre || '',
+        monthly_price: String(p.monthly_price || p.precio_mensual || 0),
+        yearly_price: String(p.yearly_price || 0),
+        max_products: String(p.max_products || 50),
+        max_branches: String(p.max_branches || 1),
+        online_store: !!(p.online_store || p.features?.online_store),
+        pos: !!(p.pos || p.features?.pos),
+        features: p.features || {},
+        description: p.description || ''
       });
     } else {
       setSelectedPlan(null);
       setPlanFormData({
-        nombre: '',
-        precio_mensual: '',
-        features: 'online_store, basic_reports, unlimited_products'
+        id: '',
+        name: '',
+        monthly_price: '',
+        yearly_price: '',
+        max_products: '50',
+        max_branches: '1',
+        online_store: false,
+        pos: true,
+        features: {
+          reports_basic: true
+        },
+        description: ''
       });
     }
     setShowPlanModal(true);
@@ -254,32 +306,30 @@ export default function SubscriptionsPage() {
 
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!planFormData.nombre || !planFormData.precio_mensual) {
-      alert('Por favor completa los campos requeridos.');
+    if (!planFormData.name || !planFormData.monthly_price || (!selectedPlan && !planFormData.id)) {
+      alert('Por favor completa los campos requeridos (ID, Nombre, Precio).');
       return;
     }
     setSaving(true);
 
     try {
-      // Parse features string to boolean object
-      const featuresObj: Record<string, boolean> = {};
-      if (planFormData.features) {
-        planFormData.features.split(',').forEach(f => {
-          const key = f.trim();
-          if (key) featuresObj[key] = true;
-        });
-      }
+      // Parse extra features
+      const planData = {
+        name: planFormData.name,
+        monthly_price: parseInt(planFormData.monthly_price) || 0,
+        yearly_price: parseInt(planFormData.yearly_price) || 0,
+        max_products: parseInt(planFormData.max_products) || 50,
+        max_branches: parseInt(planFormData.max_branches) || 1,
+        online_store: planFormData.online_store,
+        pos: planFormData.pos,
+        features: planFormData.features,
+        description: planFormData.description
+      };
 
       if (selectedPlan) {
         // Update
         const { error } = await supabase.from('plans')
-          .update({
-            nombre: planFormData.nombre,
-            name: planFormData.nombre,
-            precio_mensual: parseInt(planFormData.precio_mensual) || 0,
-            monthly_price: parseInt(planFormData.precio_mensual) || 0,
-            features: featuresObj
-          })
+          .update(planData)
           .eq('id', selectedPlan.id);
 
         if (error) throw error;
@@ -287,11 +337,8 @@ export default function SubscriptionsPage() {
         // Create
         const { error } = await supabase.from('plans')
           .insert({
-            nombre: planFormData.nombre,
-            name: planFormData.nombre,
-            precio_mensual: parseInt(planFormData.precio_mensual) || 0,
-            monthly_price: parseInt(planFormData.precio_mensual) || 0,
-            features: featuresObj
+            id: planFormData.id.toLowerCase().replace(/\s+/g, '-'),
+            ...planData
           });
 
         if (error) throw error;
@@ -306,6 +353,29 @@ export default function SubscriptionsPage() {
       setSaving(false);
     }
   };
+
+  const generateDescription = (data: typeof planFormData) => {
+    const parts = [];
+    if (data.pos) parts.push('Punto de Venta');
+    if (data.online_store) parts.push('Tienda Online');
+    
+    AVAILABLE_FEATURES.forEach(f => {
+      if (data.features[f.key]) {
+        parts.push(f.label);
+      }
+    });
+    
+    return parts.join(', ');
+  };
+
+  useEffect(() => {
+    if (showPlanModal) {
+      const newDesc = generateDescription(planFormData);
+      if (newDesc !== planFormData.description) {
+        setPlanFormData(prev => ({ ...prev, description: newDesc }));
+      }
+    }
+  }, [planFormData.features, planFormData.pos, planFormData.online_store, showPlanModal]);
 
   const handleDeletePlan = async (planIdToDelete: string) => {
     if (!confirm('¿Estás seguro de eliminar este plan? Las tiendas asociadas quedarán sin plan.')) return;
@@ -592,9 +662,10 @@ export default function SubscriptionsPage() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-white/5 bg-white/5">
-                  <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Plan</th>
-                  <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Precio Mensual</th>
-                  <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Funcionalidades</th>
+                  <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Plan / ID</th>
+                  <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Precio (Mes/Año)</th>
+                  <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Límites (P/S)</th>
+                  <th className="py-3 px-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Módulos</th>
                   <th className="py-3 px-6 text-right text-[10px] font-black uppercase tracking-widest text-zinc-500">Acciones</th>
                 </tr>
               </thead>
@@ -602,33 +673,55 @@ export default function SubscriptionsPage() {
                 {plans.map((p, i) => (
                   <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="py-4 px-6">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">{p.nombre}</span>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">{p.name || p.nombre}</span>
+                        <span className="text-[9px] font-mono text-zinc-500 uppercase">{p.id}</span>
+                      </div>
                     </td>
-                    <td className="py-4 px-6 text-xs text-emerald-400 font-black">
-${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}
+                    <td className="py-4 px-6">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-emerald-400 font-black">${(p.monthly_price || p.precio_mensual || 0)?.toLocaleString()}</span>
+                        <span className="text-[9px] text-zinc-500">${(p.yearly_price || 0)?.toLocaleString()} / año</span>
+                      </div>
                     </td>
-                    <td className="py-4 px-6 text-xs text-zinc-300">
-                      <div className="flex flex-wrap gap-1">
-                        {p.features && Object.keys(p.features).map((feat, fi) => (
-                          <span key={fi} className="px-2 py-0.5 rounded-full text-[9px] bg-white/5 border border-white/10 font-bold uppercase tracking-tighter text-zinc-400">
+                    <td className="py-4 px-6">
+                      <div className="flex gap-2">
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                          <span className="material-symbols-outlined text-[10px] text-zinc-500">inventory_2</span>
+                          <span className="text-[10px] font-bold text-zinc-400">{p.max_products || 50}</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                          <span className="material-symbols-outlined text-[10px] text-zinc-500">store</span>
+                          <span className="text-[10px] font-bold text-zinc-400">{p.max_branches || 1}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex gap-1 flex-wrap">
+                        {p.pos && <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[8px] font-black uppercase">POS</span>}
+                        {p.online_store && <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[8px] font-black uppercase">Web</span>}
+                        {p.features && Object.keys(p.features).filter(k => !['online_store', 'pos'].includes(k)).map((feat, fi) => (
+                          <span key={fi} className="px-1.5 py-0.5 rounded bg-white/5 text-zinc-500 border border-white/10 text-[8px] font-black uppercase">
                             {feat}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-right flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleOpenPlanModal(p)}
-                        className="p-2 text-zinc-500 hover:text-white hover:bg-white/5 rounded-xl transition-all"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeletePlan(p.id)}
-                        className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
+                    <td className="py-4 px-6 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleOpenPlanModal(p)}
+                          className="p-2 text-zinc-500 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlan(p.id)}
+                          className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -721,40 +814,131 @@ ${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}
               </p>
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+              {!selectedPlan && (
+                <div>
+                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">ID del Plan (Único) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={planFormData.id}
+                    onChange={(e) => setPlanFormData({ ...planFormData, id: e.target.value })}
+                    placeholder="Ej: gold-plan"
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-xs font-mono"
+                  />
+                </div>
+              )}
+
               <div>
-                <label className="block text-zinc-400 text-xs font-black uppercase tracking-widest mb-1">Nombre del Plan *</label>
+                <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Nombre Comercial *</label>
                 <input
                   type="text"
                   required
-                  value={planFormData.nombre}
-                  onChange={(e) => setPlanFormData({ ...planFormData, nombre: e.target.value })}
+                  value={planFormData.name}
+                  onChange={(e) => setPlanFormData({ ...planFormData, name: e.target.value })}
                   placeholder="Ej: Plan Enterprise"
                   className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-zinc-400 text-xs font-black uppercase tracking-widest mb-1">Precio Mensual ($) *</label>
-                <input
-                  type="number"
-                  required
-                  value={planFormData.precio_mensual}
-                  onChange={(e) => setPlanFormData({ ...planFormData, precio_mensual: e.target.value })}
-                  placeholder="Ej: 99"
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Descripción (Auto-generada)</label>
+                <textarea
+                  readOnly
+                  value={planFormData.description}
+                  className="w-full bg-zinc-900 border border-white/5 rounded-xl px-4 py-3 text-zinc-400 text-xs italic focus:outline-none h-20 resize-none"
+                  placeholder="Se generará basándose en las funciones seleccionadas..."
                 />
               </div>
 
-              <div>
-                <label className="block text-zinc-400 text-xs font-black uppercase tracking-widest mb-1">Funcionalidades (Separadas por coma)</label>
-                <input
-                  type="text"
-                  value={planFormData.features}
-                  onChange={(e) => setPlanFormData({ ...planFormData, features: e.target.value })}
-                  placeholder="Ej: online_store, basic_reports"
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Precio Mes ($) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={planFormData.monthly_price}
+                    onChange={(e) => setPlanFormData({ ...planFormData, monthly_price: e.target.value })}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Precio Año ($)</label>
+                  <input
+                    type="number"
+                    value={planFormData.yearly_price}
+                    onChange={(e) => setPlanFormData({ ...planFormData, yearly_price: e.target.value })}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Límite Productos</label>
+                  <input
+                    type="number"
+                    value={planFormData.max_products}
+                    onChange={(e) => setPlanFormData({ ...planFormData, max_products: e.target.value })}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Límite Sucursales</label>
+                  <input
+                    type="number"
+                    value={planFormData.max_branches}
+                    onChange={(e) => setPlanFormData({ ...planFormData, max_branches: e.target.value })}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white/5 p-4 rounded-xl space-y-4">
+                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest border-b border-white/5 pb-2">Habilitar Módulos</p>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={planFormData.pos}
+                      onChange={(e) => setPlanFormData({ ...planFormData, pos: e.target.checked })}
+                      className="accent-primary w-4 h-4 rounded bg-zinc-950 border-white/10"
+                    />
+                    <span className="text-zinc-300 text-xs font-bold group-hover:text-white transition-colors">Punto de Venta (POS)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={planFormData.online_store}
+                      onChange={(e) => setPlanFormData({ ...planFormData, online_store: e.target.checked })}
+                      className="accent-violet-500 w-4 h-4 rounded bg-zinc-950 border-white/10"
+                    />
+                    <span className="text-zinc-300 text-xs font-bold group-hover:text-white transition-colors">Tienda Online</span>
+                  </label>
+                </div>
+
+                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest border-b border-white/5 pb-2 pt-2">Funciones Extras</p>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+                  {AVAILABLE_FEATURES.map((feat) => (
+                    <label key={feat.key} className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={!!planFormData.features[feat.key]}
+                        onChange={(e) => {
+                          const newFeatures = { ...planFormData.features };
+                          if (e.target.checked) {
+                            newFeatures[feat.key] = true;
+                          } else {
+                            delete newFeatures[feat.key];
+                          }
+                          setPlanFormData({ ...planFormData, features: newFeatures });
+                        }}
+                        className="accent-emerald-500 w-4 h-4 rounded bg-zinc-950 border-white/10"
+                      />
+                      <span className="text-zinc-300 text-[11px] font-bold group-hover:text-white transition-colors">{feat.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -905,15 +1089,98 @@ ${(p.precio_mensual || p.monthly_price || 0)?.toLocaleString() || 0}
         </div>
       )}
 
+      {showPendingModal && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
+          <div className="bg-[#141414] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-white uppercase flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-400">pending_actions</span>
+                  Pagos por Verificar
+                </h3>
+                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-1">
+                  Revisa los comprobantes y aprueba las suscripciones
+                </p>
+              </div>
+              <button onClick={() => setShowPendingModal(false)} className="p-2 text-zinc-500 hover:text-white transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {pendingPayments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
+                  <span className="material-symbols-outlined text-4xl mb-2">done_all</span>
+                  <p className="text-xs font-bold uppercase">No hay pagos pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingPayments.map((payment) => {
+                    const tenant = tenants.find(t => t.id === payment.tenant_id);
+                    const plan = plans.find(p => p.id === (payment.plan_id || tenant?.plan_id));
+                    
+                    return (
+                      <div key={payment.id} className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-black text-white uppercase">{tenant?.nombre || 'Tenant Desconocido'}</span>
+                            <span className="px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded text-[9px] font-black uppercase">
+                              {plan?.nombre || 'Plan Desconocido'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                            <span>Monto: <span className="text-white">${(payment.amount || 0).toLocaleString()}</span></span>
+                            <span>Fecha: <span className="text-white">{new Date(payment.paid_at || payment.created_at).toLocaleDateString()}</span></span>
+                          </div>
+                          
+                          {payment.proof_url && (
+                            <a 
+                              href={payment.proof_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[9px] font-black uppercase text-zinc-300 transition-all"
+                            >
+                              <span className="material-symbols-outlined text-sm">visibility</span>
+                              Ver Comprobante
+                            </a>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button
+                            onClick={() => handleVerifyPayment(payment.id, false)}
+                            disabled={verifyingPayment}
+                            className="flex-1 sm:flex-none px-4 py-2 border border-red-500/20 text-red-400 hover:bg-red-500/10 rounded-xl text-[10px] font-black uppercase transition-all disabled:opacity-50"
+                          >
+                            Rechazar
+                          </button>
+                          <button
+                            onClick={() => handleVerifyPayment(payment.id, true)}
+                            disabled={verifyingPayment}
+                            className="flex-1 sm:flex-none px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-400 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                          >
+                            Aprobar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPaymentsModal && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-lg font-black text-white uppercase flex items-center gap-2">
                 <span className="material-symbols-outlined text-violet-400">history</span>
                 Historial de Pagos
               </h3>
-              <button onClick={() => setShowPaymentsModal(false)} className="p-2 text-zinc-400 hover:text-white">
+              <button onClick={() => setShowPaymentsModal(false)} className="p-2 text-zinc-400 hover:text-white transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
