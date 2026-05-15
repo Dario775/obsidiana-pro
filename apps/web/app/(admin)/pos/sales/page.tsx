@@ -16,7 +16,7 @@ interface Order {
   placed_at: string;
   customers?: {
     nombre: string;
-  };
+  }[] | any;
 }
 
 interface OrderItem {
@@ -26,10 +26,10 @@ interface OrderItem {
   unit_price_ars: number;
   products?: {
     title: string;
-  };
+  }[] | any;
   product_variants?: {
     sku: string;
-  };
+  }[] | any;
 }
 
 export default function POSSalesHistoryPage() {
@@ -340,7 +340,11 @@ export default function POSSalesHistoryPage() {
                       <span className="font-black text-secondary">#{order.number}</span>
                     </td>
                     <td className="py-5 px-8">
-                      <span className="font-bold text-zinc-300">{order.customers?.nombre || 'Consumidor Final'}</span>
+                      <span className="font-bold text-zinc-300">
+                        {Array.isArray(order.customers) 
+                          ? (order.customers[0]?.nombre || 'Consumidor Final')
+                          : (order.customers?.nombre || 'Consumidor Final')}
+                      </span>
                     </td>
                     <td className="py-5 px-8">
                       <div className="flex flex-col">
@@ -415,8 +419,12 @@ export default function POSSalesHistoryPage() {
                     {orderItems.map((item) => (
                       <div key={item.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl border border-white/5">
                         <div className="flex-1">
-                          <p className="font-bold text-white text-sm">{item.products?.title || 'Producto'}</p>
-                          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">SKU: {item.product_variants?.sku || 'N/A'}</p>
+                          <p className="font-bold text-white text-sm">
+                            {Array.isArray(item.products) ? item.products[0]?.title : item.products?.title || 'Producto'}
+                          </p>
+                          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                            SKU: {Array.isArray(item.product_variants) ? item.product_variants[0]?.sku : item.product_variants?.sku || 'N/A'}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="text-zinc-400 text-xs">{item.quantity} x $ {item.unit_price_ars?.toLocaleString('es-AR')}</p>

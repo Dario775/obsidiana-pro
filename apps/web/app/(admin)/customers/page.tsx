@@ -148,7 +148,7 @@ export default function CustomersPage() {
       const { error } = await supabase
         .from('customers')
         .update(payload)
-        .eq('id', selectedCustomer.id);
+        .eq('id', selectedCustomer?.id);
 
       if (error) throw error;
 

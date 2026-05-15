@@ -46,13 +46,15 @@ export async function reverseOrderStock(orderId: string, tenantId: string) {
         if (invRecords && invRecords.length > 0) {
           // Update the first inventory record (usually there's only one per variant/tenant if not multi-branch)
           const inv = invRecords[0];
-          const { error: updateError } = await supabase
-            .from('inventory_levels')
-            .update({ on_hand: (inv.on_hand || 0) + item.quantity })
-            .eq('id', inv.id);
+          if (inv) {
+            const { error: updateError } = await supabase
+              .from('inventory_levels')
+              .update({ on_hand: (inv.on_hand || 0) + item.quantity })
+              .eq('id', inv.id);
 
-          if (updateError) {
-            console.error(`Error updating inventory for variant ${item.variant_id}:`, updateError);
+            if (updateError) {
+              console.error(`Error updating inventory for variant ${item.variant_id}:`, updateError);
+            }
           }
         }
       }

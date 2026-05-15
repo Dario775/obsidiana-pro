@@ -87,7 +87,7 @@ export async function findGlobalImage(
     if (barcode && barcode.length >= 12) {
       const { data, error } = await supabase
         .from('global_catalog')
-        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13')
+        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13, quality_score, default_price')
         .eq('barcode_ean13', barcode)
         .in('status', ['approved', 'featured'])
         .limit(1)
@@ -99,13 +99,13 @@ export async function findGlobalImage(
           id: data.id,
           cloudinary_url: data.cloudinary_url,
           normalized_name: data.normalized_name,
-          quality_score: data.quality_score,
+          quality_score: (data as any).quality_score || null,
           match_type: 'barcode',
           confidence: 1.0,
           public_id: pid || null,
-          description: data.description,
-          default_price: data.default_price,
-          barcode_ean13: data.barcode_ean13
+          barcode_ean13: data.barcode_ean13,
+          description: (data as any).description || null,
+          default_price: (data as any).default_price || null,
         };
       }
     }
@@ -119,7 +119,7 @@ export async function findGlobalImage(
 
       const { data, error } = await supabase
         .from('global_catalog')
-        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13')
+        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13, quality_score, default_price')
         .in('status', ['approved', 'featured'])
         .ilike('normalized_name', `%${normalizedSearch}%`)
         .limit(5);
@@ -130,18 +130,19 @@ export async function findGlobalImage(
           id: item.id,
           cloudinary_url: item.cloudinary_url,
           normalized_name: item.normalized_name,
-          quality_score: item.quality_score,
+          quality_score: (item as any).quality_score || null,
           match_type: 'name',
           confidence: 0.7,
           public_id: extractPublicId(item.cloudinary_url) || null,
-          description: item.description,
-          default_price: item.default_price,
-          barcode_ean13: item.barcode_ean13
+          barcode_ean13: item.barcode_ean13,
+          description: (item as any).description || null,
+          default_price: (item as any).default_price || null,
         }));
         
         // For backward compatibility, return first match with extra properties
+        const firstMatch = matches[0] as ImageMatchResult;
         return {
-          ...matches[0],
+          ...firstMatch,
           all_matches: matches
         };
       }

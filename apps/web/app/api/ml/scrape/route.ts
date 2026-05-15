@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       let ldMatch;
       while ((ldMatch = ldJsonRegex.exec(html)) !== null) {
         try {
-          const data = JSON.parse(ldMatch[1]);
+          const data = JSON.parse(ldMatch[1] || '');
           // Handle both single object and array of objects
           const items = Array.isArray(data) ? data : [data];
           for (const item of items) {
@@ -57,14 +57,14 @@ export async function POST(req: Request) {
 
     // Priority 2: Standard Meta Tags
     if (!priceAmount) {
-      priceAmount = getMeta('product:price:amount') || getMeta('og:price:amount');
+      priceAmount = getMeta('product:price:amount') || getMeta('og:price:amount') || getMeta('twitter:data1') || null;
     }
     
     // Fallback for price: search for itemprop="price"
     if (!priceAmount) {
       const priceRegex = /itemprop="price"\s+content="([^"]+)"/i;
       const priceMatch = html.match(priceRegex);
-      if (priceMatch) priceAmount = priceMatch[1];
+      priceAmount = (priceMatch && priceMatch[1]) ? priceMatch[1] : null;
     }
 
     // Second fallback: search for twitter:data1 which often has price in ML
@@ -81,19 +81,19 @@ export async function POST(req: Request) {
                                html.match(/class="ui-pdp-price"[^>]*>(.*?)<\/div>/is) ||
                                html.match(/class="ui-pdp-price__main"[^>]*>(.*?)<\/div>/is);
       
-      const searchArea = mainPriceSection ? mainPriceSection[1] : html;
+      const searchArea = (mainPriceSection && mainPriceSection[1]) ? mainPriceSection[1] : html;
 
       // 2. Look for the fraction with the specific attribute the user mentioned
       const specificMatch = searchArea.match(/data-andes-money-amount-fraction="true"[^>]*>([^<]+)<\/span>/i);
       
       if (specificMatch) {
-        priceAmount = specificMatch[1].replace(/[.$ ]/g, '').replace(',', '.').trim();
+        priceAmount = (specificMatch[1] || '').replace(/[.$ ]/g, '').replace(',', '.').trim();
       } else {
         const amounts: string[] = [];
         const fractionRegex = /class="andes-money-amount__fraction"[^>]*>([^<]+)<\/span>/gi;
         let m;
         while ((m = fractionRegex.exec(searchArea)) !== null) {
-          amounts.push(m[1].replace(/[.$ ]/g, '').replace(',', '.').trim());
+          amounts.push((m[1] || '').replace(/[.$ ]/g, '').replace(',', '.').trim());
         }
         
         if (amounts.length > 0) {
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
     const discountMatch = html.match(discountRegex);
     
     if (discountMatch && priceAmount) {
-      const discountPercent = parseInt(discountMatch[1]);
+      const discountPercent = parseInt(discountMatch[1] || '0');
       const currentPrice = parseFloat(priceAmount);
       
       // If we found a discount and the current price seems to be the original one

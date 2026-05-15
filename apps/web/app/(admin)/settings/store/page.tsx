@@ -35,7 +35,7 @@ type Appearance = {
   dark_mode: boolean;
 };
 
-type Tab = 'general' | 'apariencia' | 'envio' | 'social';
+type Tab = 'general' | 'apariencia' | 'envio' | 'social' | 'pagos';
 
 export default function StoreSettingsPage() {
   const { tenant } = useTenant();

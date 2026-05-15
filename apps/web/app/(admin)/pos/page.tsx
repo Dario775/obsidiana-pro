@@ -277,7 +277,7 @@ export default function POSPage() {
     }
 
     // Validar límite de crédito
-    if (isCreditSale && selectedCustomer?.credit_limit > 0) {
+    if (isCreditSale && (selectedCustomer?.credit_limit || 0) > 0) {
       // Calcular deuda actual del cliente
       const { data: customerOrders } = await supabase
         .from('orders')
@@ -298,8 +298,8 @@ export default function POSPage() {
       const totalPaid = (customerPayments || []).reduce((acc: number, p: any) => acc + (p.amount_ars || 0), 0);
       const currentPending = totalDebt - totalPaid;
       
-      if (currentPending + finalTotal > selectedCustomer.credit_limit) {
-        const available = Math.max(0, selectedCustomer.credit_limit - currentPending);
+      if (currentPending + finalTotal > (selectedCustomer?.credit_limit || 0)) {
+        const available = Math.max(0, (selectedCustomer?.credit_limit || 0) - currentPending);
         alert(`Limite de credito excedido. Disponible: $${available.toLocaleString('es-AR')}. Pedido: $${finalTotal.toLocaleString('es-AR')}`);
         return;
       }
