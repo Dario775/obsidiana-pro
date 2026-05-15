@@ -232,6 +232,7 @@ export default function RegisterPage() {
             {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
           </button>
         </form>
+      </div>
 
         <p className="mt-6 text-center text-zinc-500 text-sm">
           ¿Ya tienes cuenta?{' '}
