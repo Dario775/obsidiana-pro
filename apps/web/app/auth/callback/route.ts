@@ -42,10 +42,9 @@ export async function GET(request: Request) {
         .eq('user_id', data.user.id)
         .maybeSingle();
       
-      // 2. If no tenant association found, this is a NEW user from Google
-      // Redirect to register but maybe with a flag
+      // 2. If no tenant association found, send to dashboard anyway to test session
       if (!memberData) {
-        return NextResponse.redirect(`${origin}/register?source=google`);
+        return NextResponse.redirect(`${origin}/dashboard`);
       }
 
       // 3. Check if the tenant is a platform admin (Super Admin)
