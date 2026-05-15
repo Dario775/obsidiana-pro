@@ -21,6 +21,18 @@ interface CartItem extends Product {
   quantity: number;
 }
 
+interface Customer {
+  id: string;
+  nombre: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  dni_cuit: string | null;
+  document_number: string | null;
+  credit_limit: number;
+  phone: string | null;
+}
+
 type PaymentMethod = 'efectivo' | 'tarjeta' | 'mp' | null;
 
 export default function POSPage() {
@@ -42,8 +54,8 @@ export default function POSPage() {
   const [isCreditSale, setIsCreditSale] = useState(false);
   
   // Cliente seleccionado
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const DEFAULT_CUSTOMER_ID = '54573d5c-23c0-44f3-83e8-78fecdbcb049'; // Consumidor Final

@@ -38,6 +38,18 @@ interface OrderItem {
   tax_ars: number;
 }
 
+interface Customer {
+  id: string;
+  nombre: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  dni_cuit: string | null;
+  phone: string | null;
+  credit_limit: number;
+  created_at: string;
+}
+
 type TabType = 'history' | 'account' | 'logistics';
 
 interface AccountTransaction {
@@ -55,7 +67,7 @@ export default function CustomerDetailPage() {
   const params = useParams();
   const id = params?.id as string;
   const [activeTab, setActiveTab] = useState<TabType>('history');
-  const [customer, setCustomer] = useState<any>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [orderItems, setOrderItems] = useState<Record<string, OrderItem[]>>({});
@@ -447,13 +459,13 @@ export default function CustomerDetailPage() {
     }
   }
 
-  function getInitials(customer: any): string {
+  function getInitials(customer: Customer | null): string {
     const first = customer?.first_name?.[0] || customer?.nombre?.[0] || '';
     const last = customer?.last_name?.[0] || '';
     return (first + last).toUpperCase() || customer?.email?.[0]?.toUpperCase() || '?';
   }
 
-  function getFullName(customer: any): string {
+  function getFullName(customer: Customer | null): string {
     const name = customer?.nombre || `${customer?.first_name || ''} ${customer?.last_name || ''}`.trim();
     return name || 'Sin nombre';
   }

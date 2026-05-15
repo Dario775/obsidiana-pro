@@ -7,6 +7,7 @@ import { useTenant } from '@/hooks/use-tenant';
 interface Customer {
   id: string;
   email: string;
+  nombre: string | null;
   phone: string | null;
   dni_cuit: string | null;
   first_name: string | null;
