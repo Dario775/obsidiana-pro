@@ -18,17 +18,27 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, storeName } = body;
+    const { email, password, storeName, googleUserId } = body;
+
+    // For Google users: they already have an auth account, just need a tenant
+    const isGoogleUser = !!googleUserId;
 
     // Validate input
-    if (!email || !password || !storeName) {
+    if (!storeName) {
       return NextResponse.json(
-        { error: 'Email, contraseña y nombre del negocio son obligatorios' },
+        { error: 'El nombre del negocio es obligatorio' },
         { status: 400 }
       );
     }
 
-    if (password.length < 8) {
+    if (!isGoogleUser && (!email || !password)) {
+      return NextResponse.json(
+        { error: 'Email y contraseña son obligatorios' },
+        { status: 400 }
+      );
+    }
+
+    if (!isGoogleUser && password.length < 8) {
       return NextResponse.json(
         { error: 'La contraseña debe tener al menos 8 caracteres' },
         { status: 400 }
@@ -36,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate slug and check uniqueness
-    const slug = storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    let slug = storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     
     const { data: existingTenant } = await supabaseAdmin
       .from('tenants')
@@ -45,10 +55,8 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (existingTenant) {
-      return NextResponse.json(
-        { error: 'Ya existe un negocio con ese nombre. Elegí otro.' },
-        { status: 409 }
-      );
+      // Add random suffix to make it unique
+      slug = slug + '-' + Date.now().toString(36);
     }
 
     // 1. Create tenant first
@@ -72,33 +80,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Create user via Admin Auth API
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm email for now
-      user_metadata: {
-        store_name: storeName,
-        tenant_id: tenantData.id,
-      },
-    });
+    // 2. Handle user creation / association
+    if (isGoogleUser) {
+      // Google user already exists in Auth — just create tenant_members association
+      await supabaseAdmin
+        .from('tenant_members')
+        .insert({
+          tenant_id: tenantData.id,
+          user_id: googleUserId,
+          role: 'owner',
+        });
 
-    if (userError) {
-      // CLEANUP: Delete the tenant since user creation failed
-      console.error('User creation failed, cleaning up tenant:', userError);
-      await supabaseAdmin.from('tenants').delete().eq('id', tenantData.id);
-      
-      return NextResponse.json(
-        { error: userError.message },
-        { status: 400 }
-      );
+      // Update user metadata with tenant_id
+      await supabaseAdmin.auth.admin.updateUserById(googleUserId, {
+        user_metadata: {
+          store_name: storeName,
+          tenant_id: tenantData.id,
+        },
+      });
+
+    } else {
+      // Traditional email/password registration
+      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          store_name: storeName,
+          tenant_id: tenantData.id,
+        },
+      });
+
+      if (userError) {
+        // CLEANUP: Delete the tenant since user creation failed
+        console.error('User creation failed, cleaning up tenant:', userError);
+        await supabaseAdmin.from('tenants').delete().eq('id', tenantData.id);
+        
+        return NextResponse.json(
+          { error: userError.message },
+          { status: 400 }
+        );
+      }
     }
 
     // 3. Create default location for this tenant
     await supabaseAdmin
       .from('locations')
       .insert({
-        id: '00000000-0000-0000-0000-000000000001',
         tenant_id: tenantData.id,
         name: 'Local Principal',
         is_default: true,
@@ -109,7 +137,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       tenantId: tenantData.id,
-      userId: userData.user?.id,
     });
 
   } catch (error: any) {
