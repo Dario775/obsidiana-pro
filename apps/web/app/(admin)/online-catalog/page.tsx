@@ -57,7 +57,7 @@ export default function OnlineCatalogPage() {
   const [importError, setImportError] = useState('');
 
   const [editFormData, setEditFormData] = useState({
-    title: '',
+    nombre: '',
     price: 0
   });
 

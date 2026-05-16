@@ -282,7 +282,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
 
       // Limpiar formulario y cerrar modal
       setFormData({
-        title: '',
+        nombre: '',
         slug: '',
         sku: '',
         price_ars: '',
@@ -317,7 +317,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         const product = item.product_variants?.products;
         const variant = item.product_variants;
         return (
-          product?.title?.toLowerCase().includes(search) ||
+          product?.nombre?.toLowerCase().includes(search) ||
           variant?.sku?.toLowerCase().includes(search) ||
           variant?.barcode?.toLowerCase().includes(search)
         );
@@ -399,7 +399,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
     const product = item.product_variants?.products;
     const variant = item.product_variants;
     setFormData({
-      title: product?.title || '',
+      nombre: product?.nombre || '',
       slug: product?.slug || '',
       sku: variant?.sku || '',
       price_ars: variant?.price_ars?.toString() || '',
@@ -489,8 +489,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                   .from('global_catalog')
                   .insert({
                     barcode_ean13: formData.barcode,
-                    normalized_name: formData.title || 'Unknown',
-                    normalized_slug: formData.title?.toLowerCase().replace(/\s+/g, '-') || 'unknown',
+                    normalized_name: formData.nombre || 'Unknown',
+                    normalized_slug: formData.nombre?.toLowerCase().replace(/\s+/g, '-') || 'unknown',
                     description: formData.description || '',
                     default_price: parseInt(formData.price_ars) || 0,
                     cloudinary_public_id: result.public_id,
@@ -566,7 +566,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         if (applyData) {
           setFormData(prev => ({
             ...prev,
-            title: result.normalized_name || prev.title,
+            nombre: result.normalized_name || prev.nombre,
             barcode: result.barcode_ean13 || barcode,
             price_ars: result.default_price?.toString() || prev.price_ars,
             description: result.description || prev.description
@@ -772,7 +772,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
               .from('products')
               .insert({
                 tenant_id: tenantId,
-                title,
+                nombre: title,
                 slug: uniqueSlug,
                 description: row['Descripción'] || row['Description'] || '',
                 status: 'active',
@@ -861,7 +861,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
   function handleExportCSV() {
     const headers = ['Producto', 'SKU', 'Variante', 'En Mano', 'Reservado', 'Disponible', 'Precio'];
     const rows = items.map(item => [
-      item.product_variants?.products?.title || '',
+      item.product_variants?.products?.nombre || '',
       item.product_variants?.sku || '',
       item.product_variants?.sku || 'Única',
       item.on_hand || 0,
@@ -907,7 +907,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
           <button 
             onClick={() => {
               setFormData({
-                title: '',
+                nombre: '',
                 slug: '',
                 sku: '',
                 price_ars: '',
@@ -1035,7 +1035,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                           {thumbSrc ? (
                             <img 
                               src={thumbSrc} 
-                              alt={product?.title}
+                              alt={product?.nombre}
                               className="w-full h-full object-cover"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
@@ -1047,7 +1047,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                           )}
                         </div>
                         <div>
-                          <p className="font-bold text-sm text-white">{product?.title || 'Desconocido'}</p>
+                          <p className="font-bold text-sm text-white">{product?.nombre || 'Desconocido'}</p>
                           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-0.5">
                             SKU: {variant?.sku || 'N/A'}
                             {variant?.barcode && <span className="ml-2">• EAN: {variant.barcode}</span>}
@@ -1726,7 +1726,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black text-white">Ajustar Stock</h2>
-                <p className="text-zinc-500 text-sm mt-1">{selectedItem.product_variants?.products?.title}</p>
+                <p className="text-zinc-500 text-sm mt-1">{selectedItem.product_variants?.products?.nombre}</p>
               </div>
               <button 
                 onClick={() => setShowStockModal(false)}
@@ -1803,7 +1803,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                 Opciones de Producto
               </h3>
               <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mt-1">
-                {actionModalItem.product_variants?.products?.title || 'Gestionar Producto'}
+                {actionModalItem.product_variants?.products?.nombre || 'Gestionar Producto'}
               </p>
             </div>
 
@@ -1892,7 +1892,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
               {(previewItem.product_variants?.images?.[0] || previewItem.product_variants?.products?.images?.[0]) ? (
                 <img 
                   src={previewItem.product_variants?.images?.[0] || previewItem.product_variants?.products?.images?.[0]}
-                  alt={previewItem.product_variants?.products?.title || previewItem.product_variants?.products?.nombre}
+                  alt={previewItem.product_variants?.products?.nombre}
                   className="w-full h-64 object-cover"
                 />
               ) : (
@@ -1909,7 +1909,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
             </div>
             
             <div className="p-6">
-              <h2 className="text-2xl font-black text-white">{previewItem.product_variants?.products?.title || previewItem.product_variants?.products?.nombre || 'Sin nombre'}</h2>
+              <h2 className="text-2xl font-black text-white">{previewItem.product_variants?.products?.nombre || 'Sin nombre'}</h2>
               <p className="text-zinc-500 text-sm mt-1">SKU: {previewItem.product_variants?.sku || 'N/A'}</p>
               
               {previewItem.product_variants?.barcode && (
