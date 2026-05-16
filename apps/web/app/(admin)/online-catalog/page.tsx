@@ -8,7 +8,7 @@ import { FeatureGate } from '@/components/feature-gate';
 
 interface ProductData {
   id: string;
-  title: string;
+  nombre: string;
   slug: string;
   available_online: boolean;
   online_reserved: number;
@@ -75,10 +75,10 @@ export default function OnlineCatalogPage() {
     // Fetch products with their variants and inventory
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, title, slug, available_online, online_reserved, tenant_id, external_url')
+      .select('id, nombre, slug, available_online, online_reserved, tenant_id, external_url')
       .eq('tenant_id', tenant.id)
       .eq('status', 'active')
-      .order('title');
+      .order('nombre');
 
     if (productsError) {
       console.error('Error fetching products:', productsError);
@@ -126,7 +126,7 @@ export default function OnlineCatalogPage() {
           available: inv?.available || 0,
           product: {
             id: product.id,
-            title: product.title,
+            nombre: product.nombre,
             slug: product.slug,
             available_online: product.available_online,
             online_reserved: product.online_reserved,
@@ -270,7 +270,7 @@ export default function OnlineCatalogPage() {
         const { error: pError } = await supabase
           .from('products')
           .update({
-            title: scrapedData.title,
+            nombre: scrapedData.title,
             description: scrapedData.description,
             images: scrapedData.images || []
           })
@@ -297,7 +297,7 @@ export default function OnlineCatalogPage() {
         const { data: product, error: pError } = await supabase
           .from('products')
           .insert({
-            title: scrapedData.title,
+            nombre: scrapedData.title,
             description: scrapedData.description,
             slug: `${slug}-${Date.now()}`,
             status: 'active',
@@ -484,7 +484,7 @@ export default function OnlineCatalogPage() {
               ) : filteredItems.map((item) => (
                 <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
                   <td className="py-4 px-6">
-                    <p className="font-bold text-sm text-white">{item.product.title}</p>
+                    <p className="font-bold text-sm text-white">{item.product.nombre}</p>
                   </td>
                   <td className="py-4 px-6 text-zinc-400 text-xs font-mono">
                     {item.variant.sku}

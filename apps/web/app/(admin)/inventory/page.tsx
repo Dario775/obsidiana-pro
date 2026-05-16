@@ -25,7 +25,7 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    title: '',
+    nombre: '',
     slug: '',
     sku: '',
     price_ars: '',
@@ -116,7 +116,7 @@ export default function InventoryPage() {
     if (productIds.length > 0) {
       const { data: productsData } = await supabase
         .from('products')
-        .select('id, title, available_online, online_reserved, images')
+        .select('id, nombre, available_online, online_reserved, images')
         .in('id', productIds);
       
       productsData?.forEach(p => {
@@ -133,7 +133,7 @@ export default function InventoryPage() {
         available: (item.on_hand || 0) - (item.committed || 0),
         product_variants: {
           ...variant,
-          products: { ...product, title: product?.title || product?.nombre }
+          products: { ...product, nombre: product?.nombre || product?.title }
         }
       };
     }) || [];
@@ -222,7 +222,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       }
 
       // Generar slug único
-      const baseSlug = formData.slug.trim() || formData.title.toLowerCase().replace(/\s+/g, '-');
+      const baseSlug = formData.slug.trim() || formData.nombre.toLowerCase().replace(/\s+/g, '-');
       const uniqueSlug = await generateUniqueSlug(tenantId, baseSlug);
 
       // 1. Insertar producto
@@ -230,7 +230,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         .from('products')
         .insert({
           tenant_id: tenantId,
-          title: formData.title,
+          nombre: formData.nombre,
+          slug: uniqueSlug,
           description: formData.description,
           status: 'active',
           images: newProductImages,
@@ -653,7 +654,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       const { error: productError } = await supabase
         .from('products')
         .update({
-          title: formData.title,
+          nombre: formData.nombre,
+          slug: formData.slug || formData.nombre.toLowerCase().replace(/\s+/g, '-'),
           description: formData.description,
           available_online: formData.available_online || false,
           images: productImages
