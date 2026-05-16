@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  // ─── Detectar retorno de OAuth (PKCE ?code= o implícito #access_token) ───
+  // ─── Detectar retorno de OAuth ───
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const hasCode = params.get('code');
@@ -28,51 +28,73 @@ export default function LoginPage() {
 
     if (hasCode || hasHash) {
       setProcessing(true);
-      setTimeout(async () => {
+      
+      const checkSession = async () => {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          // Con createBrowserClient, esto sincroniza cookies automáticamente
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) throw sessionError;
+
           if (session?.user) {
+            console.log('Sesión detectada para:', session.user.email);
             await handlePostLogin(session.user);
           } else {
-            setProcessing(false);
-            setError('No se pudo establecer la sesión. Intentá de nuevo.');
+            // Reintentar una vez tras un breve delay si falla
+            setTimeout(async () => {
+              const { data: { session: retrySession } } = await supabase.auth.getSession();
+              if (retrySession?.user) {
+                await handlePostLogin(retrySession.user);
+              } else {
+                setProcessing(false);
+                setError('No se pudo validar la sesión. Por favor, intenta ingresar de nuevo.');
+              }
+            }, 1500);
           }
         } catch (err: any) {
-          console.error('OAuth error:', err);
+          console.error('Error al validar sesión OAuth:', err);
           setProcessing(false);
-          setError(err.message || 'Error de autenticación');
+          setError('Error de conexión con el servidor de autenticación.');
         }
-      }, 1000);
+      };
+
+      checkSession();
     }
   }, []);
 
   async function handlePostLogin(user: any) {
     try {
-      const { data: memberData } = await supabase
+      // 1. Verificar si ya tiene tienda vinculada
+      const { data: memberData, error: memberError } = await supabase
         .from('tenant_members')
         .select('tenant_id')
         .eq('user_id', user.id)
         .limit(1)
         .maybeSingle();
 
+      if (memberError) {
+        console.error('Error buscando miembro:', memberError);
+      }
+
       if (memberData) {
+        // Ya tiene tienda, verificar si es admin de plataforma
         const { data: tenantData } = await supabase
           .from('tenants')
           .select('is_platform_admin')
           .eq('id', memberData.tenant_id)
           .maybeSingle();
 
-        if (tenantData?.is_platform_admin) {
-          window.location.href = '/overview';
-        } else {
-          window.location.href = '/dashboard';
-        }
+        const target = tenantData?.is_platform_admin ? '/overview' : '/dashboard';
+        router.refresh(); // Sincroniza cookies con el servidor
+        window.location.href = target;
         return;
       }
 
-      // Registro automático vía API si no tiene tienda
+      // 2. Si no tiene tienda, crear una automáticamente vía API
+      console.log('Usuario nuevo detectado, creando tienda...');
       const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mi Tienda';
-      await fetch('/api/register', {
+      
+      const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -82,9 +104,15 @@ export default function LoginPage() {
         }),
       });
 
+      if (!res.ok) {
+        console.error('Error en auto-registro:', await res.text());
+      }
+
+      // Redirigir al dashboard final
+      router.refresh();
       window.location.href = '/dashboard';
     } catch (err: any) {
-      console.error('Post-login error:', err);
+      console.error('Error crítico post-login:', err);
       window.location.href = '/dashboard';
     }
   }
@@ -103,76 +131,71 @@ export default function LoginPage() {
       if (authError) throw authError;
       if (data.user) await handlePostLogin(data.user);
     } catch (err: any) {
-      setError(err.message === 'Invalid login credentials' ? 'Credenciales inválidas' : (err.message || 'Error al iniciar sesión'));
+      setError(err.message === 'Invalid login credentials' ? 'Credenciales inválidas' : 'Error al iniciar sesión');
     } finally {
       setLoading(false);
     }
   }
 
   async function signInWithGoogle() {
+    setError('');
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/login` },
+        options: { 
+          redirectTo: `${window.location.origin}/login`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        },
       });
       if (error) throw error;
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión con Google');
+      setError('No pudimos conectar con Google. Reintenta en unos instantes.');
     }
   }
 
   if (processing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto"></div>
-          <h2 className="text-gray-900 font-semibold text-lg">Configurando tu cuenta...</h2>
-          <p className="text-gray-500 text-sm">Esto solo toma unos segundos</p>
+      <div className="min-h-screen flex items-center justify-center bg-white px-4">
+        <div className="text-center space-y-6 max-w-sm">
+          <div className="relative w-20 h-20 mx-auto">
+            <div className="absolute inset-0 border-4 border-purple-100 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-gray-900 tracking-tight">Validando acceso...</h2>
+            <p className="text-gray-500 text-sm">Estamos preparando tu panel de administración. Por favor, no cierres esta pestaña.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
-      {/* Área del Logo */}
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4 py-12">
       <div className="mb-8">
-        <Image 
-          src="/logo.svg" 
-          alt="Obsidiana Logo" 
-          width={64} 
-          height={64} 
-          className="h-16 w-auto"
-        />
+        <Image src="/logo.svg" alt="Logo" width={64} height={64} className="h-16 w-auto" priority />
       </div>
 
       <div className="w-full max-w-[400px]">
-        {/* Cabecera */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">Iniciar sesión</h1>
           <p className="text-gray-500 text-base">¡Bienvenido de nuevo! Ingresa tus datos.</p>
         </div>
 
-        {/* Switcher de Pestañas */}
         <div className="flex bg-gray-50 p-1 rounded-xl mb-8 border border-gray-100">
-          <button 
-            onClick={() => router.push('/register')}
-            className="flex-1 py-2.5 text-sm font-semibold text-gray-500 rounded-lg hover:text-gray-700 transition-colors"
-          >
-            Registrarse
-          </button>
-          <button className="flex-1 py-2.5 text-sm font-semibold text-gray-900 bg-white rounded-lg shadow-sm border border-gray-200/50">
-            Ingresar
-          </button>
+          <button onClick={() => router.push('/register')} className="flex-1 py-2.5 text-sm font-semibold text-gray-500 rounded-lg">Registrarse</button>
+          <button className="flex-1 py-2.5 text-sm font-semibold text-gray-900 bg-white rounded-lg shadow-sm border border-gray-200/50">Ingresar</button>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium">
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium animate-in fade-in slide-in-from-top-1">
             {error}
           </div>
         )}
 
-        {/* Formulario */}
         <form onSubmit={processLogin} className="space-y-5">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Email</label>
@@ -181,7 +204,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Ingresa tu email"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all text-gray-900"
               required
             />
           </div>
@@ -194,13 +217,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900 pr-12"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all text-gray-900 pr-12"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   {showPassword ? (
@@ -218,18 +241,16 @@ export default function LoginPage() {
 
           <div className="flex items-center justify-between pb-2">
             <label className="flex items-center gap-2 cursor-pointer group">
-              <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
-              <span className="text-sm font-medium text-gray-600 group-hover:text-gray-900 transition-colors">Recordarme por 30 días</span>
+              <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+              <span className="text-sm font-medium text-gray-600">Recordarme</span>
             </label>
-            <button type="button" className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors">
-              Olvidé mi contraseña
-            </button>
+            <button type="button" className="text-sm font-semibold text-purple-600 hover:text-purple-700">Olvidé mi contraseña</button>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#7F56D9] text-white py-3.5 rounded-xl font-semibold text-base shadow-sm hover:bg-[#6941C6] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
+            className="w-full bg-[#7F56D9] text-white py-3.5 rounded-xl font-semibold text-base shadow-sm hover:bg-[#6941C6] transition-all active:scale-[0.98] disabled:opacity-70"
           >
             {loading ? 'Iniciando sesión...' : 'Entrar'}
           </button>
@@ -237,7 +258,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={signInWithGoogle}
-            className="w-full bg-white text-gray-700 py-3.5 rounded-xl font-semibold text-base border border-gray-300 flex items-center justify-center gap-3 hover:bg-gray-50 transition-all active:scale-[0.98] shadow-sm"
+            className="w-full bg-white text-gray-700 py-3.5 rounded-xl font-semibold text-base border border-gray-300 flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#EA4335" d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z" />
@@ -251,12 +272,7 @@ export default function LoginPage() {
 
         <p className="mt-8 text-center text-sm text-gray-500">
           ¿No tienes una cuenta?{' '}
-          <button 
-            onClick={() => router.push('/register')}
-            className="font-semibold text-purple-600 hover:text-purple-700 transition-colors"
-          >
-            Registrate gratis
-          </button>
+          <button onClick={() => router.push('/register')} className="font-semibold text-purple-600 hover:text-purple-700">Registrate gratis</button>
         </p>
       </div>
     </div>
