@@ -217,7 +217,7 @@ export default function OnlineCatalogPage() {
 
   const filteredItems = items.filter(item => {
     const matchesSearch = !searchQuery || 
-      item.product.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.product.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.variant.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = !filterOnline || 
       (filterOnline === 'online' && item.product.available_online) ||
@@ -306,7 +306,7 @@ export default function OnlineCatalogPage() {
             external_url: importUrl,
             images: scrapedData.images || []
           })
-          .select()
+          .select('id, nombre, slug')
           .single();
 
         if (pError) throw pError;
@@ -319,7 +319,7 @@ export default function OnlineCatalogPage() {
             sku: `ML-${Date.now().toString().slice(-6)}`,
             price_ars: scrapedData.price || 0
           })
-          .select()
+          .select('id, sku, price_ars')
           .single();
 
         if (vError) throw vError;

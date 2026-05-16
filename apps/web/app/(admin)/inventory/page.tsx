@@ -1119,9 +1119,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                 <input
                   type="text"
                   required
-                  value={formData.title}
+                  value={formData.nombre}
                   onChange={(e) => {
-                    setFormData({...formData, title: e.target.value});
+                    setFormData({...formData, nombre: e.target.value});
                     searchGlobalSuggestions(e.target.value);
                   }}
                   className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -1147,7 +1147,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                             setDetectedGlobalId(suggestion.id);
                             setFormData(prev => ({
                               ...prev,
-                              title: fullData.normalized_name || suggestion.normalized_name,
+                              nombre: fullData.normalized_name || suggestion.normalized_name,
                               barcode: fullData.barcode_ean13 || prev.barcode,
                               description: fullData.description || prev.description,
                               price_ars: fullData.default_price?.toString() || prev.price_ars
@@ -1565,8 +1565,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                 <input
                   type="text"
                   required
-                  value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({...formData, nombre: e.target.value})}
                   className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
