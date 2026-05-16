@@ -7,12 +7,13 @@ import { supabase } from '../../lib/supabase';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
-  // ─── Detect OAuth return (both PKCE ?code= and implicit #access_token) ───
+  // ─── Detect OAuth return (PKCE ?code= or implicit #access_token) ───
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const hasCode = params.get('code');
@@ -26,12 +27,10 @@ export default function LoginPage() {
 
     if (hasCode || hasHash) {
       setProcessing(true);
-      // Give Supabase a moment to process the code/hash automatically
       setTimeout(async () => {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
-            // Session established! Now figure out where to go
             await handlePostLogin(session.user);
           } else {
             setProcessing(false);
@@ -46,13 +45,8 @@ export default function LoginPage() {
     }
   }, []);
 
-  /**
-   * After login (Google or Email), determine where to redirect.
-   * Uses the API route for tenant creation to bypass RLS restrictions.
-   */
   async function handlePostLogin(user: any) {
     try {
-      // 1. Check if user already has a tenant
       const { data: memberData } = await supabase
         .from('tenant_members')
         .select('tenant_id')
@@ -61,7 +55,6 @@ export default function LoginPage() {
         .maybeSingle();
 
       if (memberData) {
-        // Has a tenant — check if super admin
         const { data: tenantData } = await supabase
           .from('tenants')
           .select('is_platform_admin')
@@ -76,175 +69,202 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Also check user_metadata (for legacy email/password users)
-      const metaTenantId = user.user_metadata?.tenant_id;
-      if (metaTenantId) {
-        window.location.href = '/dashboard';
-        return;
-      }
-
-      // 3. No tenant found — create one via API (bypasses RLS)
+      // Auto-register via API if no tenant found
       const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mi Tienda';
-
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: user.email,
           storeName: `Tienda de ${userName}`,
-          googleUserId: user.id,  // Signal that this is a Google user (no password needed)
+          googleUserId: user.id,
         }),
       });
 
-      if (res.ok) {
-        window.location.href = '/dashboard';
-      } else {
-        // If API fails, still try going to dashboard
-        console.error('Auto-register failed:', await res.text());
-        window.location.href = '/dashboard';
-      }
+      window.location.href = '/dashboard';
     } catch (err: any) {
       console.error('Post-login error:', err);
-      // Even if something fails, try to go to dashboard
       window.location.href = '/dashboard';
     }
   }
 
-  // ─── Traditional Email/Password Login ───
-  async function processLogin(loginEmail: string, loginPassword: string) {
+  async function processLogin(e: React.FormEvent) {
+    e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password: loginPassword,
+        email,
+        password,
       });
 
       if (authError) throw authError;
-
-      if (data.user) {
-        await handlePostLogin(data.user);
-      }
+      if (data.user) await handlePostLogin(data.user);
     } catch (err: any) {
-      console.error('Error de login:', err);
       setError(err.message || 'Error al iniciar sesión');
     } finally {
       setLoading(false);
     }
   }
 
-  // ─── Google OAuth Trigger ───
   async function signInWithGoogle() {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/login`,
-        },
+        options: { redirectTo: `${window.location.origin}/login` },
       });
       if (error) throw error;
     } catch (err: any) {
-      console.error('Error Google login:', err);
       setError(err.message || 'Error al iniciar sesión con Google');
     }
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await processLogin(email, password);
-  };
-
-  // ─── Processing State ───
   if (processing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>
-          <h2 className="text-white font-black text-lg">Configurando tu cuenta...</h2>
-          <p className="text-zinc-500 text-sm">Esto solo toma unos segundos</p>
+          <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto"></div>
+          <h2 className="text-gray-900 font-semibold text-lg">Configurando tu cuenta...</h2>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-      <div className="w-full max-w-md p-8">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
+      {/* Logo Area */}
+      <div className="mb-8">
+        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center shadow-sm border border-purple-200">
+          <div className="w-6 h-6 bg-purple-600 rounded-md shadow-inner rotate-45 flex items-center justify-center overflow-hidden">
+             <div className="w-full h-1/2 bg-white/20 -rotate-45"></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="w-full max-w-[400px]">
+        {/* Header Text */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-black text-white mb-2">Obsidiana</h1>
-          <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Portal de Administración SaaS</p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">Log in to your account</h1>
+          <p className="text-gray-500 text-base">Welcome back! Please enter your details.</p>
         </div>
 
-        <div className="space-y-6">
-          {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            onClick={signInWithGoogle}
-            className="w-full bg-white text-black py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 border border-white/20 hover:bg-zinc-200"
+        {/* Tab Switcher */}
+        <div className="flex bg-gray-50 p-1 rounded-xl mb-8 border border-gray-100">
+          <button 
+            onClick={() => router.push('/register')}
+            className="flex-1 py-2.5 text-sm font-semibold text-gray-500 rounded-lg hover:text-gray-700 transition-colors"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            Continuar con Google
+            Sign up
           </button>
+          <button className="flex-1 py-2.5 text-sm font-semibold text-gray-900 bg-white rounded-lg shadow-sm border border-gray-200/50">
+            Log in
+          </button>
+        </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/5"></div>
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
-              <span className="bg-zinc-950 px-4 text-zinc-500">O acceder con email</span>
+        {error && (
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium">
+            {error}
+          </div>
+        )}
+
+        {/* Form Area */}
+        <form onSubmit={processLogin} className="space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900"
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900 pr-12"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {showPassword ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  ) : (
+                    <>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </>
+                  )}
+                </svg>
+              </button>
             </div>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-zinc-900 border border-white/5 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm"
-                placeholder="tu@email.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">Contraseña</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-zinc-900 border border-white/5 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-primary/30 text-sm"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-black py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-primary/10"
-            >
-              {loading ? 'Iniciando sesión...' : 'Entrar al Panel'}
+          <div className="flex items-center justify-between pb-2">
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
+              <span className="text-sm font-medium text-gray-600 group-hover:text-gray-900 transition-colors">Remember for 30 days</span>
+            </label>
+            <button type="button" className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors">
+              Forgot password
             </button>
-          </form>
-        </div>
+          </div>
 
-        <p className="mt-6 text-center text-zinc-500 text-sm">
-          ¿No tienes cuenta?{' '}
-          <a href="/register" className="text-primary hover:text-primary-container transition-colors font-medium">
-            Regístrate
-          </a>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#7F56D9] text-white py-3.5 rounded-xl font-semibold text-base shadow-sm hover:bg-[#6941C6] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+
+          <button
+            type="button"
+            onClick={signInWithGoogle}
+            className="w-full bg-white text-gray-700 py-3.5 rounded-xl font-semibold text-base border border-gray-300 flex items-center justify-center gap-3 hover:bg-gray-50 transition-all active:scale-[0.98] shadow-sm"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path
+                fill="#EA4335"
+                d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z"
+              />
+              <path
+                fill="#34A853"
+                d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z"
+              />
+              <path
+                fill="#4285F4"
+                d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z"
+              />
+            </svg>
+            Sign in with Google
+          </button>
+        </form>
+
+        <p className="mt-8 text-center text-sm text-gray-500">
+          Don't have an account?{' '}
+          <button 
+            onClick={() => router.push('/register')}
+            className="font-semibold text-purple-600 hover:text-purple-700 transition-colors"
+          >
+            Sign up
+          </button>
         </p>
       </div>
     </div>
