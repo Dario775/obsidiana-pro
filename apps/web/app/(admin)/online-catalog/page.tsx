@@ -250,7 +250,7 @@ export default function OnlineCatalogPage() {
     
     // Try extracting from /p/MLA... catalog URL format
     const catalogMatch = url.match(/\/p\/(MLA\d+)/i);
-    if (catalogMatch) return catalogMatch[1];
+    if (catalogMatch) return catalogMatch[1] ?? null;
     
     return null;
   }
