@@ -75,7 +75,7 @@ export default function OnlineCatalogPage() {
     // Fetch products with their variants and inventory
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, nombre, slug, available_online, online_reserved, tenant_id, external_url')
+      .select('id, nombre, slug, available_online, online_reserved, tenant_id, seo')
       .eq('tenant_id', tenant.id)
       .eq('status', 'active')
       .order('nombre');
@@ -130,7 +130,7 @@ export default function OnlineCatalogPage() {
             slug: product.slug,
             available_online: product.available_online,
             online_reserved: product.online_reserved,
-            external_url: product.external_url,
+            external_url: (product.seo as any)?.ml_url || null,
           },
           variant: {
             id: variant.id,
@@ -229,6 +229,48 @@ export default function OnlineCatalogPage() {
   const totalStock = items.reduce((acc, i) => acc + (i.available || 0), 0);
   const totalOnlineReserved = items.reduce((acc, i) => acc + (i.product.online_reserved || 0), 0);
 
+  // Extract ML item ID from various URL formats
+  function extractMlItemId(url: string): string | null {
+    // Format: MLA-1234567890 or MLA1234567890
+    const patterns = [
+      /MLA[-]?\d{8,12}/i,                              // Direct ML ID in URL
+      /\/MLA[-]?\d{8,12}/i,                             // Path segment  
+      /mercadolibre\.com\.ar\/[^\/]*-_JM#?/i,           // Product page URL
+      /articulo\.mercadolibre\.com\.ar\/MLA[-]?(\d+)/i,  // Article page
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        // Normalize: ensure MLA format without dash
+        const raw = match[0].replace(/^\//, '');
+        return raw.replace(/^MLA-?/i, 'MLA').replace(/[^A-Z0-9]/gi, '');
+      }
+    }
+    
+    // Try extracting from /p/MLA... catalog URL format
+    const catalogMatch = url.match(/\/p\/(MLA\d+)/i);
+    if (catalogMatch) return catalogMatch[1];
+    
+    return null;
+  }
+
+  // Resolve short URLs (meli.la, etc)
+  async function resolveShortUrl(url: string): Promise<string> {
+    if (url.includes('meli.la') || url.includes('bit.ly') || url.includes('goo.gl')) {
+      try {
+        // Use our proxy to follow redirects
+        const resp = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { redirect: 'follow' });
+        const html = await resp.text();
+        // Look for canonical URL in the response
+        const canonicalMatch = html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i) ||
+                               html.match(/<meta[^>]+property="og:url"[^>]+content="([^"]+)"/i);
+        if (canonicalMatch?.[1]) return canonicalMatch[1];
+      } catch {}
+    }
+    return url;
+  }
+
   async function handleAnalyze(manualUrl?: string) {
     const urlToUse = manualUrl || importUrl;
     if (!urlToUse) return;
@@ -243,10 +285,61 @@ export default function OnlineCatalogPage() {
         targetUrl = urlMatch[0];
       }
 
+      // Step 1: Resolve short URLs
+      const resolvedUrl = await resolveShortUrl(targetUrl);
+      
+      // Step 2: Try ML Public API first (works from browser, bypasses Vercel IP block)
+      const mlItemId = extractMlItemId(resolvedUrl) || extractMlItemId(targetUrl);
+      
+      if (mlItemId) {
+        try {
+          const apiRes = await fetch(`https://api.mercadolibre.com/items/${mlItemId}`);
+          if (apiRes.ok) {
+            const mlData = await apiRes.json();
+            
+            // Get best images
+            const images = (mlData.pictures || [])
+              .slice(0, 5)
+              .map((p: any) => p.secure_url || p.url)
+              .filter(Boolean);
+            
+            if (images.length === 0 && mlData.thumbnail) {
+              // Use high-res version of thumbnail
+              images.push(mlData.thumbnail.replace(/-I\.jpg/, '-O.jpg'));
+            }
+
+            const data = {
+              title: mlData.title || '',
+              description: '',
+              price: mlData.price || 0,
+              currency: mlData.currency_id || 'ARS',
+              images,
+              url: mlData.permalink || resolvedUrl
+            };
+
+            // Try to get description separately (optional)
+            try {
+              const descRes = await fetch(`https://api.mercadolibre.com/items/${mlItemId}/description`);
+              if (descRes.ok) {
+                const descData = await descRes.json();
+                data.description = (descData.plain_text || descData.text || '').substring(0, 200);
+              }
+            } catch {}
+
+            setScrapedData(data);
+            setAnalyzing(false);
+            return;
+          }
+        } catch (apiErr) {
+          console.warn('ML API failed, falling back to scrape:', apiErr);
+        }
+      }
+
+      // Step 3: Fallback to server-side scrape
       const response = await fetch('/api/ml/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl })
+        body: JSON.stringify({ url: resolvedUrl || targetUrl })
       });
       const data = await response.json();
       
@@ -254,7 +347,7 @@ export default function OnlineCatalogPage() {
       
       setScrapedData(data);
     } catch (err: any) {
-      setImportError(err.message || 'Error al analizar el link');
+      setImportError(err.message || 'Error al analizar el link. Verificá que sea una URL válida de Mercado Libre.');
     } finally {
       setAnalyzing(false);
     }
@@ -303,7 +396,7 @@ export default function OnlineCatalogPage() {
             status: 'active',
             tenant_id: tenant.id,
             available_online: true,
-            external_url: importUrl,
+            seo: { ml_url: importUrl },
             images: scrapedData.images || []
           })
           .select('id, nombre, slug')
@@ -315,6 +408,7 @@ export default function OnlineCatalogPage() {
         const { data: variant, error: vError } = await supabase
           .from('product_variants')
           .insert({
+            tenant_id: tenant.id,
             product_id: product.id,
             sku: `ML-${Date.now().toString().slice(-6)}`,
             price_ars: scrapedData.price || 0
