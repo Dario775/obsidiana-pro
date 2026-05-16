@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { supabase } from '../../lib/supabase';
 
 export default function LoginPage() {
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  // ─── Detect OAuth return (PKCE ?code= or implicit #access_token) ───
+  // ─── Detectar retorno de OAuth (PKCE ?code= o implícito #access_token) ───
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const hasCode = params.get('code');
@@ -69,9 +70,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Auto-register via API if no tenant found
+      // Registro automático vía API si no tiene tienda
       const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mi Tienda';
-      const res = await fetch('/api/register', {
+      await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,7 +103,7 @@ export default function LoginPage() {
       if (authError) throw authError;
       if (data.user) await handlePostLogin(data.user);
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión');
+      setError(err.message === 'Invalid login credentials' ? 'Credenciales inválidas' : (err.message || 'Error al iniciar sesión'));
     } finally {
       setLoading(false);
     }
@@ -126,6 +127,7 @@ export default function LoginPage() {
         <div className="text-center space-y-4">
           <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto"></div>
           <h2 className="text-gray-900 font-semibold text-lg">Configurando tu cuenta...</h2>
+          <p className="text-gray-500 text-sm">Esto solo toma unos segundos</p>
         </div>
       </div>
     );
@@ -133,32 +135,34 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
-      {/* Logo Area */}
+      {/* Área del Logo */}
       <div className="mb-8">
-        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center shadow-sm border border-purple-200">
-          <div className="w-6 h-6 bg-purple-600 rounded-md shadow-inner rotate-45 flex items-center justify-center overflow-hidden">
-             <div className="w-full h-1/2 bg-white/20 -rotate-45"></div>
-          </div>
-        </div>
+        <Image 
+          src="/logo.svg" 
+          alt="Obsidiana Logo" 
+          width={64} 
+          height={64} 
+          className="h-16 w-auto"
+        />
       </div>
 
       <div className="w-full max-w-[400px]">
-        {/* Header Text */}
+        {/* Cabecera */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">Log in to your account</h1>
-          <p className="text-gray-500 text-base">Welcome back! Please enter your details.</p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">Iniciar sesión</h1>
+          <p className="text-gray-500 text-base">¡Bienvenido de nuevo! Ingresa tus datos.</p>
         </div>
 
-        {/* Tab Switcher */}
+        {/* Switcher de Pestañas */}
         <div className="flex bg-gray-50 p-1 rounded-xl mb-8 border border-gray-100">
           <button 
             onClick={() => router.push('/register')}
             className="flex-1 py-2.5 text-sm font-semibold text-gray-500 rounded-lg hover:text-gray-700 transition-colors"
           >
-            Sign up
+            Registrarse
           </button>
           <button className="flex-1 py-2.5 text-sm font-semibold text-gray-900 bg-white rounded-lg shadow-sm border border-gray-200/50">
-            Log in
+            Ingresar
           </button>
         </div>
 
@@ -168,7 +172,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Form Area */}
+        {/* Formulario */}
         <form onSubmit={processLogin} className="space-y-5">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Email</label>
@@ -176,14 +180,14 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              placeholder="Ingresa tu email"
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900"
               required
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Password</label>
+            <label className="text-sm font-medium text-gray-700">Contraseña</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -215,10 +219,10 @@ export default function LoginPage() {
           <div className="flex items-center justify-between pb-2">
             <label className="flex items-center gap-2 cursor-pointer group">
               <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
-              <span className="text-sm font-medium text-gray-600 group-hover:text-gray-900 transition-colors">Remember for 30 days</span>
+              <span className="text-sm font-medium text-gray-600 group-hover:text-gray-900 transition-colors">Recordarme por 30 días</span>
             </label>
             <button type="button" className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors">
-              Forgot password
+              Olvidé mi contraseña
             </button>
           </div>
 
@@ -227,7 +231,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-[#7F56D9] text-white py-3.5 rounded-xl font-semibold text-base shadow-sm hover:bg-[#6941C6] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Iniciando sesión...' : 'Entrar'}
           </button>
 
           <button
@@ -236,34 +240,22 @@ export default function LoginPage() {
             className="w-full bg-white text-gray-700 py-3.5 rounded-xl font-semibold text-base border border-gray-300 flex items-center justify-center gap-3 hover:bg-gray-50 transition-all active:scale-[0.98] shadow-sm"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path
-                fill="#EA4335"
-                d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z"
-              />
-              <path
-                fill="#34A853"
-                d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z"
-              />
-              <path
-                fill="#4285F4"
-                d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z"
-              />
+              <path fill="#EA4335" d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z" />
+              <path fill="#34A853" d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z" />
+              <path fill="#4285F4" d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z" />
+              <path fill="#FBBC05" d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z" />
             </svg>
-            Sign in with Google
+            Entrar con Google
           </button>
         </form>
 
         <p className="mt-8 text-center text-sm text-gray-500">
-          Don't have an account?{' '}
+          ¿No tienes una cuenta?{' '}
           <button 
             onClick={() => router.push('/register')}
             className="font-semibold text-purple-600 hover:text-purple-700 transition-colors"
           >
-            Sign up
+            Registrate gratis
           </button>
         </p>
       </div>

@@ -2,68 +2,25 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { supabase } from '../../lib/supabase';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  const passwordStrength = (() => {
-    if (password.length === 0) return { label: '', color: '', width: '0%' };
-    if (password.length < 6) return { label: 'Muy débil', color: 'bg-red-500', width: '20%' };
-    if (password.length < 8) return { label: 'Débil', color: 'bg-orange-500', width: '40%' };
-    const hasUpper = /[A-Z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[^a-zA-Z0-9]/.test(password);
-    const strength = [password.length >= 10, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
-    if (strength <= 1) return { label: 'Aceptable', color: 'bg-yellow-500', width: '60%' };
-    if (strength <= 2) return { label: 'Fuerte', color: 'bg-emerald-500', width: '80%' };
-    return { label: 'Muy fuerte', color: 'bg-emerald-400', width: '100%' };
-  })();
-
-  async function signInWithGoogle() {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error('Error Google login:', err);
-      setError(err.message || 'Error al registrarse con Google');
-    }
-  }
-
-  const handleRegister = async (e: React.FormEvent) => {
+  async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
-      setLoading(false);
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Use server-side API route for secure registration
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,177 +29,175 @@ export default function RegisterPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Error al registrarse');
+      if (!res.ok) throw new Error(data.error || 'Error al registrarse');
+
+      setSuccess(true);
+      // Auto login after registration
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+      if (!loginError) {
+        setTimeout(() => router.push('/dashboard'), 2000);
       }
-
-      // Sign in the user after successful registration
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (loginError) {
-        // User was created but auto-login failed — redirect to login
-        router.push('/login');
-        return;
-      }
-
-      // Redirect to dashboard
-      window.location.href = '/dashboard';
-
     } catch (err: any) {
-      setError(err.message || 'Error al registrarse');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  async function signInWithGoogle() {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/login` },
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      setError(err.message || 'Error al iniciar sesión con Google');
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white px-4">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">¡Registro exitoso!</h2>
+          <p className="text-gray-500">Estamos preparando tu panel de control. Redirigiendo...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-      <div className="w-full max-w-md p-8">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4 py-12">
+      {/* Área del Logo */}
+      <div className="mb-8">
+        <Image 
+          src="/logo.svg" 
+          alt="Obsidiana Logo" 
+          width={64} 
+          height={64} 
+          className="h-16 w-auto"
+        />
+      </div>
+
+      <div className="w-full max-w-[400px]">
+        {/* Cabecera */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-black text-white mb-2">Obsidiana</h1>
-          <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Crea tu cuenta y empieza a vender</p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">Crea tu cuenta</h1>
+          <p className="text-gray-500 text-base">Comienza a gestionar tu negocio hoy mismo.</p>
         </div>
 
-        <div className="space-y-6">
-          {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            onClick={signInWithGoogle}
-            className="w-full bg-white text-black py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 border border-white/20 hover:bg-zinc-200"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path
-                fill="currentColor"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="currentColor"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="currentColor"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-              />
-              <path
-                fill="currentColor"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-              />
-            </svg>
-            Registrarse con Google
+        {/* Switcher de Pestañas */}
+        <div className="flex bg-gray-50 p-1 rounded-xl mb-8 border border-gray-100">
+          <button className="flex-1 py-2.5 text-sm font-semibold text-gray-900 bg-white rounded-lg shadow-sm border border-gray-200/50">
+            Registrarse
           </button>
+          <button 
+            onClick={() => router.push('/login')}
+            className="flex-1 py-2.5 text-sm font-semibold text-gray-500 rounded-lg hover:text-gray-700 transition-colors"
+          >
+            Ingresar
+          </button>
+        </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/5"></div>
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
-              <span className="bg-zinc-950 px-4 text-zinc-500">O crea una cuenta clásica</span>
-            </div>
+        {error && (
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium">
+            {error}
           </div>
+        )}
 
-          <form onSubmit={handleRegister} className="space-y-4">
-          {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Nombre del Negocio</label>
+        {/* Formulario */}
+        <form onSubmit={handleRegister} className="space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Nombre de tu negocio</label>
             <input
               type="text"
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-              placeholder="Mi Tienda"
+              placeholder="Ej: Mi Tienda Pro"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Email</label>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
               placeholder="tu@email.com"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-              placeholder="Mínimo 8 caracteres"
-              required
-              minLength={8}
-            />
-            {password.length > 0 && (
-              <div className="mt-2">
-                <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${passwordStrength.color} transition-all duration-300 rounded-full`}
-                    style={{ width: passwordStrength.width }}
-                  />
-                </div>
-                <p className={`text-[10px] mt-1 font-bold uppercase tracking-widest ${
-                  passwordStrength.color.includes('red') ? 'text-red-400' :
-                  passwordStrength.color.includes('orange') ? 'text-orange-400' :
-                  passwordStrength.color.includes('yellow') ? 'text-yellow-400' :
-                  'text-emerald-400'
-                }`}>{passwordStrength.label}</p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Confirmar Contraseña</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className={`w-full bg-zinc-900 border rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                confirmPassword && confirmPassword !== password
-                  ? 'border-red-500/50'
-                  : confirmPassword && confirmPassword === password
-                  ? 'border-emerald-500/50'
-                  : 'border-white/10'
-              }`}
-              placeholder="••••••••"
-              required
-            />
-            {confirmPassword && confirmPassword !== password && (
-              <p className="text-red-400 text-[10px] font-bold uppercase tracking-widest mt-1">Las contraseñas no coinciden</p>
-            )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-700">Contraseña</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-600 outline-none transition-all placeholder:text-gray-400 text-gray-900 pr-12"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {showPassword ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  ) : (
+                    <>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
-            disabled={loading || password.length < 8 || password !== confirmPassword}
-            className="w-full bg-primary-container hover:bg-primary-container/90 text-white py-4 rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading}
+            className="w-full bg-[#7F56D9] text-white py-3.5 rounded-xl font-semibold text-base shadow-sm hover:bg-[#6941C6] transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
           >
-            {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
+            {loading ? 'Creando cuenta...' : 'Crear mi cuenta'}
+          </button>
+
+          <button
+            type="button"
+            onClick={signInWithGoogle}
+            className="w-full bg-white text-gray-700 py-3.5 rounded-xl font-semibold text-base border border-gray-300 flex items-center justify-center gap-3 hover:bg-gray-50 transition-all active:scale-[0.98] shadow-sm"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="#EA4335" d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z" />
+              <path fill="#34A853" d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z" />
+              <path fill="#4285F4" d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z" />
+              <path fill="#FBBC05" d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z" />
+            </svg>
+            Registrarse con Google
           </button>
         </form>
-      </div>
 
-        <p className="mt-6 text-center text-zinc-500 text-sm">
-          ¿Ya tienes cuenta?{' '}
-          <a href="/login" className="text-primary hover:text-primary-container transition-colors font-medium">
+        <p className="mt-8 text-center text-sm text-gray-500">
+          ¿Ya tienes una cuenta?{' '}
+          <button 
+            onClick={() => router.push('/login')}
+            className="font-semibold text-purple-600 hover:text-purple-700 transition-colors"
+          >
             Inicia sesión
-          </a>
+          </button>
         </p>
       </div>
     </div>
