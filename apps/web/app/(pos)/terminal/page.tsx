@@ -49,6 +49,7 @@ export default function POSTerminalPage() {
           product_id,
           products!inner (
             id,
+            nombre,
             title,
             images,
             online_reserved,
@@ -103,7 +104,7 @@ export default function POSTerminalPage() {
           return {
             id: variant.id,
             productId: variant.product_id,
-            name: product?.title || 'Sin nombre',
+            name: product?.nombre || product?.title || 'Sin nombre',
             sku: variant.sku || 'N/A',
             price: variant.price_ars || 0,
             stock: Math.max(0, onHand - reserved),

@@ -1,7 +1,7 @@
 # Obsidiana Pro - Sistema checkpoint
 
-> Fecha: 2026-05-15
-> Estado: Google OAuth Implementado + Middleware Unificado + Billing Activo ✅
+> Fecha: 2026-05-16
+> Estado: Build Estabilizado + Estandarización 'nombre' iniciada + Auditoría de Esquema ✅
 
 ---
 
@@ -57,6 +57,25 @@ tenant_members (
 - **Sincronización de Tipos**: `plan_id` es `text` en todas las tablas.
 - **RLS Policies**: Configuradas para multi-tenant con acceso de platform admin.
 - **Activación Robusta**: El Super Admin actualiza el Tenant antes de marcar el pago como completado.
+- **Estandarización de Nombres**: Migración en curso de `title` -> `nombre` en la tabla `products` para mayor consistencia idiomática.
+
+---
+
+## 1.1 Auditoría de Consistencia (Relevamiento 2026-05-16)
+
+Tras una revisión profunda del esquema vs código, se identificaron los siguientes puntos:
+
+| Entidad | Campo DB (Legacy) | Campo DB (Estandarizado) | Estado en Código |
+| :--- | :--- | :--- | :--- |
+| **Products** | `title` | `nombre` | Se prioriza `nombre` con fallback a `title`. |
+| **Products** | `descripcion` | `description` | Se usa mayoritariamente `description`. |
+| **Products** | `precio` | `product_variants.price_ars` | `precio` está en desuso; el POS e Inventario usan variantes. |
+| **Inventory** | N/A | `online_reserved` | Columna en `products` (NO en `inventory_levels`). |
+
+**Bugs Corregidos durante el relevamiento:**
+- **Store Inventory Query:** Se eliminó el intento de consultar `online_reserved` desde `inventory_levels` (causaba error 500 en tienda online).
+- **POS RPC:** Se actualizó `complete_pos_checkout` para priorizar `nombre` en el snapshot de la venta.
+- **Vercel Build:** Se resolvió error de tipos en `extractMlItemId` (página de catálogo online) que bloqueaba el despliegue.
 
 ---
 
@@ -143,6 +162,9 @@ apps/web/
 - [x] Sincronización de esquema de pagos
 - [x] Consistencia de tipos (UUID vs TEXT en plan_id)
 - [x] Callback de Mercado Libre movido a `/auth/ml-callback`
+- [x] Resolución de errores de tipos en `online-catalog` (Vercel Build Stability)
+- [x] Corrección de query de inventario en Tienda Online
+- [x] Estandarización de `nombre` en POS, Tienda y RPC de Checkout
 
 ### 🔧 Pendiente de Verificación:
 - [ ] Confirmar que Google OAuth redirige correctamente al Dashboard en producción
@@ -171,4 +193,4 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 ```
 
-*Última actualización: 2026-05-15 20:58 - Obsidiana Pro Team*
+*Última actualización: 2026-05-16 13:45 - Obsidiana Pro Team*

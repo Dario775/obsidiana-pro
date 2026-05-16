@@ -75,7 +75,7 @@ export default function OnlineCatalogPage() {
     // Fetch products with their variants and inventory
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, nombre, slug, available_online, online_reserved, tenant_id, seo')
+      .select('*')
       .eq('tenant_id', tenant.id)
       .eq('status', 'active')
       .order('nombre');
@@ -129,8 +129,8 @@ export default function OnlineCatalogPage() {
             nombre: product.nombre,
             slug: product.slug,
             available_online: product.available_online,
-            online_reserved: product.online_reserved,
-            external_url: (product.seo as any)?.ml_url || null,
+            online_reserved: (product as any).online_reserved || 0,
+            external_url: product.external_url || (product as any).seo?.ml_url || null,
           },
           variant: {
             id: variant.id,
@@ -396,7 +396,7 @@ export default function OnlineCatalogPage() {
             status: 'active',
             tenant_id: tenant.id,
             available_online: true,
-            seo: { ml_url: importUrl },
+            external_url: importUrl,
             images: scrapedData.images || []
           })
           .select('id, nombre, slug')

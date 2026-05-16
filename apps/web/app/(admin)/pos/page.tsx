@@ -111,6 +111,7 @@ export default function POSPage() {
           product_id,
           products!inner (
             id,
+            nombre,
             title,
             images,
             tenant_id
@@ -146,7 +147,7 @@ export default function POSPage() {
         
         return {
           id: variant.id,
-          nombre: product?.title || 'Sin nombre',
+          nombre: product?.nombre || product?.title || 'Sin nombre',
           precio: variant.price_ars || 0,
           sku: variant.sku || 'N/A',
           barcode: '', // Temporarily empty since column is missing

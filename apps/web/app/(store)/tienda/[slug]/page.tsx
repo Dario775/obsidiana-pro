@@ -6,12 +6,8 @@ import { supabase } from '@/lib/supabase';
 interface Product {
   id: string;
   tenant_id: string;
-  title: string;
-  slug: string;
-  description: string;
-  status: string;
-  images: string[];
   nombre: string;
+  title?: string;
   sku: string;
   precio: number;
   currency: string;
@@ -99,7 +95,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       return;
     }
 
-    const itemsText = cart.map(item => `- ${item.quantity}x ${item.title || item.nombre} (${formatPrice(item.precio * item.quantity, currency)})`).join('\n');
+    const itemsText = cart.map(item => `- ${item.quantity}x ${item.nombre || item.title} (${formatPrice(item.precio * item.quantity, currency)})`).join('\n');
     const cartTotal = cart.reduce((acc, item) => acc + (item.precio * item.quantity), 0);
     
     const message = `*NUEVO PEDIDO #${orderNumber}*\n\n` +
@@ -220,7 +216,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       if (variantIds.length > 0) {
         const { data: inventoryData } = await supabase
           .from('inventory_levels')
-          .select('variant_id, on_hand, online_reserved')
+          .select('variant_id, on_hand')
           .in('variant_id', variantIds);
 
         const stockMap: Record<string, number> = {};
@@ -264,8 +260,8 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
     // Búsqueda por texto
     const query = searchQuery.toLowerCase();
     const matchesSearch = !searchQuery || (
-      p.title?.toLowerCase().includes(query) ||
       p.nombre?.toLowerCase().includes(query) ||
+      p.title?.toLowerCase().includes(query) ||
       p.sku?.toLowerCase().includes(query) ||
       p.description?.toLowerCase().includes(query)
     );
@@ -736,7 +732,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                         <p className="text-xs font-medium tracking-wider uppercase mb-1" style={{ color: mutedColor }}>
                           {product.external_url ? 'Recomendación ML' : 'Disponible en Tienda'}
                         </p>
-                        <h3 className="font-bold text-lg mb-1 line-clamp-2" style={{ color: textColor }}>{product.title || product.nombre}</h3>
+                        <h3 className="font-bold text-lg mb-1 line-clamp-2" style={{ color: textColor }}>{product.nombre || product.title}</h3>
                         <p className="text-sm mb-4 line-clamp-2" style={{ color: mutedColor }}>{product.description}</p>
                         
                         <div className="mt-auto flex items-end justify-between">
@@ -792,7 +788,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       )}
                     </div>
                     <div className="p-3">
-                      <h3 className="font-bold text-sm mb-1 truncate" style={{ color: textColor }}>{product.title || product.nombre}</h3>
+                      <h3 className="font-bold text-sm mb-1 truncate" style={{ color: textColor }}>{product.nombre || product.title}</h3>
                       <div className="flex items-center gap-2">
                         <p className="font-bold" style={{ color: currentTheme.primary }}>{formatPrice(product.precio || 0, currency)}</p>
                       </div>
@@ -824,7 +820,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                         <p className="text-[10px] font-bold tracking-widest uppercase mb-1" style={primaryText}>
                           {product.external_url ? 'Mercado Libre' : 'En Stock'}
                         </p>
-                        <h3 className="font-bold text-xl mb-1" style={{ color: textColor }}>{product.title || product.nombre}</h3>
+                        <h3 className="font-bold text-xl mb-1" style={{ color: textColor }}>{product.nombre || product.title}</h3>
                         <p className="text-sm line-clamp-2 mb-4" style={{ color: mutedColor }}>{product.description}</p>
                         
                         <div className="mt-auto flex items-center justify-between">
@@ -1231,7 +1227,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
               </div>
               
               <h2 className="font-black text-3xl mb-4 leading-tight" style={{ color: textColor }}>
-                {selectedProduct.title || selectedProduct.nombre}
+                {selectedProduct.nombre || selectedProduct.title}
               </h2>
               
               <div className="flex-1 overflow-y-auto max-h-[200px] mb-6 scrollbar-hide">

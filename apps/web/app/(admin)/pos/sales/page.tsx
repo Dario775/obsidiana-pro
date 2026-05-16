@@ -25,8 +25,10 @@ interface OrderItem {
   quantity: number;
   unit_price_ars: number;
   products?: {
+    nombre: string;
     title: string;
   }[] | any;
+  title_snapshot: string;
   product_variants?: {
     sku: string;
   }[] | any;
@@ -137,7 +139,9 @@ export default function POSSalesHistoryPage() {
           order_id, 
           quantity, 
           unit_price_ars, 
+          title_snapshot,
           products (
+            nombre,
             title
           ),
           product_variants (
@@ -420,7 +424,7 @@ export default function POSSalesHistoryPage() {
                       <div key={item.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-xl border border-white/5">
                         <div className="flex-1">
                           <p className="font-bold text-white text-sm">
-                            {Array.isArray(item.products) ? item.products[0]?.title : item.products?.title || 'Producto'}
+                            {item.title_snapshot || (Array.isArray(item.products) ? (item.products[0]?.nombre || item.products[0]?.title) : (item.products?.nombre || item.products?.title)) || 'Producto'}
                           </p>
                           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
                             SKU: {Array.isArray(item.product_variants) ? item.product_variants[0]?.sku : item.product_variants?.sku || 'N/A'}

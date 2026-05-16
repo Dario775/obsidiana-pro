@@ -777,7 +777,6 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                 description: row['Descripción'] || row['Description'] || '',
                 status: 'active',
                 images: [],
-                seo: {},
                 available_online: false
               })
               .select()
