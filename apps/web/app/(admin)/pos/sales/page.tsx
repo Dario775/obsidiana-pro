@@ -37,7 +37,6 @@ interface OrderItem {
 export default function POSSalesHistoryPage() {
   const { tenant } = useTenant();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -45,16 +44,14 @@ export default function POSSalesHistoryPage() {
   const [dateFilter, setDateFilter] = useState('7'); // '7', '30', 'today', 'all'
   const [showDetailModal, setShowDetailModal] = useState(false);
 
+  // Optimización: Dependemos del ID primitivo en vez del objeto completo para evitar renderizados extras
   useEffect(() => {
-    fetchOrders();
-  }, [tenant]);
-
-  useEffect(() => {
-    filterOrders();
-  }, [searchQuery, orders, dateFilter]);
+    if (tenant?.id) {
+      fetchOrders();
+    }
+  }, [tenant?.id]);
 
   async function fetchOrders() {
-    if (!tenant?.id) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -73,7 +70,7 @@ export default function POSSalesHistoryPage() {
             nombre
           )
         `)
-        .eq('tenant_id', tenant.id)
+        .eq('tenant_id', tenant?.id)
         .eq('channel', 'pos')
         .order('placed_at', { ascending: false });
 
@@ -89,7 +86,8 @@ export default function POSSalesHistoryPage() {
     }
   }
 
-  function filterOrders() {
+  // Optimización: Eliminar useEffect y estado duplicado usando useMemo (evita dobles renders)
+  const filteredOrders = React.useMemo(() => {
     let filtered = [...orders];
 
     // Filtro de fecha
@@ -124,8 +122,8 @@ export default function POSSalesHistoryPage() {
       );
     }
 
-    setFilteredOrders(filtered);
-  }
+    return filtered;
+  }, [orders, dateFilter, searchQuery]);
 
   async function viewOrderDetail(order: Order) {
     setSelectedOrder(order);

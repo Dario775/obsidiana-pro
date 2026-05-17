@@ -260,9 +260,9 @@ export default function POSPage() {
   }, [finalTotal, paymentMethod]);
 
   const filteredProducts = products.filter(p => 
-    p.nombre.toLowerCase().includes(search.toLowerCase()) || 
-    p.sku?.toLowerCase().includes(search.toLowerCase()) ||
-    p.barcode?.toLowerCase().includes(search.toLowerCase())
+    p.nombre?.toLowerCase()?.includes(search.toLowerCase()) || 
+    p.sku?.toLowerCase()?.includes(search.toLowerCase()) ||
+    p.barcode?.toLowerCase()?.includes(search.toLowerCase())
   );
 
   async function completeSale() {
@@ -506,7 +506,7 @@ export default function POSPage() {
                     const searchPattern = customerSearch.toLowerCase();
                     const fullName = (c.nombre || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '').toLowerCase();
                     const document = (c.document_number || c.dni_cuit || '').toLowerCase();
-                    return fullName.includes(searchPattern) || c.email?.toLowerCase().includes(searchPattern) || document.includes(searchPattern);
+                    return fullName.includes(searchPattern) || c.email?.toLowerCase()?.includes(searchPattern) || document.includes(searchPattern);
                   })
                   .slice(0, 5)
                   .map((customer) => (
@@ -533,7 +533,7 @@ export default function POSPage() {
                 {customers.filter(c => {
                   const searchPattern = customerSearch.toLowerCase();
                   const fullName = (c.nombre || '').toLowerCase();
-                  return fullName.includes(searchPattern) || c.email?.toLowerCase().includes(searchPattern) || c.document_number?.toLowerCase().includes(searchPattern);
+                  return fullName.includes(searchPattern) || c.email?.toLowerCase()?.includes(searchPattern) || c.document_number?.toLowerCase()?.includes(searchPattern);
                 }).length === 0 && (
                   <div className="px-4 py-3 text-zinc-500 text-xs">No se encontraron clientes</div>
                 )}

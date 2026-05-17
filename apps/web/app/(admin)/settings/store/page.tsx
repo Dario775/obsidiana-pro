@@ -68,7 +68,6 @@ export default function StoreSettingsPage() {
   });
   
   const [uploading, setUploading] = useState(false);
-  const [previewItem, setPreviewItem] = useState<string | null>(null);
   const [appearance, setAppearance] = useState<Appearance>({
     template: 'classic',
     theme_color: 'violet',
@@ -106,13 +105,10 @@ export default function StoreSettingsPage() {
       });
       
       if (t.store_appearance) {
-        setAppearance(t.store_appearance as Appearance);
-      }
-      
-      if (t.store_domain) {
-        setPreviewItem(`/tienda/${t.store_domain}`);
-      } else if (tenant.slug) {
-        setPreviewItem(`/tienda/${tenant.slug}`);
+        setAppearance(prev => ({
+          ...prev,
+          ...t.store_appearance
+        }));
       }
     }
   }, [tenant]);
@@ -190,6 +186,34 @@ export default function StoreSettingsPage() {
     }
   }
 
+  async function handleToggleActive() {
+    const tenantId = tenant?.id;
+    if (!tenantId) return;
+
+    const nextState = !form.store_active;
+    
+    // Update local state first
+    setForm(f => ({ ...f, store_active: nextState }));
+    
+    try {
+      const { error } = await supabase
+        .from('tenants')
+        .update({ store_active: nextState })
+        .eq('id', tenantId);
+        
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Error toggling store_active:', err);
+      alert('Error al cambiar el estado de la tienda: ' + err.message);
+      // Revert state
+      setForm(f => ({ ...f, store_active: !nextState }));
+    }
+  }
+
+  const previewItem = form.store_domain 
+    ? `/tienda/${form.store_domain}` 
+    : (tenant?.slug ? `/tienda/${tenant.slug}` : '');
+
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'general', label: 'General', icon: 'settings' },
     { id: 'apariencia', label: 'Apariencia', icon: 'palette' },
@@ -238,7 +262,7 @@ export default function StoreSettingsPage() {
             </div>
           </div>
           <button
-            onClick={() => setForm(f => ({ ...f, store_active: !f.store_active }))}
+            onClick={handleToggleActive}
             className={`w-12 h-6 rounded-full transition-colors ${form.store_active ? 'bg-emerald-500' : 'bg-zinc-700'}`}
           >
             <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${form.store_active ? 'translate-x-6' : 'translate-x-0.5'}`} />

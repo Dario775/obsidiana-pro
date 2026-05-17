@@ -23,6 +23,7 @@
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "autoprefixer": "^10.4.17",
+    "dotenv": "^17.4.2",
     "eslint": "^9.39.1",
     "postcss": "^8.4.35",
     "prettier": "^3.7.4",

@@ -57,9 +57,9 @@ function formatPrice(amount: number, currency?: string): string {
 export default function TiendaPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
   const slug = resolvedParams.slug;
-  
   const [loading, setLoading] = useState(true);
   const [tenant, setTenant] = useState<any>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
   const [productStock, setProductStock] = useState<Record<string, number>>({});
   const [cart, setCart] = useState<any[]>([]);
@@ -121,7 +121,10 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   };
 
   const defaultTheme = { primary: '#8b5cf6', primaryLight: '#a78bfa', bg: 'bg-violet-600', text: '#fff' };
-  const appearance: Appearance = tenant?.store_appearance || defaultAppearance;
+  const appearance: Appearance = {
+    ...defaultAppearance,
+    ...(tenant?.store_appearance || {})
+  };
   const currentTheme = THEME_MAP[appearance.theme_color] || defaultTheme;
   const primaryBg = { backgroundColor: currentTheme.primary };
   const primaryText = { color: currentTheme.primary };
@@ -167,9 +170,9 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           store_template, store_banners, store_tagline, store_currency,
           store_min_order_amount, store_shipping_enabled, store_shipping_cost,
           store_shipping_free_threshold, store_social_instagram, store_social_facebook,
-          store_social_whatsapp
+          store_social_whatsapp, store_appearance
         `)
-        .eq('slug', slug)
+        .or(`slug.eq.${slug},store_domain.eq.${slug}`)
         .single();
 
       if (tenantError || !tenantData) {
@@ -181,6 +184,16 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       console.log('TIENDA LOADED:', tenantData);
       setTenant(tenantData);
       setCurrency(tenantData.store_currency || 'ARS');
+
+      // Check if logged in user is the owner
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userTenantId = user?.user_metadata?.tenant_id;
+        const userIsOwner = userTenantId === tenantData.id;
+        setIsOwner(userIsOwner);
+      } catch (e) {
+        console.error('Error checking store owner:', e);
+      }
 
 
       const { data: productsData, error: productsError } = await supabase
@@ -194,6 +207,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
+      console.log('PRODUCTS DATA FETCHED:', productsData);
       if (productsError) {
         console.error('Error loading products:', productsError);
         setLoading(false);
@@ -266,10 +280,10 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
     // Búsqueda por texto
     const query = searchQuery.toLowerCase();
     const matchesSearch = !searchQuery || (
-      p.nombre?.toLowerCase().includes(query) ||
-      p.title?.toLowerCase().includes(query) ||
-      p.sku?.toLowerCase().includes(query) ||
-      p.description?.toLowerCase().includes(query)
+      p.nombre?.toLowerCase()?.includes(query) ||
+      p.title?.toLowerCase()?.includes(query) ||
+      p.sku?.toLowerCase()?.includes(query) ||
+      p.description?.toLowerCase()?.includes(query)
     );
 
     // Filtro por origen
@@ -516,6 +530,34 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
     );
   }
 
+  if (!tenant.store_active && !isOwner) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-zinc-900 border border-white/10 p-8 rounded-3xl text-center space-y-6 shadow-2xl">
+          <div className="w-20 h-20 bg-amber-500/15 border border-amber-500/30 text-amber-400 rounded-full flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-4xl">construction</span>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-white">{tenant.store_name || tenant.nombre || 'Tienda Online'}</h1>
+            <p className="text-amber-400 font-medium text-sm tracking-wide uppercase">Tienda en mantenimiento</p>
+          </div>
+          <p className="text-zinc-400 text-sm leading-relaxed">
+            Estamos preparando los mejores productos para vos. ¡Volvé a visitarnos muy pronto!
+          </p>
+          <div className="pt-4 border-t border-white/5">
+            <a 
+              href="/login" 
+              className="inline-flex items-center gap-2 text-xs text-zinc-500 hover:text-white transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">login</span>
+              ¿Sos el dueño? Iniciar sesión
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const tenantBanners = tenant?.store_banners || [];
   const showCarousel = tenantBanners.length > 0;
 
@@ -562,6 +604,12 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           border-radius: inherit;
         }
       `}</style>
+      {!tenant.store_active && isOwner && (
+        <div className="bg-amber-500 text-zinc-950 text-xs font-bold py-2.5 px-4 text-center flex items-center justify-center gap-2 relative z-50">
+          <span className="material-symbols-outlined text-[16px] font-bold">warning</span>
+          <span>Esta tienda está en modo <strong>Borrador (Inactiva)</strong> y solo vos podés verla. Podés activarla desde el Panel de Administración.</span>
+        </div>
+      )}
       <header className="sticky top-0 z-50 backdrop-blur-xl shadow-sm border-b" style={{ backgroundColor: appearance.dark_mode ? 'rgba(9, 9, 11, 0.9)' : 'rgba(255, 255, 255, 0.98)', borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16 gap-4">

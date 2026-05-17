@@ -311,7 +311,7 @@ export default function OrdersPage() {
   const filteredOrders = orders.filter(order => {
     const matchesSearch = !searchQuery || 
       order.number?.toString().includes(searchQuery) ||
-      order.customer_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      order.customer_name?.toLowerCase()?.includes(searchQuery.toLowerCase());
     const matchesStatus = !statusFilter || order.status === statusFilter;
     return matchesSearch && matchesStatus;
   });

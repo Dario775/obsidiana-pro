@@ -37,6 +37,7 @@ export default function InventoryPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [statusFilter, setStatusFilter] = useState('');
   const [onlineFilter, setOnlineFilter] = useState('');
   const [productImages, setProductImages] = useState<string[]>([]);
@@ -54,6 +55,10 @@ export default function InventoryPage() {
   const [detectedGlobalId, setDetectedGlobalId] = useState<string | null>(null);
   const [productAttributes, setProductAttributes] = useState<any[]>([]);
   const [selectedAttributeIds, setSelectedAttributeIds] = useState<string[]>([]);
+  
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const getThumb = (url: string | undefined) => {
     if (!url) return null;
@@ -225,54 +230,28 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       const baseSlug = formData.slug.trim() || formData.nombre.toLowerCase().replace(/\s+/g, '-');
       const uniqueSlug = await generateUniqueSlug(tenantId, baseSlug);
 
-      // 1. Insertar producto
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .insert({
-          tenant_id: tenantId,
-          nombre: formData.nombre,
-          slug: uniqueSlug,
-          description: formData.description,
-          status: 'active',
-          images: newProductImages,
-          available_online: formData.available_online || false
-        })
-        .select()
-        .single();
-
-      if (productError) throw productError;
-
-      // 2. Insertar variante
-      const { data: variant, error: variantError } = await supabase
-        .from('product_variants')
-        .insert({
-          product_id: product.id,
-          sku: formData.sku,
-          price_ars: parseInt(formData.price_ars) || 0
-        })
-        .select()
-        .single();
-
-      if (variantError) throw variantError;
-
-      // 3. Insertar inventario
-      // NOTA: 'available' es una columna GENERADA (on_hand - committed)
-      // NO enviar 'available' en el insert, PostgreSQL lo calcula automáticamente
-      const { error: inventoryError } = await supabase
-        .from('inventory_levels')
-        .insert({
-          tenant_id: tenantId,
-          variant_id: variant.id,
-          on_hand: parseInt(formData.stock) || 0,
-          committed: 0
+      // 1. Insertar producto y dependencias en una sola transacción atómica a nivel de base de datos (RPC)
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('create_product_with_dependencies', {
+          p_tenant_id: tenantId,
+          p_nombre: formData.nombre,
+          p_slug: uniqueSlug,
+          p_description: formData.description,
+          p_images: newProductImages,
+          p_available_online: formData.available_online || false,
+          p_sku: formData.sku,
+          p_price_ars: parseInt(formData.price_ars) || 0,
+          p_stock: parseInt(formData.stock) || 0
         });
 
-      if (inventoryError) throw inventoryError;
+      if (rpcError) throw rpcError;
 
-      // 4. Insertar attribute assignments si hay atributos seleccionados
-      if (selectedAttributeIds.length > 0 && product) {
+      const { product_id } = rpcResult as { product_id: string; variant_id: string };
+
+      // 2. Insertar attribute assignments si hay atributos seleccionados
+      if (selectedAttributeIds.length > 0 && product_id) {
         const assignments = selectedAttributeIds.map((attrId, index) => ({
-          product_id: product.id,
+          product_id: product_id,
           attribute_id: attrId,
           sort_order: index
         }));
@@ -317,9 +296,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         const product = item.product_variants?.products;
         const variant = item.product_variants;
         return (
-          product?.nombre?.toLowerCase().includes(search) ||
-          variant?.sku?.toLowerCase().includes(search) ||
-          variant?.barcode?.toLowerCase().includes(search)
+          product?.nombre?.toLowerCase()?.includes(search) ||
+          variant?.sku?.toLowerCase()?.includes(search) ||
+          variant?.barcode?.toLowerCase()?.includes(search)
         );
       });
     }
@@ -740,6 +719,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
     if (!importFile) return;
     
     setImporting(true);
+    setImportProgress({ current: 0, total: 0 });
     try {
       const reader = new FileReader();
       reader.onload = async (event) => {
@@ -753,8 +733,11 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         
         let imported = 0;
         let errors = 0;
+        const totalRows = rows.length;
+        setImportProgress({ current: 0, total: totalRows });
         
-        for (const row of rows) {
+        for (let i = 0; i < totalRows; i++) {
+          const row = rows[i];
           try {
             const title = row['Producto'] || row['Nombre'] || row['Title'] || '';
             const sku = row['SKU'] || row['sku'] || '';
@@ -762,59 +745,37 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
             const stock = parseInt(row['Stock'] || row['stock'] || row['En Mano'] || '0');
             const barcode = row['Barcode'] || row['barcode'] || row['Código de Barras'] || '';
             
-            if (!title || !sku) continue;
+            if (!title || !sku) {
+              setImportProgress({ current: i + 1, total: totalRows });
+              continue;
+            }
             
             const baseSlug = title.toLowerCase().replace(/\s+/g, '-');
             const uniqueSlug = await generateUniqueSlug(tenantId, baseSlug);
             
-            // Insertar producto
-            const { data: product } = await supabase
-              .from('products')
-              .insert({
-                tenant_id: tenantId,
-                nombre: title,
-                slug: uniqueSlug,
-                description: row['Descripción'] || row['Description'] || '',
-                status: 'active',
-                images: [],
-                available_online: false
-              })
-              .select()
-              .single();
-            
-            if (!product) continue;
-            
-            // Insertar variante
-            const { data: variant } = await supabase
-              .from('product_variants')
-              .insert({
-                tenant_id: tenantId,
-                product_id: product.id,
-                sku,
-                barcode,
-                options: {},
-                price_ars: price,
-                requires_shipping: true
-              })
-              .select()
-              .single();
-            
-            if (!variant) continue;
-            
-            // Insertar inventario
-            await supabase
-              .from('inventory_levels')
-              .insert({
-                tenant_id: tenantId,
-                variant_id: variant.id,
-                on_hand: stock,
-                committed: 0
+            // Insertar producto, variante e inventario en una sola transacción atómica a nivel de base de datos
+            const { error: rpcError } = await supabase
+              .rpc('create_product_with_dependencies', {
+                p_tenant_id: tenantId,
+                p_nombre: title,
+                p_slug: uniqueSlug,
+                p_description: row['Descripción'] || row['Description'] || '',
+                p_images: [],
+                p_available_online: false,
+                p_sku: sku,
+                p_price_ars: price,
+                p_stock: stock,
+                p_barcode: barcode || null
               });
+            
+            if (rpcError) throw rpcError;
             
             imported++;
           } catch (err) {
             errors++;
             console.error('Error importando fila:', err);
+          } finally {
+            setImportProgress({ current: i + 1, total: totalRows });
           }
         }
         
@@ -853,6 +814,25 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
     } catch (error: any) {
       console.error('Error al ajustar stock:', error);
       alert('Error: ' + error.message);
+    }
+  }
+
+  // Función para obtener el historial de stock (Kardex)
+  async function fetchStockHistory(variantId: string) {
+    setLoadingHistory(true);
+    try {
+      const { data, error } = await supabase
+        .from('inventory_transactions')
+        .select('*')
+        .eq('variant_id', variantId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setHistoryItems(data || []);
+    } catch (err) {
+      console.error('Error fetching stock history:', err);
+    } finally {
+      setLoadingHistory(false);
     }
   }
 
@@ -1507,6 +1487,21 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                 </div>
               )}
 
+              {importing && importProgress.total > 0 && (
+                <div className="space-y-2 p-4 bg-zinc-900/80 border border-white/5 rounded-xl">
+                  <div className="flex justify-between text-xs text-zinc-400">
+                    <span className="font-medium">Progreso de importación</span>
+                    <span className="font-mono">{importProgress.current} de {importProgress.total} ({Math.round((importProgress.current / importProgress.total) * 100)}%)</span>
+                  </div>
+                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="bg-primary-container h-full transition-all duration-200" 
+                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => {
@@ -1514,7 +1509,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                     setImportFile(null);
                     setImportPreview([]);
                   }}
-                  className="flex-1 px-5 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-sm"
+                  disabled={importing}
+                  className="flex-1 px-5 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-sm disabled:opacity-50"
                 >
                   Cancelar
                 </button>
@@ -1526,12 +1522,12 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                   {importing ? (
                     <>
                       <span className="material-symbols-outlined animate-spin">refresh</span>
-                      Importando...
+                      <span>Importando ({importProgress.current}/{importProgress.total})...</span>
                     </>
                   ) : (
                     <>
                       <span className="material-symbols-outlined">upload</span>
-                      Importar
+                      <span>Importar</span>
                     </>
                   )}
                 </button>
@@ -1867,6 +1863,22 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
 
               <button
                 onClick={() => {
+                  setSelectedItem(actionModalItem);
+                  fetchStockHistory(actionModalItem.variant_id);
+                  setShowHistoryModal(true);
+                  setActionModalItem(null);
+                }}
+                className="p-4 bg-white/5 border border-white/10 hover:border-violet-500/50 hover:bg-violet-500/5 rounded-2xl transition-all flex flex-col items-center justify-center text-center gap-2 group"
+              >
+                <span className="material-symbols-outlined text-3xl text-violet-400 group-hover:scale-110 transition-transform">history</span>
+                <div>
+                  <p className="text-white text-xs font-black uppercase tracking-wider">Historial</p>
+                  <p className="text-zinc-500 text-[10px] uppercase tracking-widest mt-0.5">Auditoría Kardex</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
                   handleDeleteProduct(actionModalItem);
                   setActionModalItem(null);
                 }}
@@ -1951,6 +1963,120 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                 className="w-full mt-6 py-3 bg-primary text-white font-black rounded-xl hover:bg-[#6D28D9] transition-colors"
               >
                 Editar Producto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showHistoryModal && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#1A1A1A] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl flex flex-col">
+            <div className="sticky top-0 bg-[#1A1A1A] border-b border-white/10 p-6 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-violet-400">history</span>
+                  Historial de Stock (Kardex)
+                </h2>
+                <p className="text-zinc-500 text-sm mt-1">
+                  {selectedItem.product_variants?.products?.nombre || 'Producto'} — SKU: <span className="font-mono text-zinc-300">{selectedItem.product_variants?.sku || 'N/A'}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowHistoryModal(false);
+                  setSelectedItem(null);
+                  setHistoryItems([]);
+                }}
+                className="p-2 hover:bg-white/5 rounded-xl transition-colors"
+              >
+                <span className="material-symbols-outlined text-zinc-400">close</span>
+              </button>
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto min-h-[300px]">
+              {loadingHistory ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                  <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+                  <p className="text-zinc-500 text-xs font-black uppercase tracking-widest">Cargando transacciones...</p>
+                </div>
+              ) : historyItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-center border-2 border-dashed border-white/5 rounded-xl bg-zinc-900/30">
+                  <span className="material-symbols-outlined text-4xl text-zinc-700">history</span>
+                  <div>
+                    <p className="text-zinc-400 text-sm font-medium">Sin movimientos registrados</p>
+                    <p className="text-zinc-600 text-xs mt-1">El stock aún no ha registrado modificaciones en el sistema.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-zinc-900/50 rounded-xl border border-white/5 overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-white/5 text-zinc-500 bg-zinc-900/80">
+                        <th className="px-5 py-3 font-medium uppercase tracking-wider">Fecha / Hora</th>
+                        <th className="px-5 py-3 font-medium uppercase tracking-wider">Motivo</th>
+                        <th className="px-5 py-3 font-medium uppercase tracking-wider text-right">Variación</th>
+                        <th className="px-5 py-3 font-medium uppercase tracking-wider text-right">Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {historyItems.map((tx) => {
+                        const dateStr = new Date(tx.created_at).toLocaleString('es-AR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                        
+                        let reasonLabel = 'Ajuste Manual';
+                        let reasonColor = 'zinc';
+                        if (tx.reason === 'sale') {
+                          reasonLabel = 'Venta (POS)';
+                          reasonColor = 'emerald';
+                        } else if (tx.reason === 'purchase') {
+                          reasonLabel = 'Compra / Carga';
+                          reasonColor = 'blue';
+                        } else if (tx.reason === 'loss') {
+                          reasonLabel = 'Pérdida / Rotura';
+                          reasonColor = 'red';
+                        }
+
+                        const sign = tx.quantity_changed > 0 ? '+' : '';
+                        const quantityColor = tx.quantity_changed > 0 ? 'text-emerald-400' : 'text-red-400';
+
+                        return (
+                          <tr key={tx.id} className="hover:bg-white/[0.01] transition-colors">
+                            <td className="px-5 py-3 text-zinc-300 font-medium">{dateStr}</td>
+                            <td className="px-5 py-3">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border bg-${reasonColor}-500/10 text-${reasonColor}-400 border-${reasonColor}-500/20`}>
+                                {reasonLabel}
+                              </span>
+                            </td>
+                            <td className={`px-5 py-3 text-right font-black text-sm ${quantityColor}`}>
+                              {sign}{tx.quantity_changed}
+                            </td>
+                            <td className="px-5 py-3 text-right text-zinc-500">
+                              {tx.reference_id ? 'Ref: ' + tx.reference_id.substring(0, 8) : 'N/A'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-white/10 bg-zinc-900/50 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowHistoryModal(false);
+                  setSelectedItem(null);
+                  setHistoryItems([]);
+                }}
+                className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold text-sm transition-all"
+              >
+                Cerrar Historial
               </button>
             </div>
           </div>

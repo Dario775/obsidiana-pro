@@ -249,8 +249,8 @@ export default function OnlineCatalogPage() {
 
   const filteredItems = items.filter(item => {
     const matchesSearch = !searchQuery || 
-      (item.product.nombre || item.product.title)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.variant.sku?.toLowerCase().includes(searchQuery.toLowerCase());
+      (item.product.nombre || item.product.title)?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+      item.variant.sku?.toLowerCase()?.includes(searchQuery.toLowerCase());
     const matchesFilter = !filterOnline || 
       (filterOnline === 'online' && item.product.available_online) ||
       (filterOnline === 'offline' && !item.product.available_online);

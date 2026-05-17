@@ -51,9 +51,9 @@ export default function CustomersPage() {
       const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
       return (
         fullName.includes(search) ||
-        c.email?.toLowerCase().includes(search) ||
-        c.phone?.toLowerCase().includes(search) ||
-        c.dni_cuit?.toLowerCase().includes(search)
+        c.email?.toLowerCase()?.includes(search) ||
+        c.phone?.toLowerCase()?.includes(search) ||
+        c.dni_cuit?.toLowerCase()?.includes(search)
       );
     });
     setFilteredCustomers(filtered);
