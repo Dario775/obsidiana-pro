@@ -90,7 +90,6 @@ export async function POST(req: Request) {
         .insert({
           tenant_id: tenantId,
           variant_id: variant.id,
-          location_id: '00000000-0000-0000-0000-000000000001',
           on_hand: 999
         });
 
