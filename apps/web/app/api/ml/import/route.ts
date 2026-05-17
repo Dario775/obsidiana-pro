@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       const { error: pError } = await supabaseAdmin
         .from('products')
         .update({
-          title: scrapedData.title,
+          nombre: scrapedData.title,
           description: scrapedData.description,
           images: scrapedData.images || []
         })
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
         .from('products')
         .insert({
           tenant_id: tenantId,
-          title: scrapedData.title,
+          nombre: scrapedData.title,
           description: scrapedData.description,
           slug: `${slug}-${Date.now()}`,
           status: 'active',
