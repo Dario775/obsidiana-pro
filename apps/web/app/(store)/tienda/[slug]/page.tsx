@@ -200,12 +200,18 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         return;
       }
 
-      const productsWithPrice = (productsData || []).map((p: any) => ({
-        ...p,
-        precio: p.product_variants?.[0]?.price_ars || 0,
-        sku: p.product_variants?.[0]?.sku || '',
-        external_url: p.seo?.ml_url || p.external_url || null,
-      }));
+      const productsWithPrice = (productsData || []).map((p: any) => {
+        let seoObj = p.seo;
+        if (typeof seoObj === 'string') {
+          try { seoObj = JSON.parse(seoObj); } catch(e) { seoObj = {}; }
+        }
+        return {
+          ...p,
+          precio: p.product_variants?.[0]?.price_ars || 0,
+          sku: p.product_variants?.[0]?.sku || '',
+          external_url: seoObj?.ml_url || p.external_url || null,
+        };
+      });
 
       setProducts(productsWithPrice);
 

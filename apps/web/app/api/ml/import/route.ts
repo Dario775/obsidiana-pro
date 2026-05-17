@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       const { error: pError } = await supabaseAdmin
         .from('products')
         .update({
-          nombre: scrapedData.title,
+          title: scrapedData.title,
           description: scrapedData.description,
           images: scrapedData.images || []
         })
@@ -58,13 +58,12 @@ export async function POST(req: Request) {
         .from('products')
         .insert({
           tenant_id: tenantId,
-          nombre: scrapedData.title,
+          title: scrapedData.title,
           description: scrapedData.description,
           slug: `${slug}-${Date.now()}`,
           status: 'active',
           available_online: true,
-          is_published: true,
-          seo: { ml_url: mlUrl },
+          external_url: mlUrl,
           images: scrapedData.images || []
         })
         .select()

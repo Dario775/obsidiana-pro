@@ -83,10 +83,10 @@ export const config = {
   matcher: [
     /*
      * Match all paths except for:
-     * 1. /api/auth (internos de supabase)
+     * 1. /api (all API routes)
      * 2. /_next (Next.js internals)
      * 3. static files (images, etc)
      */
-    '/((?!api/auth|_next|_static|_vercel|[\\w-]+\\.\\w+).*)',
+    '/((?!api|_next|_static|_vercel|[\\w-]+\\.\\w+).*)',
   ],
 };

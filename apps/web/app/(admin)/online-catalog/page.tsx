@@ -8,7 +8,8 @@ import { FeatureGate } from '@/components/feature-gate';
 
 interface ProductData {
   id: string;
-  nombre: string;
+  nombre?: string;
+  title?: string;
   slug: string;
   available_online: boolean;
   online_reserved: number;
@@ -109,7 +110,7 @@ export default function OnlineCatalogPage() {
       .select('*')
       .eq('tenant_id', tenant.id)
       .eq('status', 'active')
-      .order('nombre');
+      .order('created_at', { ascending: false });
 
     if (productsError) {
       console.error('Error fetching products:', productsError);
@@ -248,7 +249,7 @@ export default function OnlineCatalogPage() {
 
   const filteredItems = items.filter(item => {
     const matchesSearch = !searchQuery || 
-      item.product.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.product.nombre || item.product.title)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.variant.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = !filterOnline || 
       (filterOnline === 'online' && item.product.available_online) ||
@@ -286,18 +287,22 @@ export default function OnlineCatalogPage() {
     return null;
   }
 
-  // Resolve short URLs (meli.la, etc)
+  // Resolve short URLs (meli.la, etc) using server-side endpoint to avoid CORS
   async function resolveShortUrl(url: string): Promise<string> {
     if (url.includes('meli.la') || url.includes('bit.ly') || url.includes('goo.gl')) {
       try {
-        // Use our proxy to follow redirects
-        const resp = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { redirect: 'follow' });
-        const html = await resp.text();
-        // Look for canonical URL in the response
-        const canonicalMatch = html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i) ||
-                               html.match(/<meta[^>]+property="og:url"[^>]+content="([^"]+)"/i);
-        if (canonicalMatch?.[1]) return canonicalMatch[1];
-      } catch {}
+        const resp = await fetch('/api/ml/resolve-url', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.url) return data.url;
+        }
+      } catch (e) {
+        console.warn('Failed to resolve short URL:', e);
+      }
     }
     return url;
   }
@@ -555,7 +560,7 @@ export default function OnlineCatalogPage() {
               ) : filteredItems.map((item) => (
                 <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
                   <td className="py-4 px-6">
-                    <p className="font-bold text-sm text-white">{item.product.nombre}</p>
+                    <p className="font-bold text-sm text-white">{item.product.nombre || item.product.title}</p>
                   </td>
                   <td className="py-4 px-6 text-zinc-400 text-xs font-mono">
                     {item.variant.sku}

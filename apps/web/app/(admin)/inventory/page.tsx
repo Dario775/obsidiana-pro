@@ -230,7 +230,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         .from('products')
         .insert({
           tenant_id: tenantId,
-          nombre: formData.nombre,
+          title: formData.nombre,
           slug: uniqueSlug,
           description: formData.description,
           status: 'active',
