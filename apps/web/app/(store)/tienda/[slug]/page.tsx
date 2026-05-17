@@ -34,9 +34,9 @@ const THEME_MAP: Record<string, { primary: string; primaryLight: string; bg: str
 };
 
 const FONT_MAP = {
-  sans: 'system-ui, sans-serif',
-  serif: 'Georgia, serif',
-  mono: 'monospace',
+  sans: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  serif: '"Outfit", sans-serif',
+  mono: '"Inter", sans-serif',
 };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -170,7 +170,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           store_template, store_banners, store_tagline, store_currency,
           store_min_order_amount, store_shipping_enabled, store_shipping_cost,
           store_shipping_free_threshold, store_social_instagram, store_social_facebook,
-          store_social_whatsapp, store_appearance
+          store_social_whatsapp, store_appearance, store_logo_url, updated_at
         `)
         .or(`slug.eq.${slug},store_domain.eq.${slug}`)
         .single();
@@ -613,15 +613,18 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       <header className="sticky top-0 z-50 backdrop-blur-xl shadow-sm border-b" style={{ backgroundColor: appearance.dark_mode ? 'rgba(9, 9, 11, 0.9)' : 'rgba(255, 255, 255, 0.98)', borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16 gap-4">
-            {tenant.store_logo_url ? (
-              <a href={`/tienda/${slug}`} className="flex items-center gap-3 shrink-0">
-                <img src={tenant.store_logo_url} alt={tenant.store_name} className="h-9 w-auto object-contain" />
-              </a>
-            ) : (
-              <a href={`/tienda/${slug}`} className="text-xl font-black tracking-tighter shrink-0" style={{ color: headerText }}>
+            <a href={`/tienda/${slug}`} className="flex items-center gap-3 shrink-0 group">
+              {tenant.store_logo_url && (
+                <img 
+                  src={`${tenant.store_logo_url}${tenant.store_logo_url.includes('?') ? '&' : '?'}_t=${tenant.updated_at ? new Date(tenant.updated_at).getTime() : Date.now()}`} 
+                  alt={tenant.store_name} 
+                  className="h-9 w-auto object-contain transition-transform group-hover:scale-105 duration-300" 
+                />
+              )}
+              <span className="text-xl font-black tracking-tighter transition-colors group-hover:opacity-80" style={{ color: headerText }}>
                 {tenant.store_name || tenant.nombre || 'Mi Tienda'}
-              </a>
-            )}
+              </span>
+            </a>
             
             <div className="flex-1 max-w-lg mx-8">
               <div className="relative group">
@@ -907,94 +910,180 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       </main>
 
       {showCart && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: appearance.dark_mode ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.5)' }}>
-          <div className="w-full max-w-xl rounded-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden" style={{ backgroundColor: appearance.dark_mode ? '#09090b' : '#ffffff' }}>
+        <div 
+          className="fixed inset-0 z-50 flex justify-end backdrop-blur-md transition-all duration-500 ease-in-out" 
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+          onClick={() => setShowCart(false)}
+        >
+          <div 
+            className="w-full sm:max-w-md h-full flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.3)] animate-in slide-in-from-right duration-300 relative border-l" 
+            style={{ 
+              backgroundColor: appearance.dark_mode ? 'rgba(9, 9, 11, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+              borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+              backdropFilter: 'blur(20px)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {orderComplete ? (
-              <div className="p-12 text-center flex-1 flex flex-col items-center justify-center">
-                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)' }}>
-                  <span className="material-symbols-outlined text-5xl text-emerald-500">check_circle</span>
+              <div className="p-8 text-center flex-1 flex flex-col items-center justify-center">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-inner" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)' }}>
+                  <span className="material-symbols-outlined text-4xl text-emerald-500">check</span>
                 </div>
-                <h3 className="text-3xl font-bold mb-2" style={{ color: textColor }}>¡Pedido Confirmado!</h3>
-                <p className="mb-2" style={{ color: mutedColor }}>Tu número de pedido:</p>
-                <p className="text-4xl font-black mb-6 px-8 py-4 rounded-xl" style={{ backgroundColor: cardBg, color: textColor }}>#{orderNumber}</p>
-                <p className="text-sm mb-8" style={{ color: mutedColor }}>Para agilizar tu entrega, envíanos el resumen por WhatsApp:</p>
+                <h3 className="text-2xl font-black mb-2" style={{ color: textColor }}>¡Pedido Confirmado!</h3>
+                <p className="mb-2 text-sm" style={{ color: mutedColor }}>Tu número de pedido:</p>
+                <p className="text-3xl font-black mb-6 px-8 py-3 rounded-full border" style={{ 
+                  backgroundColor: cardBg, 
+                  color: textColor,
+                  borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
+                }}>
+                  #{orderNumber}
+                </p>
+                <p className="text-xs mb-8 max-w-xs" style={{ color: mutedColor }}>Para agilizar tu entrega, envíanos el resumen de compra por WhatsApp:</p>
                 
                 <div className="flex flex-col w-full gap-3">
                   <button 
                     onClick={sendWhatsAppOrder}
-                    className="w-full py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2" 
+                    className="w-full py-4 rounded-full font-black text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 tracking-wide text-xs uppercase" 
                     style={{ backgroundColor: '#25D366' }}
                   >
-                    <span className="material-symbols-outlined font-black">chat</span>
+                    <span className="material-symbols-outlined font-black text-lg">chat</span>
                     Enviar por WhatsApp
                   </button>
                   
                   <button 
                     onClick={() => { setShowCart(false); setOrderComplete(false); setCheckoutStep(1); }} 
-                    className="w-full py-4 rounded-xl font-bold opacity-60 hover:opacity-100 transition-all" 
+                    className="w-full py-4 rounded-full font-bold opacity-60 hover:opacity-100 transition-all text-xs tracking-wider uppercase" 
                     style={{ color: textColor }}
                   >
-                    Cerrar y volver a la tienda
+                    Volver a la tienda
                   </button>
                 </div>
               </div>
             ) : (
               <>
-                <div className="p-6 border-b flex items-center justify-between" style={{ backgroundColor: cardBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full" style={checkoutStep >= 1 ? primaryBg : { backgroundColor: appearance.dark_mode ? '#3f3f46' : '#e5e5e5' }} />
-                      <span className="w-2 h-2 rounded-full" style={checkoutStep >= 2 ? primaryBg : { backgroundColor: appearance.dark_mode ? '#3f3f46' : '#e5e5e5' }} />
-                      <span className="w-2 h-2 rounded-full" style={checkoutStep >= 3 ? primaryBg : { backgroundColor: appearance.dark_mode ? '#3f3f46' : '#e5e5e5' }} />
-                    </div>
-                    <span className="text-sm font-bold" style={{ color: textColor }}>
-                      {checkoutStep === 1 && 'Carrito'}
-                      {checkoutStep === 2 && 'Datos'}
-                      {checkoutStep === 3 && 'Pago'}
+                {/* Header */}
+                <div className="flex items-center justify-between w-full border-b pb-4 px-6 pt-6" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-[0.2em] font-black" style={{ color: currentTheme.primary }}>
+                      Paso {checkoutStep} de 3
                     </span>
+                    <h3 className="font-sans font-black text-xl tracking-tight" style={{ color: textColor }}>
+                      {checkoutStep === 1 && 'Tu Carrito'}
+                      {checkoutStep === 2 && 'Datos de Envío'}
+                      {checkoutStep === 3 && 'Método de Pago'}
+                    </h3>
                   </div>
-                  <button onClick={() => setShowCart(false)} className="p-2 rounded-lg transition-colors" style={{ color: mutedColor }}>
-                    <span className="material-symbols-outlined">close</span>
+                  <button onClick={() => setShowCart(false)} className="w-10 h-10 rounded-full flex items-center justify-center bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 transition-colors" style={{ color: textColor }}>
+                    <span className="material-symbols-outlined text-lg">close</span>
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6">
+                {/* Micro Stepper Line */}
+                <div className="w-full h-1 bg-zinc-100 dark:bg-zinc-900 relative">
+                  <div 
+                    className="h-full transition-all duration-500 ease-out absolute left-0 top-0" 
+                    style={{ 
+                      backgroundColor: currentTheme.primary, 
+                      width: checkoutStep === 1 ? '33.33%' : checkoutStep === 2 ? '66.66%' : '100%' 
+                    }} 
+                  />
+                </div>
+
+                {/* Scrollable Body */}
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
                   {checkoutStep === 1 && (
                     <div className="space-y-4">
-                      <h3 className="font-bold text-xl mb-4" style={{ color: textColor }}>Tu Carrito</h3>
+                      {/* Free Shipping Gamification Progress Bar */}
+                      {(() => {
+                        const freeShippingThreshold = tenant.store_shipping_free_threshold || 0;
+                        if (freeShippingThreshold > 0) {
+                          const amountNeeded = freeShippingThreshold - cartTotal;
+                          const percentage = Math.min(100, (cartTotal / freeShippingThreshold) * 100);
+                          return (
+                            <div className="p-4 rounded-2xl mb-4 text-xs font-semibold border transition-all duration-500" style={{ 
+                              backgroundColor: appearance.dark_mode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+                              borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
+                            }}>
+                              <div className="flex justify-between mb-2">
+                                <span style={{ color: mutedColor }}>
+                                  {amountNeeded > 0 
+                                    ? `Te faltan ${formatPrice(amountNeeded, currency)} para el Envío Gratis` 
+                                    : '¡Felicidades! Tenés envío gratis'}
+                                </span>
+                                <span className="font-bold" style={{ color: currentTheme.primary }}>{Math.round(percentage)}%</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full transition-all duration-500 ease-out" 
+                                  style={{ 
+                                    backgroundColor: currentTheme.primary, 
+                                    width: `${percentage}%` 
+                                  }} 
+                                />
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
                       {cart.length === 0 ? (
-                        <div className="text-center py-16">
-                          <span className="material-symbols-outlined text-6xl mb-4" style={{ color: mutedColor }}>shopping_cart</span>
-                          <p style={{ color: mutedColor }}>El carrito está vacío</p>
+                        <div className="text-center py-16 flex flex-col items-center justify-center">
+                          <span className="material-symbols-outlined text-5xl mb-4 opacity-30" style={{ color: textColor }}>local_mall</span>
+                          <p className="text-sm font-medium" style={{ color: mutedColor }}>El carrito está vacío</p>
+                          <button 
+                            onClick={() => setShowCart(false)} 
+                            className="mt-6 px-6 py-2 rounded-full border text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95"
+                            style={{ 
+                              borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                              color: textColor
+                            }}
+                          >
+                            Ver Productos
+                          </button>
                         </div>
                       ) : (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           {cart.map((item: any) => (
-                            <div key={item.id} className="flex gap-4 p-3 rounded-xl" style={{ backgroundColor: cardBg }}>
-                              <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ backgroundColor: appearance.dark_mode ? '#27272a' : '#f4f4f5' }}>
+                            <div key={item.id} className="flex gap-4 p-3 rounded-2xl border transition-all duration-300" style={{ 
+                              backgroundColor: appearance.dark_mode ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)',
+                              borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
+                            }}>
+                              <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border" style={{ 
+                                backgroundColor: appearance.dark_mode ? '#1c1c1e' : '#f4f4f5',
+                                borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
+                              }}>
                                 {item.images?.[0] ? (
                                   <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-xl" style={{ color: mutedColor }}>image</span>
+                                    <span className="material-symbols-outlined text-lg" style={{ color: mutedColor }}>image</span>
                                   </div>
                                 )}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-bold text-sm truncate" style={{ color: textColor }}>{item.title || item.nombre}</h4>
-                                <p className="text-sm" style={{ color: currentTheme.primary }}>{formatPrice(item.precio, currency)}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: inputBg, color: inputText }}>
-                                  <span className="material-symbols-outlined">remove</span>
-                                </button>
-                                <span className="w-8 text-center font-bold" style={{ color: textColor }}>{item.quantity}</span>
-                                <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: inputBg, color: inputText }}>
-                                  <span className="material-symbols-outlined">add</span>
-                                </button>
-                                <button onClick={() => removeFromCart(item.id)} className="p-2 rounded-lg transition-colors" style={{ color: mutedColor }}>
-                                  <span className="material-symbols-outlined">delete</span>
-                                </button>
+                              <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-xs truncate uppercase tracking-wider" style={{ color: textColor }}>{item.title || item.nombre}</h4>
+                                  <p className="text-xs mt-0.5 font-bold" style={{ color: currentTheme.primary }}>{formatPrice(item.precio, currency)}</p>
+                                </div>
+                                <div className="flex items-center justify-between mt-2">
+                                  {/* Sleek stepper capsule */}
+                                  <div className="flex items-center border rounded-full px-2 py-0.5" style={{ 
+                                    backgroundColor: inputBg,
+                                    borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
+                                  }}>
+                                    <button onClick={() => updateQuantity(item.id, -1)} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10" style={{ color: textColor }}>
+                                      <span className="material-symbols-outlined text-[10px] font-black">remove</span>
+                                    </button>
+                                    <span className="w-6 text-center text-xs font-bold" style={{ color: textColor }}>{item.quantity}</span>
+                                    <button onClick={() => updateQuantity(item.id, 1)} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10" style={{ color: textColor }}>
+                                      <span className="material-symbols-outlined text-[10px] font-black">add</span>
+                                    </button>
+                                  </div>
+                                  <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-red-500/10 text-red-400">
+                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -1005,83 +1094,114 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
                   {checkoutStep === 2 && (
                     <div className="space-y-4">
-                      <h3 className="font-bold text-lg mb-4" style={{ color: textColor }}>Datos de Contacto</h3>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
-                          <label className="block text-xs mb-1" style={{ color: mutedColor }}>Nombre *</label>
+                          <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Nombre Completo *</label>
                           <input 
                             type="text" 
                             value={customerInfo.name} 
                             onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })} 
-                            className="w-full rounded-lg px-3 py-2" 
-                            style={{ backgroundColor: inputBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: inputText }} 
-                            placeholder="Tu nombre" 
+                            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
+                            style={{ 
+                              backgroundColor: inputBg, 
+                              borderColor: 'transparent',
+                              color: inputText 
+                            }} 
+                            placeholder="Ingresa tu nombre y apellido" 
                           />
                         </div>
                         <div className="col-span-2">
-                          <label className="block text-xs mb-1" style={{ color: mutedColor }}>Email</label>
+                          <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Email</label>
                           <input 
                             type="email" 
                             value={customerInfo.email} 
                             onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })} 
-                            className="w-full rounded-lg px-3 py-2" 
-                            style={{ backgroundColor: inputBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: inputText }} 
-                            placeholder="email@ejemplo.com" 
+                            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
+                            style={{ 
+                              backgroundColor: inputBg, 
+                              borderColor: 'transparent', 
+                              color: inputText 
+                            }} 
+                            placeholder="ejemplo@correo.com" 
                           />
                         </div>
                         <div className="col-span-2">
-                          <label className="block text-xs mb-1" style={{ color: mutedColor }}>Teléfono *</label>
+                          <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Teléfono Celular *</label>
                           <input 
                             type="tel" 
                             value={customerInfo.phone} 
                             onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })} 
-                            className="w-full rounded-lg px-3 py-2" 
-                            style={{ backgroundColor: inputBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: inputText }} 
+                            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
+                            style={{ 
+                              backgroundColor: inputBg, 
+                              borderColor: 'transparent', 
+                              color: inputText 
+                            }} 
                             placeholder="+54 9 11 XXXX XXXX" 
                           />
                         </div>
+                        {tenant.store_shipping_enabled && (
+                          <>
+                            <div className="col-span-2">
+                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Dirección de Entrega</label>
+                              <input 
+                                type="text" 
+                                value={customerInfo.address} 
+                                onChange={e => setCustomerInfo({ ...customerInfo, address: e.target.value })} 
+                                className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
+                                style={{ 
+                                  backgroundColor: inputBg, 
+                                  borderColor: 'transparent', 
+                                  color: inputText 
+                                }} 
+                                placeholder="Calle, número, depto, timbre" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Ciudad</label>
+                              <input 
+                                type="text" 
+                                value={customerInfo.city} 
+                                onChange={e => setCustomerInfo({ ...customerInfo, city: e.target.value })} 
+                                className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
+                                style={{ 
+                                  backgroundColor: inputBg, 
+                                  borderColor: 'transparent', 
+                                  color: inputText 
+                                }} 
+                                placeholder="Ciudad" 
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Provincia</label>
+                              <input 
+                                type="text" 
+                                value={customerInfo.province} 
+                                onChange={e => setCustomerInfo({ ...customerInfo, province: e.target.value })} 
+                                className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
+                                style={{ 
+                                  backgroundColor: inputBg, 
+                                  borderColor: 'transparent', 
+                                  color: inputText 
+                                }} 
+                                placeholder="Provincia" 
+                              />
+                            </div>
+                          </>
+                        )}
                         <div className="col-span-2">
-                          <label className="block text-xs mb-1" style={{ color: mutedColor }}>Dirección</label>
-                          <input 
-                            type="text" 
-                            value={customerInfo.address} 
-                            onChange={e => setCustomerInfo({ ...customerInfo, address: e.target.value })} 
-                            className="w-full rounded-lg px-3 py-2" 
-                            style={{ backgroundColor: inputBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: inputText }} 
-                            placeholder="Calle y número" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs mb-1" style={{ color: mutedColor }}>Ciudad</label>
-                          <input 
-                            type="text" 
-                            value={customerInfo.city} 
-                            onChange={e => setCustomerInfo({ ...customerInfo, city: e.target.value })} 
-                            className="w-full rounded-lg px-3 py-2" 
-                            style={{ backgroundColor: inputBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: inputText }} 
-                            placeholder="Ciudad" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs mb-1" style={{ color: mutedColor }}>Provincia</label>
-                          <input 
-                            type="text" 
-                            value={customerInfo.province} 
-                            onChange={e => setCustomerInfo({ ...customerInfo, province: e.target.value })} 
-                            className="w-full rounded-lg px-3 py-2" 
-                            style={{ backgroundColor: inputBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: inputText }} 
-                            placeholder="Provincia" 
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <label className="block text-xs mb-1" style={{ color: mutedColor }}>Notas / Referencias</label>
+                          <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Notas Adicionales</label>
                           <textarea 
                             value={customerInfo.notes} 
                             onChange={e => setCustomerInfo({ ...customerInfo, notes: e.target.value })} 
-                            className="w-full rounded-lg px-3 py-2" 
+                            className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
                             rows={2} 
-                            style={{ backgroundColor: inputBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: inputText }} 
-                            placeholder="Entregar en tal horario, tocar timbre, etc." 
+                            style={{ 
+                              backgroundColor: inputBg, 
+                              borderColor: 'transparent', 
+                              color: inputText 
+                            }} 
+                            placeholder="Indicaciones para la entrega o comentarios..." 
                           />
                         </div>
                       </div>
@@ -1090,54 +1210,76 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
                   {checkoutStep === 3 && (
                     <div className="space-y-4">
-                      <h3 className="font-bold text-lg" style={{ color: textColor }}>Método de Pago</h3>
-                      {enabledPaymentMethods.map((method: any) => (
-                        <label 
-                          key={method.id} 
-                          className="flex items-center gap-3 cursor-pointer p-3 rounded-xl" 
-                          style={{ backgroundColor: cardBg }}
-                        >
-                          <input 
-                            type="radio" 
-                            name="payment" 
-                            checked={paymentMethod === method.id} 
-                            onChange={() => setPaymentMethod(method.id)} 
-                          />
-                          <span className="material-symbols-outlined" style={{ color: mutedColor }}>{method.icon}</span>
-                          <span style={{ color: textColor }}>{method.name}</span>
-                        </label>
-                      ))}
+                      <div className="space-y-3">
+                        {enabledPaymentMethods.map((method: any) => (
+                          <label 
+                            key={method.id} 
+                            className="flex items-center gap-4 cursor-pointer p-4 rounded-2xl border transition-all duration-300 hover:scale-[1.01]" 
+                            style={{ 
+                              backgroundColor: paymentMethod === method.id 
+                                ? (appearance.dark_mode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)') 
+                                : 'transparent',
+                              borderColor: paymentMethod === method.id 
+                                ? currentTheme.primary 
+                                : (appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
+                            }}
+                          >
+                            <input 
+                              type="radio" 
+                              name="payment" 
+                              checked={paymentMethod === method.id} 
+                              onChange={() => setPaymentMethod(method.id)} 
+                              className="w-4 h-4"
+                              style={{ accentColor: currentTheme.primary }}
+                            />
+                            <span className="material-symbols-outlined text-xl" style={{ color: paymentMethod === method.id ? currentTheme.primary : mutedColor }}>{method.icon}</span>
+                            <div className="flex-1">
+                              <span className="font-bold text-xs uppercase tracking-wider block" style={{ color: textColor }}>{method.name}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
                       
                       {paymentMethod === 'transfer' && transferConfig && (
-                        <>
-                          <div className="rounded-xl p-4 mt-4" style={{ backgroundColor: cardBg }}>
-                            <h4 className="font-bold mb-2" style={{ color: textColor }}>Datos para transferir</h4>
-                            <p className="text-sm" style={{ color: mutedColor }}>Banco: {transferConfig.bank}</p>
-                            <p className="text-sm" style={{ color: mutedColor }}>CBU: {transferConfig.cbu}</p>
-                            <p className="text-sm" style={{ color: mutedColor }}>Alias: {transferConfig.alias}</p>
-                            <p className="text-sm font-bold mt-2" style={{ color: currentTheme.primary }}>Total a pagar: {formatPrice(finalTotal, currency)}</p>
+                        <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                          <div className="rounded-2xl p-4 border space-y-2.5" style={{ 
+                            backgroundColor: cardBg, 
+                            borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' 
+                          }}>
+                            <h4 className="font-black text-xs uppercase tracking-wider" style={{ color: textColor }}>Datos de Transferencia</h4>
+                            <div className="h-px w-full" style={{ backgroundColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
+                            <p className="text-xs" style={{ color: mutedColor }}>Banco: <strong style={{ color: textColor }}>{transferConfig.bank}</strong></p>
+                            <p className="text-xs" style={{ color: mutedColor }}>CBU: <strong style={{ color: textColor }}>{transferConfig.cbu}</strong></p>
+                            <p className="text-xs" style={{ color: mutedColor }}>Alias: <strong style={{ color: textColor }}>{transferConfig.alias}</strong></p>
+                            <p className="text-xs font-black mt-2 text-right uppercase tracking-wider" style={{ color: currentTheme.primary }}>Total: {formatPrice(finalTotal, currency)}</p>
                           </div>
-                          <label className="flex items-center gap-3 p-4 rounded-xl mt-3 cursor-pointer" style={{ backgroundColor: cardBg }}>
-                            <input type="checkbox" checked={transferConfirmed} onChange={(e) => setTransferConfirmed(e.target.checked)} />
-                            <span style={{ color: textColor }}>Ya transferí el monto total</span>
+                          <label className="flex items-center gap-3 p-4 rounded-2xl mt-3 cursor-pointer border" style={{ 
+                            backgroundColor: cardBg,
+                            borderColor: transferConfirmed ? currentTheme.primary : (appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
+                          }}>
+                            <input type="checkbox" checked={transferConfirmed} onChange={(e) => setTransferConfirmed(e.target.checked)} className="w-4 h-4" style={{ accentColor: currentTheme.primary }} />
+                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: textColor }}>Ya realicé la transferencia bancaria</span>
                           </label>
-                        </>
+                        </div>
                       )}
                       
                       {paymentMethod === 'mp' && mpConfig && (
-                        <div className="space-y-3">
+                        <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
                           <a 
                             href={mpConfig.link} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="block text-center py-3 rounded-xl font-bold" 
+                            className="block text-center py-4 rounded-full font-black text-xs tracking-wider uppercase hover:opacity-90 active:scale-[0.98] transition-all shadow-md" 
                             style={{ backgroundColor: currentTheme.primary, color: currentTheme.text }}
                           >
-                            Ir a MercadoPago
+                            Pagar con Mercado Pago
                           </a>
-                          <label className="flex items-center gap-3 p-4 rounded-xl cursor-pointer" style={{ backgroundColor: cardBg }}>
-                            <input type="checkbox" checked={mpConfirmed} onChange={(e) => setMpConfirmed(e.target.checked)} />
-                            <span style={{ color: textColor }}>Ya realicé el pago por MercadoPago</span>
+                          <label className="flex items-center gap-3 p-4 rounded-2xl cursor-pointer border" style={{ 
+                            backgroundColor: cardBg,
+                            borderColor: mpConfirmed ? currentTheme.primary : (appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
+                          }}>
+                            <input type="checkbox" checked={mpConfirmed} onChange={(e) => setMpConfirmed(e.target.checked)} className="w-4 h-4" style={{ accentColor: currentTheme.primary }} />
+                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: textColor }}>Ya realicé el pago en Mercado Pago</span>
                           </label>
                         </div>
                       )}
@@ -1145,21 +1287,28 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                   )}
                 </div>
 
-                <div className="p-4 border-t" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
+                {/* Stepper Footer Summary */}
+                <div className="p-6 border-t shadow-2xl relative z-10" style={{ 
+                  borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : '#e5e5e5',
+                  backgroundColor: appearance.dark_mode ? '#0d0d0e' : '#fcfcfc'
+                }}>
                   {checkoutStep === 1 && (
                     <>
-                      <div className="space-y-2 text-sm mb-4">
+                      <div className="space-y-2 text-xs font-medium mb-5">
                         <div className="flex justify-between">
                           <span style={{ color: mutedColor }}>Subtotal</span>
-                          <span style={{ color: textColor }}>{formatPrice(cartTotal, currency)}</span>
+                          <span className="font-bold" style={{ color: textColor }}>{formatPrice(cartTotal, currency)}</span>
                         </div>
                         {tenant.store_shipping_enabled && (
                           <div className="flex justify-between">
                             <span style={{ color: mutedColor }}>Envío</span>
-                            <span style={{ color: textColor }}>{shippingCost === 0 ? 'Gratis' : formatPrice(shippingCost, currency)}</span>
+                            <span className="font-bold" style={{ color: textColor }}>{shippingCost === 0 ? 'Gratis' : formatPrice(shippingCost, currency)}</span>
                           </div>
                         )}
-                        <div className="flex justify-between font-bold text-lg pt-2 border-t" style={{ color: textColor, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
+                        <div className="flex justify-between font-black text-base pt-3 border-t uppercase tracking-wider" style={{ 
+                          color: textColor, 
+                          borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' 
+                        }}>
                           <span>Total</span>
                           <span>{formatPrice(finalTotal, currency)}</span>
                         </div>
@@ -1167,18 +1316,20 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       <button 
                         onClick={() => setCheckoutStep(2)} 
                         disabled={cart.length === 0} 
-                        className="w-full py-4 text-white rounded-xl font-bold disabled:opacity-50" 
+                        className="w-full py-4 text-white rounded-full font-black text-xs tracking-wider uppercase disabled:opacity-30 disabled:pointer-events-none hover:opacity-90 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2" 
                         style={primaryBg}
                       >
-                        Continuar
+                        <span>Continuar</span>
+                        <span className="material-symbols-outlined text-sm font-black">arrow_forward</span>
                       </button>
                     </>
                   )}
+
                   {checkoutStep === 2 && (
                     <div className="flex gap-3">
                       <button 
                         onClick={() => setCheckoutStep(1)} 
-                        className="flex-1 py-4 border rounded-xl font-bold" 
+                        className="flex-1 py-4 border rounded-full font-black text-xs tracking-wider uppercase hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all" 
                         style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: textColor }}
                       >
                         Volver
@@ -1186,18 +1337,19 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       <button 
                         onClick={() => setCheckoutStep(3)} 
                         disabled={!customerInfo.name || !customerInfo.phone} 
-                        className="flex-1 py-4 text-white rounded-xl font-bold disabled:opacity-50" 
+                        className="flex-1 py-4 text-white rounded-full font-black text-xs tracking-wider uppercase disabled:opacity-30 disabled:pointer-events-none hover:opacity-90 active:scale-[0.98] transition-all shadow-lg" 
                         style={primaryBg}
                       >
-                        Continuar
+                        Siguiente
                       </button>
                     </div>
                   )}
+
                   {checkoutStep === 3 && (
                     <div className="flex gap-3">
                       <button 
                         onClick={() => setCheckoutStep(2)} 
-                        className="flex-1 py-4 border rounded-xl font-bold" 
+                        className="flex-1 py-4 border rounded-full font-black text-xs tracking-wider uppercase hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all" 
                         style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5', color: textColor }}
                       >
                         Volver
@@ -1205,10 +1357,10 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       <button 
                         onClick={handleCheckout} 
                         disabled={processingOrder || (paymentMethod === 'transfer' && !transferConfirmed) || (paymentMethod === 'mp' && !mpConfirmed)} 
-                        className="flex-1 py-4 text-white rounded-xl font-bold disabled:opacity-50" 
+                        className="flex-1 py-4 text-white rounded-full font-black text-xs tracking-wider uppercase disabled:opacity-30 disabled:pointer-events-none hover:opacity-90 active:scale-[0.98] transition-all shadow-lg" 
                         style={primaryBg}
                       >
-                        {processingOrder ? 'Procesando...' : 'Confirmar Pedido'}
+                        {processingOrder ? 'Procesando...' : 'Confirmar Compra'}
                       </button>
                     </div>
                   )}
@@ -1377,23 +1529,42 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         </div>
       )}
 
-      <footer className="relative border-t mt-24 pt-16 overflow-hidden transition-colors duration-500" style={{ 
+      <footer className="relative border-t mt-24 pt-16 transition-colors duration-500" style={{ 
         backgroundColor: appearance.dark_mode ? '#000000' : '#ffffff', 
         borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' 
       }}>
-        {/* Floating Golden Wax Seal Badge */}
-        <div className="absolute -top-10 right-8 md:right-16 w-20 h-20 rounded-full bg-gradient-to-br from-[#ffe066] via-[#d4af37] to-[#8a6f27] border-4 border-[#f3e5ab]/30 shadow-[0_10px_30px_rgba(212,175,55,0.35)] flex items-center justify-center transform rotate-12 hover:rotate-0 hover:scale-110 active:scale-95 transition-all duration-500 z-20 cursor-pointer group"
+        {/* Floating Brand Badge (No Golden Frame) */}
+        <div className="absolute -top-8 right-8 md:right-16 w-16 h-16 flex items-center justify-center z-20 cursor-pointer"
           onClick={() => {
             const el = document.getElementById('products-section');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           }}
-          title="Garantía de Calidad"
+          title={tenant.store_name || tenant.nombre || 'Ir arriba'}
         >
-          <div className="w-16 h-16 rounded-full border border-[#f3e5ab]/40 flex items-center justify-center bg-gradient-to-tl from-[#b8860b] via-[#d4af37] to-[#ffd700] shadow-inner relative overflow-hidden">
-            {/* Subtle gloss effect inside the seal */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-            <span className="material-symbols-outlined text-3xl text-[#5c4000] font-black select-none">workspace_premium</span>
-          </div>
+          {(() => {
+            const activeLogo = tenant.store_logo_url || tenant.logo_url;
+            if (activeLogo) {
+              const cacheBuster = tenant.updated_at 
+                ? new Date(tenant.updated_at).getTime() 
+                : Date.now();
+              const bustedUrl = `${activeLogo}${activeLogo.includes('?') ? '&' : '?'}_t=${cacheBuster}`;
+              
+              return (
+                <img 
+                  src={bustedUrl} 
+                  alt="Logo" 
+                  className="w-14 h-14 rounded-full object-contain border border-zinc-200 dark:border-white/10 shadow-md bg-white hover:scale-110 transition-transform duration-300"
+                />
+              );
+            }
+            
+            // If there is no logo, display ONLY the elegant letter monogram with absolute minimalism
+            return (
+              <span className="font-serif text-4xl font-black select-none text-zinc-900 dark:text-white hover:scale-110 transition-transform duration-300 leading-none">
+                {(tenant.store_name || tenant.nombre || 'O').charAt(0).toUpperCase()}
+              </span>
+            );
+          })()}
         </div>
 
         <div className="max-w-7xl mx-auto px-6">
@@ -1411,6 +1582,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
               </button>
               <button 
                 onClick={() => {
+                  setSelectedCategory('all');
                   const el = document.getElementById('products-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
@@ -1421,30 +1593,46 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
               >
                 Productos
               </button>
+              
+              <button 
+                onClick={() => {
+                  setSelectedCategory('local');
+                  const el = document.getElementById('products-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="transition-colors"
+                style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = appearance.dark_mode ? '#ffffff' : '#000000'}
+                onMouseLeave={(e) => e.currentTarget.style.color = appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'}
+              >
+                Tienda Local
+              </button>
+
+              <button 
+                onClick={() => {
+                  setSelectedCategory('ml');
+                  const el = document.getElementById('products-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="transition-colors"
+                style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = appearance.dark_mode ? '#ffffff' : '#000000'}
+                onMouseLeave={(e) => e.currentTarget.style.color = appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'}
+              >
+                Mercado Libre
+              </button>
+
               {tenant.address && (
                 <span 
-                  className="cursor-default opacity-80 animate-pulse text-center"
+                  className="cursor-default opacity-85 text-center"
                   style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)' }}
                 >
                   {tenant.address}
                 </span>
               )}
-              {tenant.store_social_whatsapp && (
-                <a 
-                  href={`https://wa.me/${tenant.store_social_whatsapp.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="transition-colors"
-                  style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = appearance.dark_mode ? '#ffffff' : '#000000'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'}
-                >
-                  WhatsApp
-                </a>
-              )}
               
               {/* Dynamic Social Icons at the end */}
-              {(tenant.store_social_instagram || tenant.store_social_facebook) && (
+              {(tenant.store_social_instagram || tenant.store_social_facebook || tenant.store_social_whatsapp) && (
                 <div className="flex items-center gap-4 ml-2 border-l pl-6" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
                   {tenant.store_social_instagram && (
                     <a 
@@ -1472,6 +1660,19 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       </svg>
                     </a>
                   )}
+                  {tenant.store_social_whatsapp && (
+                    <a 
+                      href={`https://wa.me/${tenant.store_social_whatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="transition-opacity duration-300 hover:opacity-100 opacity-60"
+                      style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413" />
+                      </svg>
+                    </a>
+                  )}
                 </div>
               )}
             </nav>
@@ -1479,9 +1680,17 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
           {/* Sub Links Row */}
           <div className="flex flex-wrap items-center justify-center gap-6 mb-4 text-[10px] tracking-widest uppercase opacity-55">
-            <span className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Términos de Uso</span>
-            <span className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</span>
-            <span className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Defensa al Consumidor</span>
+            <a href={`/tienda/${slug}/terminos`} className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Términos de Uso</a>
+            <a href={`/tienda/${slug}/privacidad`} className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</a>
+            <a 
+              href="https://www.argentina.gob.ar/produccion/defensa-del-consumidor/formulario" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="cursor-pointer hover:opacity-100 transition-opacity" 
+              style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}
+            >
+              Defensa al Consumidor
+            </a>
           </div>
 
           {/* Copyright */}
@@ -1495,23 +1704,19 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           <div className="border-t pt-8 overflow-hidden" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}>
             {(() => {
               const rawStoreName = tenant.store_name || tenant.nombre || 'Obsidiana';
-              const displayStoreName = rawStoreName.length > 20 ? rawStoreName.slice(0, 18) + '...' : rawStoreName;
-              const storeNameTextSize = displayStoreName.length > 15 
-                ? 'text-[8vw] sm:text-[7vw] md:text-[6vw] lg:text-[5vw]' 
-                : displayStoreName.length > 10 
-                  ? 'text-[10vw] sm:text-[9vw] md:text-[7vw] lg:text-[6vw]' 
-                  : 'text-[12vw] sm:text-[10vw] md:text-[8vw] lg:text-[7vw]';
+              // Mathematically calculate optimal dynamic font size in vw to guarantee the title fits exactly on one line without truncation
+              const fontSizeVw = Math.min(12, Math.max(3, 100 / rawStoreName.length));
 
               return (
-                <span className={`w-full text-center block font-sans font-black tracking-tighter leading-none select-none uppercase pointer-events-none transition-all duration-500 truncate whitespace-nowrap overflow-hidden ${storeNameTextSize}`}
+                <span className="w-full text-center block font-sans font-black tracking-tighter select-none uppercase pointer-events-none transition-all duration-500 whitespace-nowrap overflow-hidden"
                   style={{ 
                     color: appearance.dark_mode ? '#ffffff' : '#000000',
                     letterSpacing: '-0.04em',
-                    marginBottom: '-0.2em'
+                    fontSize: `${fontSizeVw}vw`,
+                    lineHeight: '0.9'
                   }}
-                  title={rawStoreName}
                 >
-                  {displayStoreName}
+                  {rawStoreName}
                 </span>
               );
             })()}

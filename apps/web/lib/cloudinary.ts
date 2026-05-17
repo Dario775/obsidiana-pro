@@ -20,6 +20,62 @@ export interface UploadOptions {
   barcode?: string;
 }
 
+export function validateImageFile(
+  file: File,
+  maxSizeBytes: number = 2 * 1024 * 1024
+): { isValid: boolean; error?: string } {
+  if (!file) {
+    return { isValid: false, error: 'No se seleccionó ningún archivo.' };
+  }
+  if (file.size > maxSizeBytes) {
+    return {
+      isValid: false,
+      error: `El archivo supera el tamaño máximo permitido de ${(maxSizeBytes / (1024 * 1024)).toFixed(0)}MB para optimizar el rendimiento del sistema.`
+    };
+  }
+
+  // Restringir a formatos rasterizados seguros (JPEG, PNG, WEBP).
+  // Excluir explícitamente SVG/HTML para evitar inyección de código malicioso (XSS).
+  const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  if (!allowedMimeTypes.includes(file.type)) {
+    return {
+      isValid: false,
+      error: 'Formato de imagen no permitido. Solo se aceptan archivos JPG, PNG o WEBP por motivos de seguridad.'
+    };
+  }
+
+  // Validar extensión de archivo
+  const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+  const fileNameParts = file.name.split('.');
+  if (fileNameParts.length < 2) {
+    return {
+      isValid: false,
+      error: 'Nombre de archivo inválido.'
+    };
+  }
+  const fileExt = fileNameParts.pop()?.toLowerCase();
+  if (!fileExt || !allowedExtensions.includes(fileExt)) {
+    return {
+      isValid: false,
+      error: 'Extensión de archivo no permitida. Solo se aceptan extensiones .jpg, .jpeg, .png o .webp.'
+    };
+  }
+
+  // Protección contra Spoofing de extensiones dobles (ej. imagen.html.png, imagen.js.webp, etc.)
+  const containsSuspiciousExtension = fileNameParts.some(part => {
+    const lowerPart = part.toLowerCase();
+    return ['svg', 'html', 'htm', 'js', 'php', 'aspx', 'jsp', 'sh', 'bat', 'exe'].includes(lowerPart);
+  });
+  if (containsSuspiciousExtension) {
+    return {
+      isValid: false,
+      error: 'Inyección o spoofing detectado. Por razones de seguridad, el nombre del archivo no puede contener extensiones ejecutables o de código (.svg, .html, .js, etc.).'
+    };
+  }
+
+  return { isValid: true };
+}
+
 export async function uploadImageToCloudinary(
   file: File | string,
   options: UploadOptions = {}
@@ -27,6 +83,17 @@ export async function uploadImageToCloudinary(
   if (!cloudName || !apiKey) {
     console.error('Cloudinary credentials not configured');
     return null;
+  }
+
+  if (file instanceof File) {
+    const validation = validateImageFile(file);
+    if (!validation.isValid) {
+      console.error('Security/Validation Error:', validation.error);
+      if (typeof window !== 'undefined') {
+        alert(validation.error);
+      }
+      return null;
+    }
   }
 
   if (typeof file === 'string' && file.startsWith('http')) {

@@ -23,9 +23,9 @@ const TEMPLATES = [
 ];
 
 const FONTS = [
-  { id: 'sans', name: 'Sans', sample: 'Moderno ABC' },
-  { id: 'serif', name: 'Serif', sample: 'Elegante ABC' },
-  { id: 'mono', name: 'Mono', sample: 'Técnico ABC' },
+  { id: 'sans', name: 'Sans Estándar', sample: 'Limpia, rápida y familiar (system-ui)' },
+  { id: 'serif', name: 'Outfit Boutique', sample: 'Geométrica, lujosa y premium (Outfit)' },
+  { id: 'mono', name: 'Inter Elegante', sample: 'Limpia, moderna y corporativa (Inter)' },
 ];
 
 type Appearance = {
@@ -365,7 +365,7 @@ export default function StoreSettingsPage() {
                         Eliminar logo
                       </button>
                     )}
-                    <p className="text-xs text-zinc-600 mt-1">PNG o JPG, cuadrada, mínimo 200x200px</p>
+                     <p className="text-xs text-zinc-600 mt-1">JPG, PNG o WEBP, cuadrada, mínimo 200x200px (máx. 2MB)</p>
                   </div>
                 </div>
               </div>
@@ -409,7 +409,10 @@ export default function StoreSettingsPage() {
 
         </div>
                     {form.store_banners.length < 3 && (
-                      <p className="text-xs text-zinc-500">Agregá hasta 3 imágenes. La primera será el banner principal.</p>
+                      <p className="text-xs text-zinc-500">
+                        Agregá hasta 3 imágenes. La primera será el banner principal. <br />
+                        <strong>Recomendado:</strong> Proporción 3:1 (ej. 1200x400px), formatos JPG, PNG o WEBP (máx. 2MB c/u) para optimizar la velocidad.
+                      </p>
                     )}
                   </div>
                 ) : (
@@ -417,10 +420,14 @@ export default function StoreSettingsPage() {
                     onClick={() => bannerFileRef.current?.click()}
                     className="h-40 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center cursor-pointer hover:border-white/40 transition-colors"
                   >
-                    <div className="text-center">
+                    <div className="text-center p-4">
                       <span className="material-symbols-outlined text-4xl text-zinc-600 mb-2">add_photo_alternate</span>
-                      <p className="text-zinc-500 text-sm">Subir banner de portada</p>
-                      <p className="text-zinc-600 text-xs">Opcional - Puede ser carrusel de hasta 3 imágenes</p>
+                      <p className="text-zinc-500 text-sm font-semibold">Subir banner de portada</p>
+                      <p className="text-zinc-500 text-xs mt-1">Opcional - Carrusel de hasta 3 imágenes</p>
+                      <p className="text-zinc-600 text-[11px] mt-2 max-w-md mx-auto">
+                        <strong>Dimensiones recomendadas:</strong> Relación de aspecto horizontal de 1200x400px (o proporción 3:1). <br />
+                        <strong>Formatos admitidos:</strong> JPG, PNG o WEBP (máx. 2MB por imagen) para una velocidad de carga óptima.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -482,7 +489,7 @@ export default function StoreSettingsPage() {
                           ? 'border-white bg-zinc-800' 
                           : 'border-white/10 hover:border-white/30'
                       }`}
-                      style={{ fontFamily: font.id === 'sans' ? 'system-ui' : font.id === 'serif' ? 'Georgia' : 'monospace' }}
+                      style={{ fontFamily: font.id === 'sans' ? 'system-ui' : font.id === 'serif' ? '"Outfit"' : '"Inter"' }}
                     >
                       <p className="text-white text-sm">{font.name}</p>
                       <p className="text-zinc-500 text-xs mt-1">{font.sample}</p>
@@ -515,7 +522,7 @@ export default function StoreSettingsPage() {
                   className="p-4 rounded-lg border border-white/10"
                   style={{ 
                     backgroundColor: appearance.dark_mode ? '#09090b' : '#ffffff',
-                    fontFamily: appearance.font_family === 'sans' ? 'system-ui' : appearance.font_family === 'serif' ? 'Georgia' : 'monospace'
+                    fontFamily: appearance.font_family === 'sans' ? 'system-ui' : appearance.font_family === 'serif' ? '"Outfit"' : '"Inter"'
                   }}
                 >
                   <div className="flex items-center gap-3 mb-3">
