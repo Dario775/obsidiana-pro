@@ -167,8 +167,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           store_template, store_banners, store_tagline, store_currency,
           store_min_order_amount, store_shipping_enabled, store_shipping_cost,
           store_shipping_free_threshold, store_social_instagram, store_social_facebook,
-          store_social_whatsapp, store_appearance, store_logo_url, store_banner_url,
-          store_mp_public_key
+          store_social_whatsapp
         `)
         .eq('slug', slug)
         .single();
