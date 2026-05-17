@@ -706,7 +706,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         </section>
       )}
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <main id="products-section" className="max-w-7xl mx-auto px-6 py-12">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-12">
           <div className="flex p-1 rounded-2xl shadow-inner w-full md:w-auto" style={{ backgroundColor: cardBg }}>
             {[
@@ -1377,38 +1377,131 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         </div>
       )}
 
-      <footer className="border-t mt-16" style={{ backgroundColor: cardBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-center md:text-left">
-            <div>
-              <h3 className="font-bold mb-4" style={{ color: textColor }}>Información</h3>
-              <p className="text-sm mb-2" style={{ color: mutedColor }}>{tenant.nombre}</p>
-              {tenant.address && <p className="text-sm" style={{ color: mutedColor }}>{tenant.address}</p>}
-            </div>
-            <div>
-              <h3 className="font-bold mb-4" style={{ color: textColor }}>Contacto</h3>
+      <footer className="relative border-t mt-24 pt-16 overflow-hidden transition-colors duration-500" style={{ 
+        backgroundColor: appearance.dark_mode ? '#000000' : '#ffffff', 
+        borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' 
+      }}>
+        {/* Floating Golden Wax Seal Badge */}
+        <div className="absolute -top-10 right-8 md:right-16 w-20 h-20 rounded-full bg-gradient-to-br from-[#ffe066] via-[#d4af37] to-[#8a6f27] border-4 border-[#f3e5ab]/30 shadow-[0_10px_30px_rgba(212,175,55,0.35)] flex items-center justify-center transform rotate-12 hover:rotate-0 hover:scale-110 active:scale-95 transition-all duration-500 z-20 cursor-pointer group"
+          onClick={() => {
+            const el = document.getElementById('products-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+          title="Garantía de Calidad"
+        >
+          <div className="w-16 h-16 rounded-full border border-[#f3e5ab]/40 flex items-center justify-center bg-gradient-to-tl from-[#b8860b] via-[#d4af37] to-[#ffd700] shadow-inner relative overflow-hidden">
+            {/* Subtle gloss effect inside the seal */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+            <span className="material-symbols-outlined text-3xl text-[#5c4000] font-black select-none">workspace_premium</span>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6">
+          {/* Main Links Row */}
+          <div className="flex flex-col items-center justify-center gap-6 md:gap-8 mb-8">
+            <nav className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-xs font-semibold tracking-[0.2em] uppercase">
+              <button 
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="transition-colors"
+                style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = appearance.dark_mode ? '#ffffff' : '#000000'}
+                onMouseLeave={(e) => e.currentTarget.style.color = appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'}
+              >
+                Inicio
+              </button>
+              <button 
+                onClick={() => {
+                  const el = document.getElementById('products-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="transition-colors"
+                style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = appearance.dark_mode ? '#ffffff' : '#000000'}
+                onMouseLeave={(e) => e.currentTarget.style.color = appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'}
+              >
+                Productos
+              </button>
+              {tenant.address && (
+                <span 
+                  className="cursor-default opacity-80 animate-pulse text-center"
+                  style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)' }}
+                >
+                  {tenant.address}
+                </span>
+              )}
               {tenant.store_social_whatsapp && (
                 <a 
-                  href={`https://wa.me/${tenant.store_social_whatsapp.replace(/\D/g, '')}`} 
-                  className="text-sm flex items-center gap-2 mb-2" 
-                  style={{ color: mutedColor }}
+                  href={`https://wa.me/${tenant.store_social_whatsapp.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-colors"
+                  style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = appearance.dark_mode ? '#ffffff' : '#000000'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)'}
                 >
-                  <span className="material-symbols-outlined text-[18px]">chat</span>
-                  {tenant.store_social_whatsapp}
+                  WhatsApp
                 </a>
               )}
-            </div>
-            <div>
-              <h3 className="font-bold mb-4" style={{ color: textColor }}>Métodos de Pago</h3>
-              <div className="flex gap-3 justify-center md:justify-start">
-                <span className="material-symbols-outlined" style={{ color: mutedColor }} title="Efectivo">payments</span>
-                <span className="material-symbols-outlined" style={{ color: mutedColor }} title="Transferencia">account_balance</span>
-                <span className="material-symbols-outlined" style={{ color: mutedColor }} title="MercadoPago">payment</span>
-              </div>
-            </div>
+              
+              {/* Dynamic Social Icons at the end */}
+              {(tenant.store_social_instagram || tenant.store_social_facebook) && (
+                <div className="flex items-center gap-4 ml-2 border-l pl-6" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+                  {tenant.store_social_instagram && (
+                    <a 
+                      href={tenant.store_social_instagram.startsWith('http') ? tenant.store_social_instagram : `https://instagram.com/${tenant.store_social_instagram}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="transition-opacity duration-300 hover:opacity-100 opacity-60"
+                      style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.051C.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+                      </svg>
+                    </a>
+                  )}
+                  {tenant.store_social_facebook && (
+                    <a 
+                      href={tenant.store_social_facebook.startsWith('http') ? tenant.store_social_facebook : `https://facebook.com/${tenant.store_social_facebook}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="transition-opacity duration-300 hover:opacity-100 opacity-60"
+                      style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
+              )}
+            </nav>
           </div>
-          <div className="border-t pt-8 text-center" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
-            <p className="text-xs" style={{ color: mutedColor }}>© {new Date().getFullYear()} {tenant.nombre}</p>
+
+          {/* Sub Links Row */}
+          <div className="flex flex-wrap items-center justify-center gap-6 mb-4 text-[10px] tracking-widest uppercase opacity-55">
+            <span className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Términos de Uso</span>
+            <span className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</span>
+            <span className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Defensa al Consumidor</span>
+          </div>
+
+          {/* Copyright */}
+          <div className="text-center text-[10px] tracking-[0.15em] uppercase opacity-40 mb-6">
+            <p style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>
+              All Rights Reserved © {new Date().getFullYear()} Copyright
+            </p>
+          </div>
+
+          {/* Giant Premium Branding Logo at the very bottom */}
+          <div className="border-t pt-8 overflow-hidden" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}>
+            <span className="w-full text-center block font-sans font-black tracking-tighter leading-none select-none uppercase pointer-events-none transition-all duration-500 text-[12vw] sm:text-[10vw] md:text-[8vw] lg:text-[7vw]"
+              style={{ 
+                color: appearance.dark_mode ? '#ffffff' : '#000000',
+                letterSpacing: '-0.04em',
+                marginBottom: '-0.2em'
+              }}
+            >
+              {tenant.store_name || tenant.nombre || 'Obsidiana'}
+            </span>
           </div>
         </div>
       </footer>
