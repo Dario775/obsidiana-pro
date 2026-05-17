@@ -34,8 +34,7 @@ export async function POST(req: Request) {
         .update({
           price_ars: scrapedData.price || 0
         })
-        .eq('id', editingItem.variant.id)
-        .eq('tenant_id', tenantId);
+        .eq('id', editingItem.variant.id);
 
       if (vError) throw vError;
 
@@ -76,7 +75,6 @@ export async function POST(req: Request) {
       const { data: variant, error: vError } = await supabaseAdmin
         .from('product_variants')
         .insert({
-          tenant_id: tenantId,
           product_id: product.id,
           sku: `ML-${Date.now().toString().slice(-6)}`,
           price_ars: scrapedData.price || 0
