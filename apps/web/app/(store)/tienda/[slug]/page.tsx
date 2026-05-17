@@ -191,7 +191,8 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         `)
         .eq('tenant_id', tenantData.id)
         .eq('available_online', true)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
 
       if (productsError) {
         console.error('Error loading products:', productsError);

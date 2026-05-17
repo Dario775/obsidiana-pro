@@ -63,6 +63,7 @@ export async function POST(req: Request) {
           slug: `${slug}-${Date.now()}`,
           status: 'active',
           available_online: true,
+          is_published: true,
           seo: { ml_url: mlUrl },
           images: scrapedData.images || []
         })
