@@ -388,80 +388,25 @@ export default function OnlineCatalogPage() {
     if (!scrapedData || !tenant?.id) return;
     setSaving(true);
     try {
-      if (editingItem) {
-        // UPDATE MODE
-        // 1. Update Product
-        const { error: pError } = await supabase
-          .from('products')
-          .update({
-            nombre: scrapedData.title,
-            description: scrapedData.description,
-            images: scrapedData.images || []
-          })
-          .eq('id', editingItem.product.id);
+      const response = await fetch('/api/ml/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: editingItem ? 'update' : 'insert',
+          scrapedData,
+          tenantId: tenant.id,
+          importUrl,
+          editingItem
+        })
+      });
 
-        if (pError) throw pError;
+      const result = await response.json();
 
-        // 2. Update Variant
-        const { error: vError } = await supabase
-          .from('product_variants')
-          .update({
-            price_ars: scrapedData.price || 0
-          })
-          .eq('id', editingItem.variant.id);
-
-        if (vError) throw vError;
-
-        alert('Producto actualizado exitosamente');
-      } else {
-        // INSERT MODE
-        const slug = (scrapedData.title || 'producto-ml').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-        
-        // 1. Create Product
-        const { data: product, error: pError } = await supabase
-          .from('products')
-          .insert({
-            nombre: scrapedData.title,
-            description: scrapedData.description,
-            slug: `${slug}-${Date.now()}`,
-            status: 'active',
-            tenant_id: tenant.id,
-            available_online: true,
-            seo: { ml_url: createAffiliateUrl(importUrl) },
-            images: scrapedData.images || []
-          })
-          .select()
-          .single();
-
-        if (pError) throw pError;
-
-        // 2. Create Variant
-        const { data: variant, error: vError } = await supabase
-          .from('product_variants')
-          .insert({
-            tenant_id: tenant.id,
-            product_id: product.id,
-            sku: `ML-${Date.now().toString().slice(-6)}`,
-            price_ars: scrapedData.price || 0
-          })
-          .select()
-          .single();
-
-        if (vError) throw vError;
-
-        // 3. Create Inventory (Affiliate products have high virtual stock)
-        const { error: iError } = await supabase
-          .from('inventory_levels')
-          .insert({
-            variant_id: variant.id,
-            tenant_id: tenant.id,
-            location_id: '00000000-0000-0000-0000-000000000001',
-            on_hand: 999
-          });
-
-        if (iError) throw iError;
-        alert('Producto importado exitosamente');
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al procesar la solicitud');
       }
+
+      alert(editingItem ? 'Producto actualizado exitosamente' : 'Producto importado exitosamente');
 
       setShowImportModal(false);
       setScrapedData(null);
