@@ -1493,15 +1493,28 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
           {/* Giant Premium Branding Logo at the very bottom */}
           <div className="border-t pt-8 overflow-hidden" style={{ borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}>
-            <span className="w-full text-center block font-sans font-black tracking-tighter leading-none select-none uppercase pointer-events-none transition-all duration-500 text-[12vw] sm:text-[10vw] md:text-[8vw] lg:text-[7vw]"
-              style={{ 
-                color: appearance.dark_mode ? '#ffffff' : '#000000',
-                letterSpacing: '-0.04em',
-                marginBottom: '-0.2em'
-              }}
-            >
-              {tenant.store_name || tenant.nombre || 'Obsidiana'}
-            </span>
+            {(() => {
+              const rawStoreName = tenant.store_name || tenant.nombre || 'Obsidiana';
+              const displayStoreName = rawStoreName.length > 20 ? rawStoreName.slice(0, 18) + '...' : rawStoreName;
+              const storeNameTextSize = displayStoreName.length > 15 
+                ? 'text-[8vw] sm:text-[7vw] md:text-[6vw] lg:text-[5vw]' 
+                : displayStoreName.length > 10 
+                  ? 'text-[10vw] sm:text-[9vw] md:text-[7vw] lg:text-[6vw]' 
+                  : 'text-[12vw] sm:text-[10vw] md:text-[8vw] lg:text-[7vw]';
+
+              return (
+                <span className={`w-full text-center block font-sans font-black tracking-tighter leading-none select-none uppercase pointer-events-none transition-all duration-500 truncate whitespace-nowrap overflow-hidden ${storeNameTextSize}`}
+                  style={{ 
+                    color: appearance.dark_mode ? '#ffffff' : '#000000',
+                    letterSpacing: '-0.04em',
+                    marginBottom: '-0.2em'
+                  }}
+                  title={rawStoreName}
+                >
+                  {displayStoreName}
+                </span>
+              );
+            })()}
           </div>
         </div>
       </footer>
