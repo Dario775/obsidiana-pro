@@ -35,7 +35,7 @@ type Appearance = {
   dark_mode: boolean;
 };
 
-type Tab = 'general' | 'apariencia' | 'envio' | 'social' | 'pagos';
+type Tab = 'general' | 'apariencia' | 'envio' | 'social' | 'pagos' | 'mercadolibre';
 
 export default function StoreSettingsPage() {
   const { tenant } = useTenant();
@@ -63,7 +63,8 @@ export default function StoreSettingsPage() {
     store_social_whatsapp: '',
     store_mp_access_token: '',
     store_mp_public_key: '',
-
+    ml_affiliate_id: '',
+    ml_affiliate_word: '',
   });
   
   const [uploading, setUploading] = useState(false);
@@ -100,7 +101,8 @@ export default function StoreSettingsPage() {
         store_social_whatsapp: t.store_social_whatsapp || '',
         store_mp_access_token: t.store_mp_access_token || '',
         store_mp_public_key: t.store_mp_public_key || '',
-
+        ml_affiliate_id: t.ml_affiliate_id || '',
+        ml_affiliate_word: t.ml_affiliate_word || '',
       });
       
       if (t.store_appearance) {
@@ -166,6 +168,8 @@ export default function StoreSettingsPage() {
         store_social_whatsapp: form.store_social_whatsapp || null,
         store_mp_access_token: form.store_mp_access_token || null,
         store_mp_public_key: form.store_mp_public_key || null,
+        ml_affiliate_id: form.ml_affiliate_id || null,
+        ml_affiliate_word: form.ml_affiliate_word || null,
         store_appearance: appearance,
       })
       .eq('id', tenantId)
@@ -192,7 +196,7 @@ export default function StoreSettingsPage() {
     { id: 'envio', label: 'Envío', icon: 'local_shipping' },
     { id: 'social', label: 'Social', icon: 'share' },
     { id: 'pagos', label: 'Pagos', icon: 'payments' },
-
+    { id: 'mercadolibre', label: 'ML Afiliados', icon: 'shopping_cart' },
   ];
 
   const currentTheme = THEME_COLORS.find(t => t.id === appearance.theme_color) || THEME_COLORS[0];
@@ -642,6 +646,41 @@ export default function StoreSettingsPage() {
                   placeholder="APP_USR-..."
                 />
                 <p className="text-[10px] text-zinc-500 mt-1">Este token es secreto y se usa para generar los cobros de forma segura.</p>
+              </div>
+            </>
+          )}
+
+          {/* Mercado Libre Tab */}
+          {activeTab === 'mercadolibre' && (
+            <>
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex gap-3">
+                <span className="material-symbols-outlined text-yellow-400">info</span>
+                <p className="text-xs text-yellow-100 leading-relaxed">
+                  Configurá tus credenciales de <strong>Mercado Libre Afiliados</strong>. 
+                  El sistema usará estos datos para generar enlaces de seguimiento automáticos.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Affiliate ID (matt_tool)</label>
+                <input
+                  type="text"
+                  value={form.ml_affiliate_id}
+                  onChange={(e) => setForm(f => ({ ...f, ml_affiliate_id: e.target.value }))}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono"
+                  placeholder="ID numérico de tu herramienta de afiliados"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Affiliate Word (matt_word)</label>
+                <input
+                  type="text"
+                  value={form.ml_affiliate_word}
+                  onChange={(e) => setForm(f => ({ ...f, ml_affiliate_word: e.target.value }))}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono"
+                  placeholder="Palabra clave o identificador de campaña"
+                />
               </div>
             </>
           )}

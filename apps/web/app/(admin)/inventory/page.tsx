@@ -116,7 +116,7 @@ export default function InventoryPage() {
     if (productIds.length > 0) {
       const { data: productsData } = await supabase
         .from('products')
-        .select('id, nombre, available_online, online_reserved, images')
+        .select('*')
         .in('id', productIds);
       
       productsData?.forEach(p => {

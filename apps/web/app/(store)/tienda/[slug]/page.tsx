@@ -188,7 +188,6 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         .from('products')
         .select(`
           *,
-          external_url,
           product_variants (id, sku, price_ars)
         `)
         .eq('tenant_id', tenantData.id)
@@ -205,6 +204,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
         ...p,
         precio: p.product_variants?.[0]?.price_ars || 0,
         sku: p.product_variants?.[0]?.sku || '',
+        external_url: p.seo?.ml_url || p.external_url || null,
       }));
 
       setProducts(productsWithPrice);

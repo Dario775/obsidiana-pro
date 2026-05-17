@@ -61,6 +61,37 @@ export default function OnlineCatalogPage() {
     price: 0
   });
 
+  // Helper to create affiliate URL if tenant settings are present
+  const createAffiliateUrl = (originalUrl: string) => {
+    if (!tenant) return originalUrl;
+    
+    // If it's already a short link or contains affiliate parameters, leave it
+    if (originalUrl.includes('meli.la') || originalUrl.includes('matt_tool')) {
+      return originalUrl;
+    }
+
+    // Only process Mercado Libre links
+    if (!originalUrl.includes('mercadolibre.com')) {
+      return originalUrl;
+    }
+
+    const ml_affiliate_id = (tenant as any).ml_affiliate_id;
+    const ml_affiliate_word = (tenant as any).ml_affiliate_word;
+    
+    if (!ml_affiliate_id) return originalUrl;
+
+    try {
+      const url = new URL(originalUrl);
+      url.searchParams.set('matt_tool', ml_affiliate_id);
+      if (ml_affiliate_word) {
+        url.searchParams.set('matt_word', ml_affiliate_word);
+      }
+      return url.toString();
+    } catch {
+      return originalUrl;
+    }
+  };
+
   useEffect(() => {
     if (tenant?.id) {
       fetchInventory();
@@ -396,10 +427,10 @@ export default function OnlineCatalogPage() {
             status: 'active',
             tenant_id: tenant.id,
             available_online: true,
-            external_url: importUrl,
+            seo: { ml_url: createAffiliateUrl(importUrl) },
             images: scrapedData.images || []
           })
-          .select('id, nombre, slug')
+          .select()
           .single();
 
         if (pError) throw pError;
@@ -413,7 +444,7 @@ export default function OnlineCatalogPage() {
             sku: `ML-${Date.now().toString().slice(-6)}`,
             price_ars: scrapedData.price || 0
           })
-          .select('id, sku, price_ars')
+          .select()
           .single();
 
         if (vError) throw vError;
@@ -424,6 +455,7 @@ export default function OnlineCatalogPage() {
           .insert({
             variant_id: variant.id,
             tenant_id: tenant.id,
+            location_id: '00000000-0000-0000-0000-000000000001',
             on_hand: 999
           });
 
