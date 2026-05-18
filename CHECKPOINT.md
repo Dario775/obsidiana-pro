@@ -129,6 +129,7 @@ Transformamos la ventana emergente minimalista anterior en un panel de control e
 - [x] **Asignación Automática de Plan Free**: Los nuevos tenants registrados ahora obtienen de forma predeterminada el plan "Free" garantizando accesibilidad y consistencia de datos.
 - [x] **Aislamiento Total del Super Admin**: La consola de administración de tenants (`/tenants`, `/overview`, etc.) está restringida a nivel de `PlatformGuard` estrictamente al email `admin@admin.com`, impidiendo accesos no autorizados.
 - [x] **Redirección Directa de Login**: El Super Admin es enviado de inmediato a su panel global al iniciar sesión.
+- [x] **Intercepción Estricta de Dashboard**: Modificado `AuthGuard` para que detecte e intercepte en tiempo real cualquier intento del Super Admin de ingresar a rutas estándar de comerciantes (`/dashboard`, `/pos`, `/inventory`, etc.), redirigiéndolo instantáneamente a `/overview`.
 - [x] **Mejora Premium de Sidebar**: El menú lateral ahora muestra de forma dinámica el nombre del negocio del comerciante, y si inicia sesión el Super Admin, se le asigna su etiqueta y un botón exclusivo de control global en lugar del de ventas.
 - [x] **Información Dinámica e Interactiva (Tooltips)**: Agregados globos de ayuda "?" interactivos con ejemplos claros en los formularios para explicar qué son y cómo usar el **SKU** y el **Slug**.
 - [x] **Políticas de RLS Resilientes**: Solución definitiva al error de seguridad de la tabla `customers` configurando políticas robustas tanto para comerciantes autenticados como para flujos de checkout anónimos.
@@ -150,8 +151,8 @@ pnpm build
 
 # Push de cambios a producción
 git add .
-git commit -m "feat: super admin auth isolation, resilient customers table RLS, default free plan for new signups, and custom product tooltips"
+git commit -m "feat: strict super admin dashboard interceptor, resilient customers table RLS, and dynamic sidebar updates"
 git push
 ```
 
-*Última actualización: 2026-05-18 02:45 - Obsidiana Pro Team*
+*Última actualización: 2026-05-18 09:15 - Obsidiana Pro Team*

@@ -62,8 +62,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading && !user) {
-      window.location.href = '/login';
+    if (!loading) {
+      if (!user) {
+        window.location.href = '/login';
+      } else if (user.email === 'admin@admin.com') {
+        const path = window.location.pathname;
+        const isPlatformPath = 
+          path.startsWith('/overview') ||
+          path.startsWith('/tenants') ||
+          path.startsWith('/subscriptions') ||
+          path.startsWith('/infrastructure') ||
+          path.startsWith('/settings/payments');
+
+        if (!isPlatformPath) {
+          window.location.href = '/overview';
+        }
+      }
     }
   }, [loading, user]);
 
@@ -78,6 +92,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return null; // Will redirect in useEffect
+  }
+
+  // Si es Super Admin e intenta renderizar una ruta de tienda, no renderizar nada mientras se procesa la redirección
+  if (user.email === 'admin@admin.com') {
+    const path = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isPlatformPath = 
+      path.startsWith('/overview') ||
+      path.startsWith('/tenants') ||
+      path.startsWith('/subscriptions') ||
+      path.startsWith('/infrastructure') ||
+      path.startsWith('/settings/payments');
+
+    if (!isPlatformPath) {
+      return null;
+    }
   }
 
   return <>{children}</>;
