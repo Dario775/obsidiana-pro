@@ -10,7 +10,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
   const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading, tenant } = useTenant();
-  const isPlatformAdmin = tenant?.is_platform_admin === true;
+  const isSuperAdmin = user?.email === 'admin@admin.com';
+  const isPlatformAdmin = isSuperAdmin || tenant?.is_platform_admin === true;
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -30,22 +31,33 @@ export function Sidebar() {
     <nav className="hidden lg:flex flex-col h-full py-6 bg-zinc-900 border-r border-white/5 w-64 fixed top-0 left-0 z-40">
       <div className="px-6 mb-8 flex flex-col gap-2">
         <h1 className="text-lg font-black text-white">Obsidiana Admin</h1>
-        <p className="font-body-sm text-zinc-400">Casa Central - AR</p>
+        <p className="font-body-sm text-zinc-400 truncate">
+          {isSuperAdmin ? 'Administración Global' : tenant?.nombre || 'Mi Tienda'}
+        </p>
         <div className="mt-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full border border-white/10 bg-zinc-800 flex items-center justify-center overflow-hidden">
             <span className="material-symbols-outlined text-zinc-500">person</span>
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col overflow-hidden">
             <span className="font-data-tabular text-on-background text-sm font-medium truncate max-w-[140px]">
               {user?.email || 'Admin de Tienda'}
             </span>
-            <span className="text-[10px] text-zinc-600 font-black uppercase tracking-widest">Propietario</span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${isSuperAdmin ? 'text-violet-400' : 'text-zinc-600'}`}>
+              {isSuperAdmin ? 'Super Admin' : 'Propietario'}
+            </span>
           </div>
         </div>
         <div className="flex flex-col gap-2 mt-4">
-          <Link href="/pos/terminal" className="w-full bg-primary-container text-white rounded-lg py-2 font-label-md uppercase tracking-wider hover:bg-opacity-90 transition-colors text-xs font-bold active:scale-95 transition-all text-center">
-            Venta Rápida
-          </Link>
+          {isSuperAdmin ? (
+            <Link href="/overview" className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg py-2 font-label-md uppercase tracking-wider hover:bg-opacity-90 transition-colors text-xs font-bold active:scale-95 transition-all text-center flex items-center justify-center gap-1.5 shadow-lg shadow-violet-500/20 border border-violet-500/25">
+              <span className="material-symbols-outlined text-[15px] font-bold">admin_panel_settings</span>
+              Super Admin
+            </Link>
+          ) : (
+            <Link href="/pos/terminal" className="w-full bg-primary-container text-white rounded-lg py-2 font-label-md uppercase tracking-wider hover:bg-opacity-90 transition-colors text-xs font-bold active:scale-95 transition-all text-center">
+              Venta Rápida
+            </Link>
+          )}
         </div>
       </div>
 

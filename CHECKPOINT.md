@@ -1,7 +1,7 @@
 # Obsidiana Pro - Sistema Checkpoint
 
-> Fecha: 2026-05-17
-> Estado: POS Transaccional Checkout Estabilizado + RLS Bypass Completo + Filtros Footer Local/ML + Cabecera Unificada Logo/Marca + Blindaje Anti-XSS de Subidas ✅
+> Fecha: 2026-05-18
+> Estado: Protección Multitenant y Aislamiento del Super Admin + Políticas Resilientes de Clientes + Selección del Plan Free Automático ✅
 
 ---
 
@@ -77,7 +77,40 @@ Implementamos una capa de seguridad criptográficamente robusta para todas las s
 
 ---
 
-## 5. Estado de Desarrollo
+## 5. Buscador Inteligente e Híbrido de Imágenes (Cloudinary + Base de Datos) y Modal Premium
+
+### API de Búsqueda Segura en Servidor (`/api/cloudinary/search`)
+Dado que la tabla remota `global_catalog` de la base de datos se encontraba vacía (0 registros), creamos un puente inteligente y seguro en Next.js App Router para buscar directamente en Cloudinary:
+- **Búsqueda en Tiempo Real**: Traduce consultas de código de barras (EAN-13) o texto libre por nombre en expresiones válidas de la API de Cloudinary (`folder:obsidiana* AND (public_id:*query* OR filename:*query* OR tags:query)`).
+- **Seguridad**: Protege las credenciales de Cloudinary (`API_KEY`, `API_SECRET`) ejecutándolas en el servidor y devolviendo solo tokens estructurados seguros (`ImageMatchResult`).
+
+### Mecanismo de Búsqueda Híbrida Inteligente (`findGlobalImage`)
+Optimizamos la utilidad core para realizar búsquedas inteligentes paso a paso:
+1. **Intento en Base de Datos**: Busca primero en la tabla `global_catalog` para reutilizar registros indexados y mantener consistencia.
+2. **Consultas por Nombre y Código de Barras**: Si la búsqueda contiene números (código de barras), realiza un filtro inteligente dinámico utilizando la cláusula `or(...)` en Supabase para buscar tanto en el campo `barcode_ean13` como en el campo `normalized_name`.
+3. **Fallback Dinámico a Cloudinary**: Si no hay coincidencias (o se desean sugerencias enriquecidas por nombre), consulta de manera instantánea y transparente nuestro endpoint seguro `/api/cloudinary/search`, el cual busca en Cloudinary la coincidencia del código de barra o nombre dentro del public_id, nombre del archivo o tags de las imágenes.
+4. **Autocompletado Rápido y Silencioso**: En lugar de interrumpir al usuario con incómodos y viejos mensajes `confirm()`, el sistema autocompleta silenciosamente:
+   - **Nombre del Producto**
+   - **Código de Barras (EAN-13)**
+   - **Descripción**
+   - **Precio de Venta Sugerido**
+   Todos estos campos quedan enlazados a inputs editables por si el administrador desea cambiar el nombre, código de barra u otros campos libremente antes de guardar.
+
+### Refactorización Premium del Modal "Nuevo Producto" (Workspace 2 Columnas)
+Transformamos la ventana emergente minimalista anterior en un panel de control estilo Dashboard de gama ultra-alta:
+- **Estructura en 2 Columnas (`max-w-4xl`)**:
+  - **Columna Izquierda (Ficha Técnica)**: Información básica con inputs de primer nivel.
+    - **Ubicación Paralela del Código de Barras**: Colocamos el campo de **Código de Barras (EAN-13)** directamente al lado del campo de **Nombre del Producto** en una grilla responsive fluida.
+    - **Búsqueda Dinámica Dual**: Al escribir en cualquiera de los dos campos (Nombre o Código de Barras), se activa el autocompletado inteligente de imágenes global que muestra sugerencias interactivas debajo de la sección en tiempo real.
+    - Área de descripción enriquecida, selector de atributos de producto (color, talle, etc.) y un control interactivo (peer-styled CSS) para activar/desactivar la disponibilidad online.
+  - **Columna Derecha (Multimedia & Valores)**: Previsualización de gran lienzo de la portada activa del producto con esquinas redondeadas y sombras envolventes de color violeta, carrusel de miniaturas secundarias e indicador de procedencia ("Global Library").
+- **Micro-interacciones y UI Glassmorphic**:
+  - Encabezado y pie de página pegajosos (sticky) con un efecto de desenfoque de fondo traslúcido y sombras violetas animadas de fondo (`animate-in fade-in zoom-in-95`).
+  - Botones con gradientes de color de primer nivel (`from-primary to-purple-600`) y micro-escalados activos (`active:scale-[0.98]`).
+
+---
+
+## 6. Estado de Desarrollo
 
 ### ✅ Completado:
 - [x] Función de checkout transaccional POS atómica en Supabase remota.
@@ -90,6 +123,15 @@ Implementamos una capa de seguridad criptográficamente robusta para todas las s
 - [x] Filtros del Catálogo en tiempo real ("Tienda Local" y "Mercado Libre") integrados en el pie de página de la tienda.
 - [x] Cabecera unificada: el logotipo y el nombre comercial se muestran siempre de forma visible y paralela.
 - [x] Validador de seguridad anti-XSS y spoofing con límite de 2MB en subidas de imágenes de logos y portadas.
+- [x] **API de Búsqueda Segura en Servidor** para consultas directas a Cloudinary.
+- [x] **Buscador Híbrido Avanzado** (`global_catalog` + Cloudinary) integrado de forma silenciosa e inteligente al formulario.
+- [x] **Refactor Estético Premium a 2 Columnas** del modal de creación de productos con lienzo de portada interactivo.
+- [x] **Asignación Automática de Plan Free**: Los nuevos tenants registrados ahora obtienen de forma predeterminada el plan "Free" garantizando accesibilidad y consistencia de datos.
+- [x] **Aislamiento Total del Super Admin**: La consola de administración de tenants (`/tenants`, `/overview`, etc.) está restringida a nivel de `PlatformGuard` estrictamente al email `admin@admin.com`, impidiendo accesos no autorizados.
+- [x] **Redirección Directa de Login**: El Super Admin es enviado de inmediato a su panel global al iniciar sesión.
+- [x] **Mejora Premium de Sidebar**: El menú lateral ahora muestra de forma dinámica el nombre del negocio del comerciante, y si inicia sesión el Super Admin, se le asigna su etiqueta y un botón exclusivo de control global en lugar del de ventas.
+- [x] **Información Dinámica e Interactiva (Tooltips)**: Agregados globos de ayuda "?" interactivos con ejemplos claros en los formularios para explicar qué son y cómo usar el **SKU** y el **Slug**.
+- [x] **Políticas de RLS Resilientes**: Solución definitiva al error de seguridad de la tabla `customers` configurando políticas robustas tanto para comerciantes autenticados como para flujos de checkout anónimos.
 - [x] Compilación local Next.js con Turbopack exitosa al 100% (0 errores).
 
 ### 🚀 Siguientes Pasos:
@@ -98,7 +140,7 @@ Implementamos una capa de seguridad criptográficamente robusta para todas las s
 
 ---
 
-## 6. Comandos de Producción
+## 7. Comandos de Producción
 ```bash
 # Servidor local de desarrollo
 pnpm dev
@@ -108,8 +150,8 @@ pnpm build
 
 # Push de cambios a producción
 git add .
-git commit -m "feat: unified header branding, catalog interactive footer filters, anti-xss upload security validations, and optimal asset guides"
-git push origin main
+git commit -m "feat: super admin auth isolation, resilient customers table RLS, default free plan for new signups, and custom product tooltips"
+git push
 ```
 
-*Última actualización: 2026-05-17 21:00 - Obsidiana Pro Team*
+*Última actualización: 2026-05-18 02:45 - Obsidiana Pro Team*

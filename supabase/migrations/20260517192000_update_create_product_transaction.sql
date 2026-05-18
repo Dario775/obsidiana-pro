@@ -35,28 +35,22 @@ BEGIN
     p_slug,
     p_description,
     'active',
-    p_images,
+    to_jsonb(p_images),
     p_available_online
   )
   RETURNING id INTO v_product_id;
 
   -- 2. Insertar variante
   INSERT INTO public.product_variants (
-    tenant_id,
     product_id,
     sku,
     price_ars,
-    barcode,
-    requires_shipping,
-    options
+    barcode
   ) VALUES (
-    p_tenant_id,
     v_product_id,
     p_sku,
     p_price_ars,
-    p_barcode,
-    true,
-    '{}'::jsonb
+    p_barcode
   )
   RETURNING id INTO v_variant_id;
 

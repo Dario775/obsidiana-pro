@@ -85,11 +85,11 @@ export async function findGlobalImage(
 ): Promise<ImageMatchResult> {
   try {
     if (barcode && barcode.length >= 12) {
+      // 1. Intentar base de datos primero
       const { data, error } = await supabase
         .from('global_catalog')
-        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13, quality_score, default_price')
+        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13, default_price')
         .eq('barcode_ean13', barcode)
-        .in('status', ['approved', 'featured'])
         .limit(1)
         .single();
       
@@ -99,7 +99,7 @@ export async function findGlobalImage(
           id: data.id,
           cloudinary_url: data.cloudinary_url,
           normalized_name: data.normalized_name,
-          quality_score: (data as any).quality_score || null,
+          quality_score: 95,
           match_type: 'barcode',
           confidence: 1.0,
           public_id: pid || null,
@@ -108,42 +108,105 @@ export async function findGlobalImage(
           default_price: (data as any).default_price || null,
         };
       }
+
+      // 2. Si no se encontró en la BD, buscar directamente en Cloudinary por código de barras
+      try {
+        const cloudRes = await fetch(`/api/cloudinary/search?q=${encodeURIComponent(barcode)}`);
+        if (cloudRes.ok) {
+          const cloudData = await cloudRes.json();
+          const cloudMatches = cloudData.matches || [];
+          if (cloudMatches.length > 0) {
+            const firstMatch = cloudMatches[0];
+            return {
+              id: firstMatch.id,
+              cloudinary_url: firstMatch.cloudinary_url,
+              normalized_name: firstMatch.normalized_name,
+              quality_score: 95,
+              match_type: 'barcode',
+              confidence: 1.0,
+              public_id: firstMatch.id,
+              barcode_ean13: barcode,
+              description: firstMatch.description,
+              default_price: null
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching barcode from Cloudinary search:', err);
+      }
     }
 
-    if (productName && productName.length >= 3) {
-      const normalizedSearch = productName
-        .toLowerCase()
-        .replace(/[^\w\s]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    let matches: ImageMatchResult[] = [];
 
-      const { data, error } = await supabase
+    // 1. Intentar base de datos primero
+    if (productName && productName.length >= 3) {
+      const isQueryNumeric = /^\d+$/.test(productName);
+      
+      let dbQuery = supabase
         .from('global_catalog')
-        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13, quality_score, default_price')
-        .in('status', ['approved', 'featured'])
-        .ilike('normalized_name', `%${normalizedSearch}%`)
-        .limit(5);
+        .select('id, cloudinary_url, normalized_name, status, description, barcode_ean13, default_price');
+        
+      if (isQueryNumeric) {
+        dbQuery = dbQuery.or(`barcode_ean13.ilike.%${productName}%,normalized_name.ilike.%${productName}%`);
+      } else {
+        const normalizedSearch = productName
+          .toLowerCase()
+          .replace(/[^\w\s]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        dbQuery = dbQuery.ilike('normalized_name', `%${normalizedSearch}%`);
+      }
+
+      const { data, error } = await dbQuery.limit(10);
 
       if (!error && data && data.length > 0) {
-        // Return first one as primary, but we'll use all for suggestions
-        const matches: ImageMatchResult[] = data.map(item => ({
+        const sortedData = [...data].sort((a, b) => {
+          const scoreA = a.status === 'featured' ? 3 : a.status === 'approved' ? 2 : 1;
+          const scoreB = b.status === 'featured' ? 3 : b.status === 'approved' ? 2 : 1;
+          return scoreB - scoreA;
+        }).slice(0, 5);
+
+        matches = sortedData.map(item => ({
           id: item.id,
           cloudinary_url: item.cloudinary_url,
           normalized_name: item.normalized_name,
-          quality_score: (item as any).quality_score || null,
-          match_type: 'name',
+          quality_score: 90,
+          match_type: isQueryNumeric ? 'barcode' : 'name',
           confidence: 0.7,
           public_id: extractPublicId(item.cloudinary_url) || null,
           barcode_ean13: item.barcode_ean13,
           description: (item as any).description || null,
           default_price: (item as any).default_price || null,
         }));
-        
-        // For backward compatibility, return first match with extra properties
+      }
+
+      // 2. Buscar en Cloudinary directamente (integrando con la BD para una búsqueda híbrida robusta)
+      try {
+        const cloudRes = await fetch(`/api/cloudinary/search?q=${encodeURIComponent(productName)}`);
+        if (cloudRes.ok) {
+          const cloudData = await cloudRes.json();
+          const cloudMatches = cloudData.matches || [];
+          
+          if (cloudMatches.length > 0) {
+            const existingUrls = new Set(matches.map(m => m.cloudinary_url));
+            
+            for (const item of cloudMatches) {
+              if (item.cloudinary_url && !existingUrls.has(item.cloudinary_url)) {
+                matches.push(item);
+                existingUrls.add(item.cloudinary_url);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching hybrid Cloudinary search:', err);
+      }
+
+      if (matches.length > 0) {
         const firstMatch = matches[0] as ImageMatchResult;
         return {
           ...firstMatch,
-          all_matches: matches
+          all_matches: matches.slice(0, 5)
         };
       }
     }

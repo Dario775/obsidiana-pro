@@ -241,7 +241,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
           p_available_online: formData.available_online || false,
           p_sku: formData.sku,
           p_price_ars: parseInt(formData.price_ars) || 0,
-          p_stock: parseInt(formData.stock) || 0
+          p_stock: parseInt(formData.stock) || 0,
+          p_barcode: formData.barcode || null
         });
 
       if (rpcError) throw rpcError;
@@ -514,8 +515,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
 
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const barcodeDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Buscar imagen global por código de barras (13 dígitos)
+  // Buscar imagen global por código de barras (13 dígitos) (debounced para evitar lagueos al escribir)
   const searchGlobalImageByBarcode = useCallback(async (barcode: string) => {
     if (!barcode || barcode.length < 12) {
       if (autoImageFound) {
@@ -526,23 +528,21 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
       return;
     }
     
-    setImageSearchLoading(true);
-    try {
-      const result = await findGlobalImage(barcode, null);
-      
-      if (result.id && result.cloudinary_url) {
-        setNewProductImages([result.cloudinary_url]);
-        setAutoImageFound(true);
-        setDetectedGlobalId(result.id);
-        setImageSearchLoading(false);
+    if (barcodeDebounceTimerRef.current) {
+      clearTimeout(barcodeDebounceTimerRef.current);
+    }
+    
+    barcodeDebounceTimerRef.current = setTimeout(async () => {
+      setImageSearchLoading(true);
+      try {
+        const result = await findGlobalImage(barcode, null);
         
-        const applyData = confirm(
-          `Encontrado: ${result.normalized_name}\n\n` +
-          `Precio guía: $${result.default_price || 'N/A'}\n` +
-          `¿Rellenar los campos del formulario con estos datos?`
-        );
-        
-        if (applyData) {
+        if (result.id && result.cloudinary_url) {
+          setNewProductImages([result.cloudinary_url]);
+          setAutoImageFound(true);
+          setDetectedGlobalId(result.id);
+          
+          // Auto-completar silencioso e inteligente sin interrumpir con carteles confirm() molestos
           setFormData(prev => ({
             ...prev,
             nombre: result.normalized_name || prev.nombre,
@@ -550,16 +550,15 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
             price_ars: result.default_price?.toString() || prev.price_ars,
             description: result.description || prev.description
           }));
+        } else {
+          setAutoImageFound(false);
+          setDetectedGlobalId(null);
         }
-        return;
+      } catch (err) {
+        console.error('Error searching global image:', err);
       }
-      
-      setAutoImageFound(false);
-      setDetectedGlobalId(null);
-    } catch (err) {
-      console.error('Error searching global image:', err);
-    }
-    setImageSearchLoading(false);
+      setImageSearchLoading(false);
+    }, 400);
   }, [autoImageFound]);
 
   // BuscarSuggestions por nombre (debounced)
@@ -609,6 +608,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+      }
+      if (barcodeDebounceTimerRef.current) {
+        clearTimeout(barcodeDebounceTimerRef.current);
       }
     };
   }, []);
@@ -1075,324 +1077,451 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         </div>
       </div>
 
-      {/* Modal Nuevo Producto */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-[#1A1A1A] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="sticky top-0 bg-[#1A1A1A] border-b border-white/10 p-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black text-white">Nuevo Producto</h2>
-                <p className="text-zinc-500 text-sm mt-1">Completa los datos del producto y stock inicial</p>
+       {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md transition-all animate-in fade-in duration-300">
+          <div className="bg-[#0D0D0E]/95 border border-white/10 rounded-[28px] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-[0_0_80px_-20px_rgba(139,92,246,0.3)] overflow-hidden transition-all animate-in zoom-in-95 duration-300">
+            <div className="sticky top-0 bg-[#0D0D0E]/95 backdrop-blur-xl border-b border-white/5 p-6 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center shadow-lg shadow-primary/20">
+                  <span className="material-symbols-outlined text-white text-[22px]">add_box</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-white tracking-wide uppercase">Nuevo Producto</h2>
+                  <p className="text-zinc-500 text-xs mt-0.5 font-medium">Completa la ficha técnica para ingresar stock al inventario</p>
+                </div>
               </div>
               <button 
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-white/5 rounded-xl transition-colors"
+                className="p-2.5 hover:bg-white/5 rounded-xl transition-all duration-200 border border-transparent hover:border-white/10"
               >
-                <span className="material-symbols-outlined text-zinc-400">close</span>
+                <span className="material-symbols-outlined text-zinc-400 text-[20px] block">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="p-6 space-y-5">
-              <div className="relative">
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Nombre del Producto *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.nombre}
-                  onChange={(e) => {
-                    setFormData({...formData, nombre: e.target.value});
-                    searchGlobalSuggestions(e.target.value);
-                  }}
-                  className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="Ej: Auriculares Sony WH-1000XM4"
-                />
-                {showGlobalSuggestions && globalImageSuggestions.length > 0 && (
-                  <div className="absolute z-10 left-0 right-0 mt-1 bg-zinc-800 border border-white/10 rounded-xl overflow-hidden shadow-xl">
-                    <p className="text-xs text-zinc-500 px-3 py-2 border-b border-white/5">
-                      Sugerencias del catálogo global
-                    </p>
-                    {globalImageSuggestions.map((suggestion) => (
-                      <button
-                        key={suggestion.id}
-                        type="button"
-                        onClick={async () => {
-                          const confirmApply = confirm(
-                            `¿Usar "${suggestion.normalized_name}" y auto-completar el formulario?`
-                          );
-                          if (confirmApply) {
-                            const fullData = await findGlobalImage(null, suggestion.normalized_name);
-                            setNewProductImages([suggestion.cloudinary_url]);
-                            setAutoImageFound(true);
-                            setDetectedGlobalId(suggestion.id);
-                            setFormData(prev => ({
-                              ...prev,
-                              nombre: fullData.normalized_name || suggestion.normalized_name,
-                              barcode: fullData.barcode_ean13 || prev.barcode,
-                              description: fullData.description || prev.description,
-                              price_ars: fullData.default_price?.toString() || prev.price_ars
-                            }));
-                          }
-                          setShowGlobalSuggestions(false);
-                          setGlobalImageSuggestions([]);
-                        }}
-                        className="w-full px-3 py-2 flex items-center gap-3 hover:bg-white/5 text-left transition-colors"
-                      >
-                        <img 
-                          src={suggestion.cloudinary_url} 
-                          alt={suggestion.normalized_name}
-                          className="w-10 h-10 object-cover rounded-lg" 
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white text-sm truncate">{suggestion.normalized_name}</p>
-                          <p className="text-zinc-500 text-xs">
-                            {suggestion.match_type === 'barcode' ? 'Código de barras' : 'Por nombre'}
-                          </p>
-                        </div>
-                        <span className="material-symbols-outlined text-emerald-400 text-[18px]">add_circle</span>
-                      </button>
-                    ))}
+            <form onSubmit={handleSaveProduct} className="flex-1 overflow-y-auto flex flex-col">
+              <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                {autoImageFound && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 p-4 rounded-2xl flex items-center justify-between text-xs transition-all animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-[20px] text-emerald-400 animate-pulse">auto_awesome</span>
+                      <div>
+                        <p className="font-bold text-emerald-300 text-[12px]">¡Autocompletado Híbrido Exitoso!</p>
+                        <p className="text-zinc-400 text-[11px] mt-0.5">Campos importados automáticamente desde Cloudinary y el catálogo. Puedes editarlos libremente.</p>
+                      </div>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          nombre: '',
+                          slug: '',
+                          sku: '',
+                          price_ars: '',
+                          barcode: '',
+                          stock: '',
+                          description: '',
+                          available_online: false
+                        });
+                        setNewProductImages([]);
+                        setAutoImageFound(false);
+                        setDetectedGlobalId(null);
+                      }}
+                      className="bg-zinc-900 hover:bg-zinc-800 border border-white/5 hover:border-white/10 text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shrink-0"
+                    >
+                      Limpiar todo
+                    </button>
                   </div>
                 )}
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">SKU *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sku}
-                    onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="Ej: SNY-1000-B"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">Slug (URL)</label>
-                  <input
-                    type="text"
-                    value={formData.slug}
-                    onChange={(e) => setFormData({...formData, slug: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="auto-generado"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">Precio (ARS) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.price_ars}
-                    onChange={(e) => setFormData({...formData, price_ars: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="350000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">Stock Inicial *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="12"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Código de Barras (EAN-13)</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.barcode}
-                    onChange={(e) => {
-                      setFormData({...formData, barcode: e.target.value});
-                      if (e.target.value.length >= 12) {
-                        searchGlobalImageByBarcode(e.target.value);
-                      }
-                    }}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="7123456789012"
-                  />
-                  {imageSearchLoading && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <span className="material-symbols-outlined text-primary animate-spin">sync</span>
-                    </div>
-                  )}
-                </div>
-                {autoImageFound && (
-                  <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                    Imagen encontrada en catálogo global
-                  </p>
-                )}
-              </div>
-
-              {/* Attribute Selector */}
-              {productAttributes.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">
-                    Atributos del Producto
-                    <span className="text-zinc-600 text-xs ml-2">(opcional)</span>
-                  </label>
-                  <div className="space-y-3">
-                    {productAttributes.map((attr) => (
-                      <div key={attr.id}>
-                        <p className="text-xs text-zinc-500 font-bold uppercase mb-1">{attr.name}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {attr.options.map((opt: any) => (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedAttributeIds((prev) => 
-                                  prev.includes(opt.id)
-                                    ? prev.filter(id => id !== opt.id)
-                                    : [...prev, opt.id]
-                                );
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* COLUMNA IZQUIERDA: DETALLES (7 de 12 columnas) */}
+                  <div className="lg:col-span-7 space-y-6">
+                    {/* Tarjeta de Identificación */}
+                    <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-5 space-y-4">
+                      <h3 className="text-xs font-black tracking-wider text-primary uppercase flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-primary">info</span>
+                        Identificación Básica
+                      </h3>
+                      
+                      <div className="relative space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                          <div className="lg:col-span-8">
+                            <label className="block text-xs font-bold text-zinc-400 mb-1.5 truncate">Nombre del Producto *</label>
+                            <input
+                              type="text"
+                              required
+                              value={formData.nombre}
+                              onChange={(e) => {
+                                setFormData({...formData, nombre: e.target.value});
+                                searchGlobalSuggestions(e.target.value);
                               }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                selectedAttributeIds.includes(opt.id)
-                                  ? 'bg-primary-container text-white'
-                                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
-                              }`}
-                            >
-                              {attr.type === 'color' && opt.color && (
-                                <span 
-                                  className="inline-block w-3 h-3 rounded-full mr-1" 
-                                  style={{ backgroundColor: opt.color }}
-                                />
+                              className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                              placeholder="Ej: Auriculares Sony WH-1000XM4"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-4">
+                            <label className="block text-xs font-bold text-zinc-400 mb-1.5 truncate" title="Código de Barras (EAN-13)">
+                              Código de Barras
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-zinc-500 text-[18px]">barcode</span>
+                              <input
+                                type="text"
+                                value={formData.barcode}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setFormData({...formData, barcode: val});
+                                  if (val.length >= 12) {
+                                    searchGlobalImageByBarcode(val);
+                                  } else {
+                                    searchGlobalSuggestions(val);
+                                  }
+                                }}
+                                className="w-full bg-[#121214] border border-white/10 rounded-xl pl-9 pr-3 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                                placeholder="7790895067587"
+                              />
+                              {imageSearchLoading && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                  <span className="material-symbols-outlined text-primary animate-spin text-[18px]">sync</span>
+                                </div>
                               )}
-                              {opt.value}
-                            </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {showGlobalSuggestions && globalImageSuggestions.length > 0 && (
+                          <div className="absolute z-30 left-0 right-0 mt-1 bg-[#16161a] border border-white/10 rounded-xl overflow-hidden shadow-2xl divide-y divide-white/5">
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider px-3 py-2 bg-zinc-900/50">
+                              Sugerencias de imágenes encontradas (Catálogo Híbrido)
+                            </p>
+                            {globalImageSuggestions.map((suggestion) => (
+                              <button
+                                key={suggestion.id}
+                                type="button"
+                                onClick={async () => {
+                                  const fullData = await findGlobalImage(suggestion.barcode_ean13 || null, suggestion.normalized_name);
+                                  setNewProductImages([suggestion.cloudinary_url]);
+                                  setAutoImageFound(true);
+                                  setDetectedGlobalId(suggestion.id);
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    nombre: fullData.normalized_name || suggestion.normalized_name,
+                                    barcode: fullData.barcode_ean13 || suggestion.barcode_ean13 || prev.barcode,
+                                    description: fullData.description || prev.description,
+                                    price_ars: fullData.default_price?.toString() || prev.price_ars
+                                  }));
+                                  setShowGlobalSuggestions(false);
+                                  setGlobalImageSuggestions([]);
+                                }}
+                                className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-white/5 text-left transition-colors"
+                              >
+                                <img 
+                                  src={suggestion.cloudinary_url} 
+                                  alt={suggestion.normalized_name}
+                                  className="w-9 h-9 object-cover rounded-lg border border-white/10 shrink-0" 
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white text-xs font-semibold truncate">{suggestion.normalized_name}</p>
+                                  <p className="text-zinc-500 text-[10px]">
+                                    {suggestion.barcode_ean13 ? `Código: ${suggestion.barcode_ean13}` : 'Librería de imágenes'}
+                                  </p>
+                                </div>
+                                <span className="material-symbols-outlined text-emerald-400 text-[18px]">add_circle</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="flex items-center text-xs font-bold text-zinc-400 mb-1.5 group relative cursor-help select-none">
+                            <span>SKU *</span>
+                            <span className="w-3.5 h-3.5 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-[9px] text-zinc-400 font-bold ml-1.5 transition-colors">?</span>
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2.5 bg-[#16161a]/95 border border-white/10 text-[10px] text-zinc-400 font-normal leading-relaxed rounded-xl shadow-2xl backdrop-blur-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-50 text-center normal-case">
+                              El <strong>SKU</strong> es el código interno para controlar el inventario. <br/><span className="text-zinc-500 mt-1 block">Ejemplo: <code>REMA-NEGRA-L</code> o <code>JAB-ALM-150G</code>.</span>
+                            </span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={formData.sku}
+                            onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                            placeholder="Ej: SNY-1000-B"
+                          />
+                        </div>
+                        <div>
+                          <label className="flex items-center text-xs font-bold text-zinc-400 mb-1.5 group relative cursor-help select-none">
+                            <span>Slug (URL)</span>
+                            <span className="w-3.5 h-3.5 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-[9px] text-zinc-400 font-bold ml-1.5 transition-colors">?</span>
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2.5 bg-[#16161a]/95 border border-white/10 text-[10px] text-zinc-400 font-normal leading-relaxed rounded-xl shadow-2xl backdrop-blur-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-50 text-center normal-case">
+                              El <strong>Slug</strong> es el texto amigable que forma la dirección web (URL) de este producto en tu catálogo online. Se auto-genera solo a partir del nombre, pero puedes editarlo.
+                            </span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.slug}
+                            onChange={(e) => setFormData({...formData, slug: e.target.value})}
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                            placeholder="auto-generado"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Descripción y Tienda Online */}
+                    <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-5 space-y-4">
+                      <h3 className="text-xs font-black tracking-wider text-primary uppercase flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-primary">description</span>
+                        Descripción y Canal Online
+                      </h3>
+                      
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-400 mb-1.5">Descripción del Producto</label>
+                        <textarea
+                          rows={3}
+                          value={formData.description}
+                          onChange={(e) => setFormData({...formData, description: e.target.value})}
+                          className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm resize-none"
+                          placeholder="Escribe detalles del producto, marca, características..."
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-[#121214] border border-white/5 rounded-xl">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-white">Disponible en Tienda Online</span>
+                          <span className="text-[10px] text-zinc-500">Permite que tus clientes lo compren desde la web.</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.available_online || false}
+                            onChange={(e) => setFormData({...formData, available_online: e.target.checked})}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary peer-checked:after:bg-white"></div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Atributos */}
+                    {productAttributes.length > 0 && (
+                      <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-5 space-y-4">
+                        <h3 className="text-xs font-black tracking-wider text-primary uppercase flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-primary">sell</span>
+                          Atributos del Producto
+                        </h3>
+                        <div className="space-y-3">
+                          {productAttributes.map((attr) => (
+                            <div key={attr.id}>
+                              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1.5">{attr.name}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {attr.options.map((opt: any) => (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedAttributeIds((prev) => 
+                                        prev.includes(opt.id)
+                                          ? prev.filter(id => id !== opt.id)
+                                          : [...prev, opt.id]
+                                      );
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                      selectedAttributeIds.includes(opt.id)
+                                        ? 'bg-primary-container text-white border-primary/40 shadow-md shadow-primary/10'
+                                        : 'bg-zinc-800/50 border-white/5 text-zinc-400 hover:text-white hover:border-white/10'
+                                    }`}
+                                  >
+                                    {attr.type === 'color' && opt.color && (
+                                      <span 
+                                        className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 border border-white/20 align-middle" 
+                                        style={{ backgroundColor: opt.color }}
+                                      />
+                                    )}
+                                    {opt.value}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>
-                    ))}
+                    )}
+                  </div>
+
+                  {/* COLUMNA DERECHA: MULTIMEDIA E INVENTARIO (5 de 12 columnas) */}
+                  <div className="lg:col-span-5 space-y-6">
+                    {/* Fotos de Producto Premium Box */}
+                    <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black tracking-wider text-primary uppercase flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-primary">photo_camera</span>
+                          Galería del Producto
+                        </h3>
+                        {autoImageFound && (
+                          <span className="bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-full text-[9px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px] animate-pulse">auto_awesome</span>
+                            Conectado
+                          </span>
+                        )}
+                      </div>
+
+                      <input
+                        type="file"
+                        ref={newImageFileRef}
+                        accept="image/*"
+                        multiple
+                        onChange={handleNewImageUpload}
+                        className="hidden"
+                      />
+
+                      {/* Caja Principal / Carrusel Premium */}
+                      <div className="space-y-3">
+                        {newProductImages.length === 0 ? (
+                          <div 
+                            className="aspect-[4/3] rounded-2xl border-2 border-dashed border-white/10 hover:border-primary/40 bg-[#121214] hover:bg-zinc-950/80 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 group"
+                            onClick={() => newImageFileRef.current?.click()}
+                          >
+                            {uploadingNewImage ? (
+                              <div className="flex flex-col items-center gap-2">
+                                <span className="material-symbols-outlined animate-spin text-primary text-3xl">sync</span>
+                                <span className="text-[11px] text-zinc-400 font-bold">Subiendo a Cloudinary...</span>
+                              </div>
+                            ) : (
+                              <div className="text-center p-4">
+                                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/5 group-hover:border-primary/20 flex items-center justify-center mx-auto mb-2.5 transition-all">
+                                  <span className="material-symbols-outlined text-zinc-500 group-hover:text-primary transition-colors text-2xl">add_photo_alternate</span>
+                                </div>
+                                <p className="text-xs text-white font-bold group-hover:text-primary transition-colors">Añadir Fotos</p>
+                                <p className="text-[10px] text-zinc-600 mt-1">Soporta JPG, PNG o WEBP (máx. 2MB)</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {/* Vista previa principal */}
+                            <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 group bg-zinc-950">
+                              <img 
+                                src={newProductImages[0]} 
+                                alt="Principal" 
+                                className="w-full h-full object-cover" 
+                              />
+                              {!autoImageFound && (
+                                <button
+                                  type="button"
+                                  onClick={() => deleteNewProductImage(0)}
+                                  className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-red-500/90 text-white rounded-xl backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all border border-white/10 shrink-0"
+                                >
+                                  <span className="material-symbols-outlined text-[16px] block">delete</span>
+                                </button>
+                              )}
+                              <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-lg text-[9px] font-black text-white uppercase tracking-wider border border-white/5">
+                                Portada Principal
+                              </div>
+                            </div>
+
+                            {/* Miniaturas secundarias */}
+                            <div className="grid grid-cols-4 gap-2">
+                              {newProductImages.slice(1).map((url, index) => (
+                                <div key={index + 1} className="relative aspect-square rounded-xl overflow-hidden border border-white/5 group bg-zinc-950">
+                                  <img src={url} alt={`Miniatura ${index + 2}`} className="w-full h-full object-cover" />
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteNewProductImage(index + 1)}
+                                    className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity animate-in fade-in"
+                                  >
+                                    <span className="material-symbols-outlined text-[10px]">close</span>
+                                  </button>
+                                </div>
+                              ))}
+                              
+                              {newProductImages.length < 4 && (
+                                <button
+                                  type="button"
+                                  onClick={() => newImageFileRef.current?.click()}
+                                  className="aspect-square rounded-xl border border-dashed border-white/10 hover:border-primary/40 bg-zinc-950/40 hover:bg-zinc-950 flex items-center justify-center transition-all group"
+                                >
+                                  {uploadingNewImage ? (
+                                    <span className="material-symbols-outlined animate-spin text-zinc-500 text-sm">sync</span>
+                                  ) : (
+                                    <span className="material-symbols-outlined text-zinc-500 group-hover:text-primary transition-colors text-lg">add</span>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Precios, stock e inventario */}
+                    <div className="bg-zinc-900/30 border border-white/5 rounded-2xl p-5 space-y-4">
+                      <h3 className="text-xs font-black tracking-wider text-primary uppercase flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-primary">payments</span>
+                        Valores y Stock
+                      </h3>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">Precio (ARS) *</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm font-bold">$</span>
+                            <input
+                              type="number"
+                              required
+                              min="0"
+                              value={formData.price_ars}
+                              onChange={(e) => setFormData({...formData, price_ars: e.target.value})}
+                              className="w-full bg-[#121214] border border-white/10 rounded-xl pl-7 pr-3 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                              placeholder="350000"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">Stock Inicial *</label>
+                          <input
+                            type="number"
+                            required
+                            min="0"
+                            value={formData.stock}
+                            onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                            placeholder="12"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  Fotos del Producto
-                  {autoImageFound && (
-                    <span className="ml-2 text-xs text-emerald-400 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                      Global
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="file"
-                  ref={newImageFileRef}
-                  accept="image/*"
-                  multiple
-                  onChange={handleNewImageUpload}
-                  className="hidden"
-                />
-                <div className={`grid grid-cols-4 gap-2 relative ${autoImageFound ? 'ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-zinc-900 rounded-xl' : ''}`}>
-                  {newProductImages.map((url, index) => (
-                    <div 
-                      key={index} 
-                      className={`relative group aspect-square rounded-lg overflow-hidden ${autoImageFound && index === 0 ? 'animate-pulse' : ''}`}
-                      style={autoImageFound && index === 0 ? { 
-                        boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)',
-                        animation: 'pulse 2s infinite'
-                      } : {}}
-                    >
-                      <img src={url} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
-                      {!autoImageFound && (
-                        <button
-                          type="button"
-                          onClick={() => deleteNewProductImage(index)}
-                          className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <span className="material-symbols-outlined text-xs">close</span>
-                        </button>
-                      )}
-                      {autoImageFound && (
-                        <div className="absolute bottom-1 left-1 right-1 bg-emerald-600/90 backdrop-blur-sm py-0.5 px-1.5 rounded text-[10px] text-white text-center">
-                          Global
-                        </div>
-                      )}
-                    </div>
-                  ))}
-<label 
-                    className="aspect-square rounded-lg border-2 border-dashed border-white/20 flex items-center justify-center cursor-pointer hover:border-white/40 transition-colors"
-                    onClick={() => {
-                      newImageFileRef.current?.click();
-                    }}
-                  >
-                    {uploadingNewImage ? (
-                      <span className="material-symbols-outlined animate-spin text-zinc-500">sync</span>
-                    ) : (
-                      <span className="material-symbols-outlined text-zinc-500 text-3xl">add_photo_alternate</span>
-                    )}
-                  </label>
-                </div>
-                <style jsx>{`
-                  @keyframes pulse {
-                    0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
-                    50% { box-shadow: 0 0 35px rgba(16, 185, 129, 0.6); }
-                  }
-                `}</style>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Descripción</label>
-                <textarea
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                  placeholder="Descripción del producto..."
-                />
-              </div>
-
-              <div className="flex items-center gap-3 p-4 bg-zinc-900/50 border border-white/10 rounded-xl">
-                <input
-                  type="checkbox"
-                  id="available_online"
-                  checked={formData.available_online || false}
-                  onChange={(e) => setFormData({...formData, available_online: e.target.checked})}
-                  className="w-5 h-5 rounded border-white/20 bg-zinc-800 text-primary-container focus:ring-primary/50"
-                />
-                <label htmlFor="available_online" className="text-sm">
-                  <span className="font-medium text-white">Disponible en tienda online</span>
-                  <span className="text-zinc-500 ml-2">(los clientes podrán comprar este producto)</span>
-                </label>
-              </div>
-
-              <div className="flex gap-3 pt-4">
+              {/* Sticky Footer */}
+              <div className="sticky bottom-0 bg-[#070708] border-t border-white/5 p-5 flex gap-3 z-10">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-5 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-sm"
+                  className="flex-1 px-5 py-3.5 bg-zinc-900/80 border border-white/5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 px-5 py-3 bg-primary-container text-white rounded-xl hover:bg-[#6D28D9] transition-all font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-5 py-3.5 bg-gradient-to-r from-primary to-purple-600 text-white rounded-xl hover:from-[#6D28D9] hover:to-purple-700 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98]"
                 >
                   {saving ? (
                     <>
-                      <span className="material-symbols-outlined animate-spin">refresh</span>
-                      Guardando...
+                      <span className="material-symbols-outlined animate-spin text-[16px]">sync</span>
+                      Guardando Ficha...
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined">save</span>
-                      Guardar Producto
+                      <span className="material-symbols-outlined text-[16px]">save</span>
+                      Registrar Producto
                     </>
                   )}
                 </button>

@@ -94,41 +94,18 @@ export function PlatformGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function checkAdmin() {
-      if (loading || !user) return;
+      if (loading) return;
+      if (!user) {
+        window.location.href = '/login';
+        return;
+      }
 
       try {
-        // First check user_metadata for tenant_id
-        let tenantId = user.user_metadata?.tenant_id;
-        
-        if (!tenantId) {
-          // Fallback: check tenant_members
-          const { data: memberData } = await supabase
-            .from('tenant_members')
-            .select('tenant_id')
-            .eq('user_id', user.id)
-            .limit(1)
-            .maybeSingle();
-          
-          if (memberData) {
-            tenantId = memberData.tenant_id;
-          }
-        }
-
-        if (!tenantId) {
-          // No tenant — redirect
-          window.location.href = '/dashboard';
-          return;
-        }
-
-        const { data: tenant } = await supabase
-          .from('tenants')
-          .select('is_platform_admin')
-          .eq('id', tenantId)
-          .maybeSingle();
-
-        if (tenant?.is_platform_admin === true) {
+        // El Super Admin es único y se identifica por su email admin@admin.com
+        if (user.email === 'admin@admin.com') {
           setIsAdmin(true);
         } else {
+          // Cualquier otro usuario tiene prohibido el acceso al panel global
           window.location.href = '/dashboard';
         }
       } catch {

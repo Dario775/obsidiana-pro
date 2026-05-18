@@ -64,6 +64,13 @@ export default function LoginPage() {
 
   async function handlePostLogin(user: any) {
     try {
+      // Si es el Super Admin, redirigir directamente al panel global de administración
+      if (user.email === 'admin@admin.com') {
+        router.refresh();
+        window.location.href = '/overview';
+        return;
+      }
+
       // 1. Verificar si ya tiene tienda vinculada
       const { data: memberData, error: memberError } = await supabase
         .from('tenant_members')

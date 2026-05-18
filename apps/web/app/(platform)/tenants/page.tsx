@@ -89,6 +89,8 @@ export default function TenantsPage() {
         if (!error) {
           setShowEditModal(false);
           fetchData();
+        } else {
+          alert('Error al actualizar el tenant: ' + error.message);
         }
       } else {
         // Insert
@@ -105,10 +107,13 @@ export default function TenantsPage() {
         if (!error) {
           setShowAddModal(false);
           fetchData();
+        } else {
+          alert('Error al crear el tenant: ' + error.message);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      alert('Error inesperado al guardar: ' + (error?.message || 'desconocido'));
     } finally {
       setSaving(false);
     }
@@ -295,9 +300,11 @@ export default function TenantsPage() {
                     onChange={(e) => setFormData({ ...formData, plan_id: e.target.value })}
                     className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                   >
-                    <option value="">Sin Plan</option>
+                    <option value="" className="bg-[#141414] text-white">Sin Plan</option>
                     {plans.map((p) => (
-                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                      <option key={p.id} value={p.id} className="bg-[#141414] text-white">
+                        {p.name || p.nombre}
+                      </option>
                     ))}
                   </select>
                 </div>
