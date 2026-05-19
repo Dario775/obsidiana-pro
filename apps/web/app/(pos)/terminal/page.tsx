@@ -47,6 +47,7 @@ export default function POSTerminalPage() {
           sku,
           price_ars,
           product_id,
+          variant_options,
           products!inner (
             id,
             nombre,
@@ -104,7 +105,16 @@ export default function POSTerminalPage() {
           return {
             id: variant.id,
             productId: variant.product_id,
-            name: product?.nombre || product?.title || 'Sin nombre',
+            name: (() => {
+              const baseName = product?.nombre || product?.title || 'Sin nombre';
+              if (variant.variant_options && typeof variant.variant_options === 'object') {
+                const optsStr = Object.entries(variant.variant_options)
+                  .map(([k, v]) => `${k.toUpperCase()}: ${v}`)
+                  .join(' | ');
+                return optsStr ? `${baseName} (${optsStr})` : baseName;
+              }
+              return baseName;
+            })(),
             sku: variant.sku || 'N/A',
             price: variant.price_ars || 0,
             stock: Math.max(0, onHand - reserved),

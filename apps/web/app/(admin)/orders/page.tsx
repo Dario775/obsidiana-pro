@@ -498,8 +498,25 @@ export default function OrdersPage() {
                       <p className="text-white">{selectedOrder.customer_email || '-'}</p>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-zinc-500 text-xs">Dirección</span>
-                      <p className="text-white">{selectedOrder.customer_address || '-'}</p>
+                      <span className="text-zinc-500 text-xs">Dirección y Entrega</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                          selectedOrder.customer_address === 'Retiro en Tienda' 
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        }`}>
+                          {selectedOrder.customer_address === 'Retiro en Tienda' ? 'Retiro en Tienda 🏪' : 'Envío Local 🚚'}
+                        </span>
+                        {(() => {
+                          const zoneMatch = selectedOrder.notes?.match(/\[Método:\s*Envío a Domicilio - Zona:\s*([^\]]+)\]/);
+                          return zoneMatch ? (
+                            <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
+                              Zona: {zoneMatch[1]}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                      <p className="text-white mt-1.5">{selectedOrder.customer_address || '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -528,13 +545,59 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {/* Notes */}
-                {selectedOrder.notes && (
-                  <div className="bg-zinc-800/50 rounded-xl p-4">
-                    <h4 className="font-bold text-white text-sm mb-2">Notas</h4>
-                    <p className="text-zinc-400 text-sm">{selectedOrder.notes}</p>
-                  </div>
-                )}
+                 {/* Notes & Transfer Proof */}
+                {selectedOrder.notes && (() => {
+                  const receiptMatch = selectedOrder.notes.match(/\[Comprobante de Pago\]:\s*(https?:\/\/[^\s|]+)/);
+                  const cleanNotes = selectedOrder.notes
+                    .replace(/\[Comprobante de Pago\]:\s*(https?:\/\/[^\s|]+)/, '')
+                    .replace(/\[Método:\s*[^\]]+\]/, '')
+                    .trim()
+                    .replace(/^\|\s*|\s*\|\s*$/g, '');
+                  return (
+                    <div className="space-y-3">
+                      {cleanNotes && (
+                        <div className="bg-zinc-800/50 rounded-xl p-4">
+                          <h4 className="font-bold text-white text-sm mb-1">Notas</h4>
+                          <p className="text-zinc-400 text-sm">{cleanNotes}</p>
+                        </div>
+                      )}
+                      {receiptMatch && (
+                        <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-emerald-400 text-sm flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-sm">verified</span>
+                              Comprobante de Transferencia
+                            </h4>
+                            <a 
+                              href={receiptMatch[1]} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-[10px] font-black text-emerald-400 uppercase tracking-wider hover:underline flex items-center gap-1"
+                            >
+                              Ver Original
+                              <span className="material-symbols-outlined text-xs">open_in_new</span>
+                            </a>
+                          </div>
+                          <div className="relative group rounded-lg overflow-hidden border border-white/5 max-w-xs mx-auto aspect-video cursor-zoom-in">
+                            <img 
+                              src={receiptMatch[1]} 
+                              alt="Comprobante de transferencia" 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                            <a 
+                              href={receiptMatch[1]} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-bold text-xs uppercase tracking-wider transition-opacity duration-300"
+                            >
+                              Ver Pantalla Completa
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Actions */}

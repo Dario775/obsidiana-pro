@@ -74,7 +74,40 @@ export default function StoreSettingsPage() {
     font_family: 'sans',
     dark_mode: false,
   });
+  const [shippingZones, setShippingZones] = useState<Array<{ id: string; name: string; postal_codes: string[]; cost: number }>>([]);
+  const [newZoneName, setNewZoneName] = useState('');
+  const [newZoneCost, setNewZoneCost] = useState(0);
+  const [newZoneCodes, setNewZoneCodes] = useState('');
+  const [isAddingZone, setIsAddingZone] = useState(false);
+
+  const handleAddZone = () => {
+    if (!newZoneName) return;
+    const codes = newZoneCodes.split(',').map(c => c.trim()).filter(Boolean);
+    const newZone = {
+      id: Math.random().toString(36).substring(2, 9),
+      name: newZoneName,
+      cost: newZoneCost,
+      postal_codes: codes
+    };
+    setShippingZones(prev => [...prev, newZone]);
+    setNewZoneName('');
+    setNewZoneCost(0);
+    setNewZoneCodes('');
+    setIsAddingZone(false);
+  };
+
+  const handleDeleteZone = (id: string) => {
+    setShippingZones(prev => prev.filter(z => z.id !== id));
+  };
+
   const logoFileRef = useRef<HTMLInputElement>(null);
+
+  const [transferEnabled, setTransferEnabled] = useState(true);
+  const [transferBank, setTransferBank] = useState('');
+  const [transferHolder, setTransferHolder] = useState('');
+  const [transferAccount, setTransferAccount] = useState('');
+  const [transferCbu, setTransferCbu] = useState('');
+  const [transferAlias, setTransferAlias] = useState('');
 
   useEffect(() => {
     if (tenant) {
@@ -104,6 +137,26 @@ export default function StoreSettingsPage() {
         ml_affiliate_word: t.ml_affiliate_word || '',
       });
       
+      if (t.settings?.store_shipping_zones) {
+        setShippingZones(t.settings.store_shipping_zones);
+      } else {
+        setShippingZones([]);
+      }
+      
+      if (t.store_payment_methods && Array.isArray(t.store_payment_methods)) {
+        const transfer = t.store_payment_methods.find((m: any) => m.id === 'transfer');
+        if (transfer) {
+          setTransferEnabled(transfer.enabled ?? true);
+          if (transfer.config) {
+            setTransferBank(transfer.config.bank || '');
+            setTransferHolder(transfer.config.holder || '');
+            setTransferAccount(transfer.config.account || '');
+            setTransferCbu(transfer.config.cbu || '');
+            setTransferAlias(transfer.config.alias || '');
+          }
+        }
+      }
+
       if (t.store_appearance) {
         setAppearance(prev => ({
           ...prev,
@@ -143,6 +196,40 @@ export default function StoreSettingsPage() {
     
     setSaving(true);
     try {
+      const mergedSettings = {
+        ...(tenant?.settings || {}),
+        store_shipping_zones: shippingZones
+      };
+
+      const existingMethods = tenant?.store_payment_methods || [
+        { id: 'cash', name: 'Efectivo', enabled: false, icon: 'payments' },
+        { id: 'transfer', name: 'Transferencia', enabled: true, icon: 'account_balance' },
+        { id: 'mp', name: 'MercadoPago', enabled: true, icon: 'payment' }
+      ];
+
+      const updatedMethods = existingMethods.map((m: any) => {
+        if (m.id === 'transfer') {
+          return {
+            ...m,
+            enabled: transferEnabled,
+            config: {
+              bank: transferBank,
+              holder: transferHolder,
+              account: transferAccount,
+              cbu: transferCbu,
+              alias: transferAlias
+            }
+          };
+        }
+        if (m.id === 'mp') {
+          return {
+            ...m,
+            enabled: !!(form.store_mp_public_key || form.store_mp_access_token)
+          };
+        }
+        return m;
+      });
+
       const { data, error } = await supabase.from('tenants').update({
         store_name: form.store_name,
         store_description: form.store_description,
@@ -167,6 +254,8 @@ export default function StoreSettingsPage() {
         ml_affiliate_id: form.ml_affiliate_id || null,
         ml_affiliate_word: form.ml_affiliate_word || null,
         store_appearance: appearance,
+        settings: mergedSettings,
+        store_payment_methods: updatedMethods,
       })
       .eq('id', tenantId)
       .select();
@@ -553,11 +642,11 @@ export default function StoreSettingsPage() {
 
           {/* Envio Tab */}
           {activeTab === 'envio' && (
-            <>
+            <div className="space-y-6 animate-in fade-in duration-300">
               <div className="flex items-center justify-between p-4 bg-zinc-950 rounded-xl">
                 <div>
-                  <p className="text-white font-medium">Habilitar envío</p>
-                  <p className="text-xs text-zinc-500">Permite elegir método de entrega</p>
+                  <p className="text-white font-medium">Habilitar envíos y entregas</p>
+                  <p className="text-xs text-zinc-500">Permite elegir entre Retiro en Tienda y Envío Local</p>
                 </div>
                 <button
                   onClick={() => setForm(f => ({ ...f, store_shipping_enabled: !f.store_shipping_enabled }))}
@@ -567,37 +656,178 @@ export default function StoreSettingsPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">Costo de envío ($)</label>
-                  <input
-                    type="number"
-                    value={form.store_shipping_cost}
-                    onChange={(e) => setForm(f => ({ ...f, store_shipping_cost: parseInt(e.target.value) || 0 }))}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">Envío gratis desde ($)</label>
-                  <input
-                    type="number"
-                    value={form.store_shipping_free_threshold}
-                    onChange={(e) => setForm(f => ({ ...f, store_shipping_free_threshold: parseInt(e.target.value) || 0 }))}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
-                  />
-                </div>
-              </div>
+              {form.store_shipping_enabled && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-400 mb-2">Costo base de envío ($)</label>
+                      <input
+                        type="number"
+                        value={form.store_shipping_cost}
+                        onChange={(e) => setForm(f => ({ ...f, store_shipping_cost: parseInt(e.target.value) || 0 }))}
+                        className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
+                        placeholder="0"
+                      />
+                      <p className="text-[10px] text-zinc-500 mt-1">Costo genérico si no coincide ninguna zona local.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-400 mb-2">Envío gratis desde ($)</label>
+                      <input
+                        type="number"
+                        value={form.store_shipping_free_threshold}
+                        onChange={(e) => setForm(f => ({ ...f, store_shipping_free_threshold: parseInt(e.target.value) || 0 }))}
+                        className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
+                        placeholder="Sin umbral"
+                      />
+                      <p className="text-[10px] text-zinc-500 mt-1">Monto de compra para envío gratis (0 = desactivado).</p>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Pedido mínimo ($)</label>
-                <input
-                  type="number"
-                  value={form.store_min_order_amount}
-                  onChange={(e) => setForm(f => ({ ...f, store_min_order_amount: parseInt(e.target.value) || 0 }))}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
-                />
-              </div>
-            </>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-2">Monto de pedido mínimo ($)</label>
+                    <input
+                      type="number"
+                      value={form.store_min_order_amount}
+                      onChange={(e) => setForm(f => ({ ...f, store_min_order_amount: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
+                      placeholder="0"
+                    />
+                    <p className="text-[10px] text-zinc-500 mt-1">Monto mínimo en el carrito para poder finalizar la compra.</p>
+                  </div>
+
+                  <div className="border-t border-white/5 pt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-purple-400 text-sm">map</span>
+                          Zonas de Envío Locales
+                        </h4>
+                        <p className="text-xs text-zinc-500">Delimitá las zonas donde hacés entregas y sus costos</p>
+                      </div>
+                      {!isAddingZone && (
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingZone(true)}
+                          className="px-3 py-1.5 bg-zinc-800 text-white rounded-lg text-xs font-bold hover:bg-zinc-700 transition-colors flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-xs">add</span>
+                          Agregar Zona
+                        </button>
+                      )}
+                    </div>
+
+                    {isAddingZone && (
+                      <div className="p-4 bg-zinc-950 border border-white/5 rounded-xl space-y-4 animate-in slide-in-from-top-4 duration-300">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <h5 className="text-xs font-black uppercase text-white tracking-wider">Nueva Zona de Envío</h5>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingZone(false)}
+                            className="text-zinc-500 hover:text-white"
+                          >
+                            <span className="material-symbols-outlined text-sm">close</span>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] uppercase font-bold text-zinc-500 mb-1.5">Nombre de la Zona *</label>
+                            <input
+                              type="text"
+                              value={newZoneName}
+                              onChange={e => setNewZoneName(e.target.value)}
+                              className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                              placeholder="Ej: Salta Capital"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] uppercase font-bold text-zinc-500 mb-1.5">Costo de Envío ($) *</label>
+                            <input
+                              type="number"
+                              value={newZoneCost}
+                              onChange={e => setNewZoneCost(parseInt(e.target.value) || 0)}
+                              className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-zinc-500 mb-1.5">Códigos Postales (Separados por coma) *</label>
+                          <textarea
+                            value={newZoneCodes}
+                            onChange={e => setNewZoneCodes(e.target.value)}
+                            className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                            rows={2}
+                            placeholder="Ej: 4400, 4403, 4405"
+                          />
+                          <p className="text-[9px] text-zinc-600 mt-1">Los clientes deben ingresar uno de estos códigos postales exactos en el checkout para que se aplique esta zona.</p>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingZone(false)}
+                            className="px-3 py-2 bg-zinc-900 text-zinc-400 hover:text-white rounded-lg text-xs font-bold transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddZone}
+                            className="px-4 py-2 bg-white text-zinc-950 hover:bg-zinc-100 rounded-lg text-xs font-bold transition-colors"
+                          >
+                            Agregar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {shippingZones.length === 0 ? (
+                      <div className="text-center p-8 bg-zinc-950/50 border border-dashed border-white/5 rounded-xl">
+                        <span className="material-symbols-outlined text-3xl text-zinc-700 mb-2 block">location_off</span>
+                        <p className="text-xs text-zinc-400 font-semibold">Sin zonas locales configuradas</p>
+                        <p className="text-[10px] text-zinc-600 mt-1 max-w-sm mx-auto">
+                          Al no tener zonas específicas, los clientes de cualquier localidad podrán comprar aplicando el Costo Base de Envío.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3">
+                        {shippingZones.map(zone => (
+                          <div
+                            key={zone.id}
+                            className="flex items-center justify-between p-4 bg-zinc-950 border border-white/5 rounded-xl group hover:border-white/10 transition-colors"
+                          >
+                            <div className="space-y-1.5 flex-1 pr-4">
+                              <div className="flex items-center gap-2">
+                                <h5 className="font-bold text-white text-xs">{zone.name}</h5>
+                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
+                                  ${zone.cost.toLocaleString('es-AR')}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {zone.postal_codes.map((code, cIdx) => (
+                                  <span
+                                    key={cIdx}
+                                    className="bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded text-[9px] font-medium"
+                                  >
+                                    {code}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteZone(zone.id)}
+                              className="p-2 text-zinc-600 hover:text-red-400 transition-colors rounded-lg hover:bg-zinc-900 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {/* Social Tab */}
@@ -647,38 +877,126 @@ export default function StoreSettingsPage() {
 
           {/* Pagos Tab */}
           {activeTab === 'pagos' && (
-            <>
-              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3">
-                <span className="material-symbols-outlined text-blue-400">info</span>
-                <p className="text-xs text-blue-100 leading-relaxed">
-                  Configurá tus credenciales de <strong>Mercado Pago</strong> para recibir pagos automáticos. 
-                  Podés encontrarlas en el panel de desarrolladores de Mercado Pago.
-                </p>
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Transferencia Bancaria */}
+              <div className="p-6 bg-zinc-950 border border-white/5 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-blue-400 text-2xl">account_balance</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Transferencia Bancaria</h4>
+                      <p className="text-xs text-zinc-500">Recibí transferencias directas mostrando tus datos en el checkout</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTransferEnabled(!transferEnabled)}
+                    className={`w-12 h-6 rounded-full transition-colors ${transferEnabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                  >
+                    <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${transferEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+
+                {transferEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-white/5 animate-in fade-in duration-200">
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Banco</label>
+                      <input
+                        type="text"
+                        value={transferBank}
+                        onChange={(e) => setTransferBank(e.target.value)}
+                        placeholder="Ej: Banco Galicia / Mercado Pago"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Titular de la Cuenta</label>
+                      <input
+                        type="text"
+                        value={transferHolder}
+                        onChange={(e) => setTransferHolder(e.target.value)}
+                        placeholder="Ej: Juan Pérez"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-400 mb-1.5">CBU / CVU</label>
+                      <input
+                        type="text"
+                        value={transferCbu}
+                        onChange={(e) => setTransferCbu(e.target.value)}
+                        placeholder="22 dígitos numéricos"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Alias</label>
+                      <input
+                        type="text"
+                        value={transferAlias}
+                        onChange={(e) => setTransferAlias(e.target.value)}
+                        placeholder="Ej: JUAN.PEREZ.ALIAS"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Número de Cuenta (Opcional)</label>
+                      <input
+                        type="text"
+                        value={transferAccount}
+                        onChange={(e) => setTransferAccount(e.target.value)}
+                        placeholder="Ej: CA 4005-12345/6"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">MP Public Key</label>
-                <input
-                  type="text"
-                  value={form.store_mp_public_key}
-                  onChange={(e) => setForm(f => ({ ...f, store_mp_public_key: e.target.value }))}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono"
-                  placeholder="APP_USR-..."
-                />
-              </div>
+              {/* Mercado Pago */}
+              <div className="p-6 bg-zinc-950 border border-white/5 rounded-2xl space-y-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-violet-400 text-2xl">payment</span>
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Mercado Pago</h4>
+                    <p className="text-xs text-zinc-500">Cobros automáticos con tarjetas de crédito, débito o saldo en cuenta</p>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">MP Access Token</label>
-                <input
-                  type="password"
-                  value={form.store_mp_access_token}
-                  onChange={(e) => setForm(f => ({ ...f, store_mp_access_token: e.target.value }))}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono"
-                  placeholder="APP_USR-..."
-                />
-                <p className="text-[10px] text-zinc-500 mt-1">Este token es secreto y se usa para generar los cobros de forma segura.</p>
+                <div className="p-4 bg-zinc-900 border border-white/5 rounded-xl flex gap-3 text-xs text-zinc-400 leading-relaxed">
+                  <span className="material-symbols-outlined text-violet-400">info</span>
+                  <p>
+                    Configurá tus credenciales de <strong>Mercado Pago</strong> para recibir pagos automáticos. 
+                    Podés encontrarlas en el panel de desarrolladores de Mercado Pago.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 pt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-1.5">MP Public Key</label>
+                    <input
+                      type="text"
+                      value={form.store_mp_public_key}
+                      onChange={(e) => setForm(f => ({ ...f, store_mp_public_key: e.target.value }))}
+                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                      placeholder="APP_USR-..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 mb-1.5">MP Access Token</label>
+                    <input
+                      type="password"
+                      value={form.store_mp_access_token}
+                      onChange={(e) => setForm(f => ({ ...f, store_mp_access_token: e.target.value }))}
+                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                      placeholder="APP_USR-..."
+                    />
+                    <p className="text-[10px] text-zinc-600 mt-1">Este token es secreto y se usa para generar los cobros de forma segura.</p>
+                  </div>
+                </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Mercado Libre Tab */}

@@ -72,10 +72,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           path.startsWith('/tenants') ||
           path.startsWith('/subscriptions') ||
           path.startsWith('/infrastructure') ||
+          path.startsWith('/unauthorized') ||
           path.startsWith('/settings/payments');
 
         if (!isPlatformPath) {
-          window.location.href = '/overview';
+          window.location.href = '/unauthorized';
         }
       }
     }
@@ -102,6 +103,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       path.startsWith('/tenants') ||
       path.startsWith('/subscriptions') ||
       path.startsWith('/infrastructure') ||
+      path.startsWith('/unauthorized') ||
       path.startsWith('/settings/payments');
 
     if (!isPlatformPath) {
@@ -114,7 +116,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
 /**
  * PlatformGuard — Only allows access to users whose tenant has is_platform_admin = true.
- * Redirects to /dashboard if the user is not a super admin.
+ * Redirects to /unauthorized if the user is not a super admin.
  */
 export function PlatformGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -135,10 +137,10 @@ export function PlatformGuard({ children }: { children: React.ReactNode }) {
           setIsAdmin(true);
         } else {
           // Cualquier otro usuario tiene prohibido el acceso al panel global
-          window.location.href = '/dashboard';
+          window.location.href = '/unauthorized';
         }
       } catch {
-        window.location.href = '/dashboard';
+        window.location.href = '/unauthorized';
       } finally {
         setChecking(false);
       }
@@ -147,17 +149,13 @@ export function PlatformGuard({ children }: { children: React.ReactNode }) {
     checkAdmin();
   }, [user, loading]);
 
-  if (loading || checking) {
+  if (loading || checking || !isAdmin) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 gap-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-500"></div>
-        <span className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.3em]">Verificando permisos de administrador...</span>
+        <span className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.3em]">Verificando permisos...</span>
       </div>
     );
-  }
-
-  if (!isAdmin) {
-    return null;
   }
 
   return <>{children}</>;

@@ -15,6 +15,8 @@ interface Product {
   barcode?: string;
   available: number;
   img?: string;
+  product_id?: string;
+  variant_options?: Record<string, string>;
 }
 
 interface CartItem extends Product {
@@ -52,6 +54,7 @@ export default function POSPage() {
   
   // Venta a crédito
   const [isCreditSale, setIsCreditSale] = useState(false);
+  const [selectedParentProduct, setSelectedParentProduct] = useState<{ productId: string; nombre: string; img?: string; variants: Product[] } | null>(null);
   
   // Cliente seleccionado
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -109,6 +112,7 @@ export default function POSPage() {
           sku,
           price_ars,
           product_id,
+          variant_options,
           products!inner (
             id,
             nombre,
@@ -152,7 +156,9 @@ export default function POSPage() {
           sku: variant.sku || 'N/A',
           barcode: '', // Temporarily empty since column is missing
           available: (inv?.on_hand || 0) - (inv?.committed || 0),
-          img: product?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&h=400&auto=format&fit=crop'
+          img: product?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&h=400&auto=format&fit=crop',
+          product_id: variant.product_id,
+          variant_options: variant.variant_options || {}
         };
       });
 
@@ -264,6 +270,63 @@ export default function POSPage() {
     p.sku?.toLowerCase()?.includes(search.toLowerCase()) ||
     p.barcode?.toLowerCase()?.includes(search.toLowerCase())
   );
+
+  // Agrupar las variantes por product_id para renderizar productos únicos en la cuadrícula del POS
+  const groupedPosProducts: Array<{
+    productId: string;
+    nombre: string;
+    img?: string;
+    priceRange: string;
+    minPrice: number;
+    totalAvailable: number;
+    hasVariants: boolean;
+    variants: Product[];
+  }> = [];
+
+  const posGroupsMap: Record<string, Product[]> = {};
+
+  filteredProducts.forEach(product => {
+    const pId = product.product_id || product.id;
+    if (!posGroupsMap[pId]) {
+      posGroupsMap[pId] = [];
+    }
+    posGroupsMap[pId].push(product);
+  });
+
+  const processedPosProductIds = new Set<string>();
+
+  filteredProducts.forEach(product => {
+    const pId = product.product_id || product.id;
+    if (!processedPosProductIds.has(pId)) {
+      processedPosProductIds.add(pId);
+      const variants = posGroupsMap[pId] || [];
+      const firstVariant = variants[0];
+      if (!firstVariant) return;
+
+      const hasOptions = !!(firstVariant.variant_options && Object.keys(firstVariant.variant_options).length > 0);
+      const hasVariants = variants.length > 1 || hasOptions;
+
+      const prices = variants.map(v => v.precio);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const priceRange = minPrice === maxPrice 
+        ? `$ ${minPrice.toLocaleString('es-AR')}`
+        : `$ ${minPrice.toLocaleString('es-AR')} - $ ${maxPrice.toLocaleString('es-AR')}`;
+
+      const totalAvailable = variants.reduce((acc, curr) => acc + (curr.available || 0), 0);
+
+      groupedPosProducts.push({
+        productId: pId,
+        nombre: firstVariant.nombre,
+        img: firstVariant.img,
+        priceRange,
+        minPrice,
+        totalAvailable,
+        hasVariants,
+        variants
+      });
+    }
+  });
 
   async function completeSale() {
     if (cart.length === 0) return;
@@ -419,39 +482,70 @@ export default function POSPage() {
              <div className="col-span-full py-20 text-center text-zinc-500 font-black uppercase tracking-widest animate-pulse">
                 Conectando con la base de datos...
              </div>
-          ) : filteredProducts.length === 0 ? (
+          ) : groupedPosProducts.length === 0 ? (
             <div className="col-span-full py-20 text-center text-zinc-500 font-black uppercase tracking-widest">
               No se encontraron productos
             </div>
-          ) : filteredProducts.map((product) => (
-            <div 
-              key={product.id}
-              onClick={() => addToCart(product)}
-              className={`bg-[#1E1E1E]/60 backdrop-blur-md border border-white/5 rounded-3xl p-4 flex flex-col gap-4 cursor-pointer transition-all duration-300 hover:scale-[1.03] active:scale-95 group relative overflow-hidden shadow-lg h-fit ${product.available <= 0 ? 'opacity-50 grayscale pointer-events-none' : 'hover:border-violet-500/30'}`}
-            >
-              <div className="aspect-square rounded-2xl bg-zinc-950 flex items-center justify-center relative overflow-hidden border border-white/5 group-hover:border-white/10 transition-all duration-300">
-                {product.img ? (
-                  <img src={product.img} alt={product.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" />
-                ) : (
-                  <span className="material-symbols-outlined text-4xl text-zinc-800">image</span>
-                )}
-                <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md border border-white/10 px-2 py-1 rounded-xl">
-                  <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${product.available <= 5 ? 'text-red-400 animate-pulse' : 'text-zinc-300'}`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                    Stock: {product.available}
+          ) : groupedPosProducts.map((groupedProduct) => {
+            const hasVariants = groupedProduct.hasVariants;
+            const hasStock = groupedProduct.totalAvailable > 0;
+            
+            const handleProductClick = () => {
+              if (hasVariants) {
+                setSelectedParentProduct({
+                  productId: groupedProduct.productId,
+                  nombre: groupedProduct.nombre,
+                  img: groupedProduct.img,
+                  variants: groupedProduct.variants
+                });
+              } else {
+                const singleVariant = groupedProduct.variants[0];
+                if (singleVariant) addToCart(singleVariant);
+              }
+            };
+
+            return (
+              <div 
+                key={groupedProduct.productId}
+                onClick={handleProductClick}
+                className={`bg-[#1E1E1E]/60 backdrop-blur-md border border-white/5 rounded-3xl p-4 flex flex-col gap-4 cursor-pointer transition-all duration-300 hover:scale-[1.03] active:scale-95 group relative overflow-hidden shadow-lg h-fit ${!hasStock ? 'opacity-50 grayscale pointer-events-none' : 'hover:border-violet-500/30'}`}
+              >
+                <div className="aspect-square rounded-2xl bg-zinc-950 flex items-center justify-center relative overflow-hidden border border-white/5 group-hover:border-white/10 transition-all duration-300">
+                  {groupedProduct.img ? (
+                    <img src={groupedProduct.img} alt={groupedProduct.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" />
+                  ) : (
+                    <span className="material-symbols-outlined text-4xl text-zinc-800">image</span>
+                  )}
+                  <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md border border-white/10 px-2 py-1 rounded-xl">
+                    <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${groupedProduct.totalAvailable <= 5 ? 'text-red-400 animate-pulse' : 'text-zinc-300'}`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                      Stock: {groupedProduct.totalAvailable}
+                    </span>
+                  </div>
+                  {hasVariants && (
+                    <div className="absolute bottom-2 left-2 bg-violet-600/90 backdrop-blur-md border border-violet-500/30 px-2 py-1 rounded-xl">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[10px]">layers</span>
+                        {groupedProduct.variants.length} Variantes
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col flex-1 gap-1">
+                  <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                    {hasVariants ? 'MÚLTIPLES SKUS' : `SKU: ${groupedProduct.variants[0]?.sku || 'N/A'}`}
+                  </p>
+                  <p className="font-bold text-white leading-snug group-hover:text-violet-400 transition-colors line-clamp-2 text-sm">{groupedProduct.nombre}</p>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-auto">
+                  <p className="text-sm font-black text-violet-400 tracking-tight">{groupedProduct.priceRange}</p>
+                  <span className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 group-hover:bg-violet-500 group-hover:text-white transition-all flex items-center justify-center material-symbols-outlined text-lg shadow-lg">
+                    {hasVariants ? 'layers' : 'add'}
                   </span>
                 </div>
               </div>
-              <div className="flex flex-col flex-1 gap-1">
-                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">SKU: {product.sku}</p>
-                <p className="font-bold text-white leading-snug group-hover:text-violet-400 transition-colors line-clamp-2 text-sm">{product.nombre}</p>
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-auto">
-                <p className="text-xl font-black text-violet-400 tracking-tight">$ {product.precio.toLocaleString('es-AR')}</p>
-                <span className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 group-hover:bg-violet-500 group-hover:text-white transition-all flex items-center justify-center material-symbols-outlined text-lg shadow-lg">add</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -851,6 +945,126 @@ export default function POSPage() {
               >
                 Cerrar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visual Variant Explosion/Abanico Selector Modal */}
+      {selectedParentProduct && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md transition-all duration-300 animate-in fade-in"
+          onClick={() => setSelectedParentProduct(null)}
+        >
+          <style>{`
+            @keyframes variantExplosion {
+              0% {
+                opacity: 0;
+                transform: scale(0.4) translateY(40px);
+                filter: blur(10px);
+              }
+              70% {
+                transform: scale(1.08) translateY(-5px);
+              }
+              100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+                filter: none;
+              }
+            }
+            .variant-explode-item {
+              animation: variantExplosion 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            }
+          `}</style>
+          
+          <div 
+            className="bg-[#0D0D0E]/95 border border-white/10 rounded-[32px] w-full max-w-2xl overflow-hidden shadow-[0_0_80px_-10px_rgba(139,92,246,0.3)] transition-all duration-300 animate-in zoom-in-95 flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[600px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Left Column: Product Info & Image */}
+            <div className="w-full md:w-2/5 bg-zinc-950/50 p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-white/5 relative">
+              <div className="w-36 h-36 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center overflow-hidden shadow-2xl">
+                {selectedParentProduct.img ? (
+                  <img 
+                    src={selectedParentProduct.img} 
+                    alt={selectedParentProduct.nombre} 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <span className="material-symbols-outlined text-5xl text-zinc-800">image</span>
+                )}
+              </div>
+              <h3 className="font-black text-white text-lg text-center mt-4 leading-snug">{selectedParentProduct.nombre}</h3>
+              <p className="text-zinc-500 text-[10px] uppercase font-black tracking-widest mt-1">SELECCIONAR VARIANTE</p>
+              
+              <button 
+                onClick={() => setSelectedParentProduct(null)}
+                className="absolute top-4 left-4 w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all active:scale-95"
+              >
+                <span className="material-symbols-outlined text-sm">arrow_back</span>
+              </button>
+            </div>
+
+            {/* Right Column: Variant Fan-Out List */}
+            <div className="flex-1 p-6 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between pb-4 border-b border-white/5 shrink-0">
+                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Variantes Disponibles</span>
+                <span className="px-2 py-0.5 bg-violet-500/10 text-violet-400 text-[9px] font-black uppercase tracking-widest rounded-full border border-violet-500/20">
+                  {selectedParentProduct.variants.length} Opciones
+                </span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1 custom-scrollbar">
+                {selectedParentProduct.variants.map((v, index) => {
+                  const hasStock = v.available > 0;
+                  
+                  // Formatear opciones como Color: Azul, Talle: L
+                  const optionsString = v.variant_options && typeof v.variant_options === 'object'
+                    ? Object.entries(v.variant_options)
+                        .map(([key, val]) => `${key.toUpperCase()}: ${String(val).toUpperCase()}`)
+                        .join(' • ')
+                    : `SKU: ${v.sku}`;
+
+                  return (
+                    <button
+                      key={v.id}
+                      disabled={!hasStock}
+                      style={{ animationDelay: `${index * 45}ms` }}
+                      onClick={() => {
+                        addToCart(v);
+                        setSelectedParentProduct(null);
+                      }}
+                      className={`variant-explode-item w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all duration-300 group shadow-lg ${
+                        hasStock
+                          ? 'bg-zinc-900/40 border-white/5 hover:border-violet-500/40 hover:bg-violet-500/[0.03] active:scale-[0.98]'
+                          : 'bg-zinc-950/20 border-white/5 opacity-40 grayscale pointer-events-none'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="font-bold text-white text-sm group-hover:text-violet-400 transition-colors truncate">
+                          {optionsString}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
+                            SKU: {v.sku}
+                          </span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${hasStock ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                          <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">
+                            Stock: {v.available}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-black text-violet-400 text-base">$ {v.precio.toLocaleString('es-AR')}</span>
+                        <span className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 group-hover:bg-violet-500 group-hover:text-white transition-all flex items-center justify-center material-symbols-outlined text-sm font-bold">
+                          add
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, use } from 'react';
 import { supabase } from '@/lib/supabase';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
 
 interface Product {
   id: string;
@@ -67,7 +68,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   const [showAddedToast, setShowAddedToast] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [customerInfo, setCustomerInfo] = useState({ name: '', email: '', phone: '', address: '', city: '', province: '', postalCode: '', notes: '' });
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('transfer');
   const [processingOrder, setProcessingOrder] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
@@ -77,6 +78,38 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   const [currency, setCurrency] = useState('ARS');
   const [transferConfirmed, setTransferConfirmed] = useState(false);
   const [mpConfirmed, setMpConfirmed] = useState(false);
+  const [transferProofUrl, setTransferProofUrl] = useState('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [deliveryMethod, setDeliveryMethod] = useState<'pickup' | 'delivery'>('pickup');
+  const [matchedZone, setMatchedZone] = useState<any>(null);
+  const [isZoneUnsupported, setIsZoneUnsupported] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handlePostalCodeCheck = (pc: string) => {
+    if (!pc) {
+      setMatchedZone(null);
+      setIsZoneUnsupported(false);
+      return;
+    }
+    const zones = tenant?.settings?.store_shipping_zones || [];
+    if (zones.length === 0) {
+      setMatchedZone(null);
+      setIsZoneUnsupported(false);
+      return;
+    }
+    const cleanPC = pc.trim();
+    const matched = zones.find((z: any) => 
+      Array.isArray(z.postal_codes) && z.postal_codes.some((code: string) => code.trim() === cleanPC)
+    );
+    if (matched) {
+      setMatchedZone(matched);
+      setIsZoneUnsupported(false);
+    } else {
+      setMatchedZone(null);
+      setIsZoneUnsupported(true);
+    }
+  };
+
   const [selectedVariant, setSelectedVariant] = useState<Record<string, string>>({});
   const [productAttributes, setProductAttributes] = useState<Record<string, any>>({});
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -84,9 +117,55 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   const [sortBy, setSortBy] = useState('newest'); // newest, price-asc, price-desc
 
 
+  const getProductAttributesForSelected = (product: any) => {
+    if (!product || !product.product_variants || product.product_variants.length === 0) return [];
+    const usedSlugs = new Set<string>();
+    product.product_variants.forEach((v: any) => {
+      if (v.variant_options) {
+        Object.keys(v.variant_options).forEach(s => usedSlugs.add(s));
+      }
+    });
+
+    const result: any[] = [];
+    usedSlugs.forEach(slug => {
+      const attrGroup = productAttributes[slug];
+      if (attrGroup && attrGroup[0]) {
+        result.push({
+          slug,
+          name: attrGroup[0].name,
+          type: attrGroup[0].type,
+          options: attrGroup[0].options
+        });
+      }
+    });
+    return result;
+  };
+
+  const getActiveVariant = (product: any) => {
+    if (!product || !product.product_variants || product.product_variants.length === 0) return null;
+    const match = product.product_variants.find((v: any) => {
+      const vOpts = v.variant_options || {};
+      return Object.entries(selectedVariant).every(([slug, val]) => vOpts[slug] === val);
+    });
+    return match || product.product_variants[0];
+  };
+
   const openProduct = (product: any) => {
     setSelectedProduct(product);
     setSelectedImageIndex(0);
+    
+    const defaultSelection: Record<string, string> = {};
+    if (product.product_variants && product.product_variants.length > 0) {
+      const firstWithOpts = product.product_variants.find(
+        (v: any) => v.variant_options && Object.keys(v.variant_options).length > 0
+      );
+      if (firstWithOpts) {
+        Object.entries(firstWithOpts.variant_options).forEach(([k, v]) => {
+          defaultSelection[k] = v as string;
+        });
+      }
+    }
+    setSelectedVariant(defaultSelection);
   };
 
   const sendWhatsAppOrder = () => {
@@ -95,22 +174,55 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       return;
     }
 
-    const itemsText = cart.map(item => `- ${item.quantity}x ${item.nombre || item.title} (${formatPrice(item.precio * item.quantity, currency)})`).join('\n');
+    const itemsText = cart.map(item => {
+      const varText = item.selectedVariantText ? ` [${item.selectedVariantText}]` : '';
+      return `- ${item.quantity}x ${item.nombre || item.title}${varText} (${formatPrice(item.precio * item.quantity, currency)})`;
+    }).join('\n');
     const cartTotal = cart.reduce((acc, item) => acc + (item.precio * item.quantity), 0);
     
+    const deliveryDetails = deliveryMethod === 'pickup'
+      ? `*Entrega:* Retiro en Tienda 🏪\n\n`
+      : `*Entrega:* Envío a Domicilio 🚚\n` +
+        `*Zona:* ${matchedZone?.name || 'Tarifa Estándar'}\n` +
+        `*Dirección:* ${customerInfo.address}, ${customerInfo.city}, ${customerInfo.province} (CP: ${customerInfo.postalCode})\n\n`;
+
     const message = `*NUEVO PEDIDO #${orderNumber}*\n\n` +
       `*Cliente:* ${customerInfo.name}\n` +
       `*Teléfono:* ${customerInfo.phone}\n` +
-      `*Dirección:* ${customerInfo.address}, ${customerInfo.city}, ${customerInfo.province}\n\n` +
+      deliveryDetails +
       `*Productos:*\n${itemsText}\n\n` +
-      `*TOTAL:* ${formatPrice(cartTotal, currency)}\n` +
-      `*Pago:* ${paymentMethod === 'cash' ? 'Efectivo/Acordar' : (paymentMethod === 'transfer' ? 'Transferencia' : 'Mercado Pago')}\n\n` +
+      `*TOTAL:* ${formatPrice(cartTotal + shippingCost, currency)}\n` +
+      `*Pago:* ${paymentMethod === 'cash' ? 'Efectivo/Acordar' : (paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Mercado Pago')}\n` +
+      (paymentMethod === 'transfer' && transferProofUrl ? `*Comprobante:* ${transferProofUrl}\n\n` : '\n') +
       `_Enviado desde mi tienda online_`;
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${tenant.store_social_whatsapp.replace(/\D/g, '')}?text=${encodedMessage}`;
     
     window.open(whatsappUrl, '_blank');
+  };
+
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadingReceipt(true);
+    try {
+      const res = await uploadImageToCloudinary(file, {
+        folder: `obsidiana/${tenant?.id}/receipts`
+      });
+      if (res && res.secure_url) {
+        setTransferProofUrl(res.secure_url);
+        setTransferConfirmed(true);
+      } else {
+        alert('Hubo un error al subir el comprobante. Intenta de nuevo.');
+      }
+    } catch (err) {
+      console.error('Error uploading receipt:', err);
+      alert('Error al subir el archivo.');
+    } finally {
+      setUploadingReceipt(false);
+    }
   };
 
   const defaultAppearance: Appearance = {
@@ -170,7 +282,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           store_template, store_banners, store_tagline, store_currency,
           store_min_order_amount, store_shipping_enabled, store_shipping_cost,
           store_shipping_free_threshold, store_social_instagram, store_social_facebook,
-          store_social_whatsapp, store_appearance, store_logo_url, updated_at
+          store_social_whatsapp, store_appearance, store_logo_url, updated_at, settings, store_payment_methods
         `)
         .or(`slug.eq.${slug},store_domain.eq.${slug}`)
         .single();
@@ -196,23 +308,57 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       }
 
 
-      const { data: productsData, error: productsError } = await supabase
+      let productsData: any[] | null = null;
+      let productsError: any = null;
+
+      // Intentamos consultar incluyendo la columna variant_options
+      const resWithVariants = await supabase
         .from('products')
         .select(`
           *,
-          product_variants (id, sku, price_ars)
+          product_variants (id, sku, price_ars, price_usd, cost_ars, barcode, variant_options)
         `)
         .eq('tenant_id', tenantData.id)
         .eq('available_online', true)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      console.log('PRODUCTS DATA FETCHED:', productsData);
-      if (productsError) {
-        console.error('Error loading products:', productsError);
-        setLoading(false);
-        return;
+      if (resWithVariants.error) {
+        console.warn('Fallo al cargar variantes con variant_options, intentando fallback sin variant_options:', resWithVariants.error);
+        
+        // Fallback: consulta sin variant_options para mantener la tienda activa
+        const resFallback = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_variants (id, sku, price_ars, price_usd, cost_ars, barcode)
+          `)
+          .eq('tenant_id', tenantData.id)
+          .eq('available_online', true)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+
+        if (resFallback.error) {
+          console.error('Error loading products fallback:', resFallback.error);
+          setLoading(false);
+          return;
+        }
+        
+        // Mockeamos variant_options como un objeto vacío para evitar errores de renderizado
+        productsData = (resFallback.data || []).map((p: any) => {
+          if (p.product_variants) {
+            p.product_variants = p.product_variants.map((v: any) => ({
+              ...v,
+              variant_options: {}
+            }));
+          }
+          return p;
+        });
+      } else {
+        productsData = resWithVariants.data;
       }
+
+      console.log('PRODUCTS DATA FETCHED:', productsData);
 
       const productsWithPrice = (productsData || []).map((p: any) => {
         let seoObj = p.seo;
@@ -229,24 +375,24 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
       setProducts(productsWithPrice);
 
-
-
-      const variantIds = productsWithPrice.map((p: any) => p.product_variants?.[0]?.id).filter(Boolean);
+      const allVariantIds: string[] = [];
+      productsWithPrice.forEach((p: any) => {
+        if (p.product_variants) {
+          p.product_variants.forEach((v: any) => {
+            if (v.id) allVariantIds.push(v.id);
+          });
+        }
+      });
       
-      if (variantIds.length > 0) {
+      if (allVariantIds.length > 0) {
         const { data: inventoryData } = await supabase
           .from('inventory_levels')
           .select('variant_id, on_hand')
-          .in('variant_id', variantIds);
+          .in('variant_id', allVariantIds);
 
         const stockMap: Record<string, number> = {};
         (inventoryData || []).forEach((inv: any) => {
-          const product = productsWithPrice.find((p: any) => p.product_variants?.[0]?.id === inv.variant_id);
-          if (product) {
-            const reserved = product.online_reserved || 0;
-            const onHand = inv.on_hand || 0;
-            stockMap[product.id] = reserved > 0 ? reserved : onHand;
-          }
+          stockMap[inv.variant_id] = inv.on_hand || 0;
         });
         setProductStock(stockMap);
       }
@@ -299,17 +445,24 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   });
 
   const cartTotal = cart.reduce((sum, item) => sum + item.precio * item.quantity, 0);
-  const shippingCost = tenant?.store_shipping_enabled 
-    ? (cartTotal >= (tenant.store_shipping_free_threshold || 0) ? 0 : (tenant.store_shipping_cost || 0))
-    : 0;
+  const shippingCost = deliveryMethod === 'pickup'
+    ? 0
+    : (tenant?.store_shipping_enabled 
+        ? (cartTotal >= (tenant.store_shipping_free_threshold || 0) ? 0 : (matchedZone ? matchedZone.cost : (tenant.store_shipping_cost || 0)))
+        : 0);
   const finalTotal = cartTotal + shippingCost;
 
   const addToCart = (product: any) => {
+    const activeVar = product.product_variants?.find((v: any) => {
+      if (!v.variant_options) return false;
+      const vOpts = v.variant_options || {};
+      return Object.entries(selectedVariant).every(([slug, val]) => vOpts[slug] === val);
+    }) || product.product_variants?.[0];
 
-
+    const variantId = activeVar?.id;
     const variantKey = Object.values(selectedVariant).join('-') || 'default';
     const cartKey = `${product.id}-${variantKey}`;
-    const onlineStock = productStock[product.id] || 999;
+    const onlineStock = variantId ? (productStock[variantId] ?? 999) : 999;
     const inCart = cart.find((item) => item.cartKey === cartKey)?.quantity || 0;
     
     if (inCart >= onlineStock) {
@@ -318,6 +471,15 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       return;
     }
 
+    const variantName = Object.entries(selectedVariant)
+      .map(([slug, valSlug]) => {
+        const attrGroup = productAttributes[slug];
+        const option = attrGroup?.[0]?.options?.find((o: any) => o.slug === valSlug);
+        return option ? `${attrGroup[0].name}: ${option.value}` : '';
+      })
+      .filter(Boolean)
+      .join(' / ');
+
     setCart((prev: any[]) => {
       const existing = prev.find((item) => item.cartKey === cartKey);
       if (existing) {
@@ -325,17 +487,27 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           item.cartKey === cartKey ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prev, { ...product, cartKey, variantKey, selectedVariant: { ...selectedVariant }, quantity: 1 }];
+      return [...prev, { 
+        ...product, 
+        cartKey, 
+        variantKey, 
+        variantId,
+        selectedVariant: { ...selectedVariant }, 
+        selectedVariantText: variantName,
+        precio: activeVar?.price_ars || product.precio || 0,
+        sku: activeVar?.sku || product.sku || '',
+        quantity: 1 
+      }];
     });
     setShowAddedToast(true);
     setTimeout(() => setShowAddedToast(false), 2000);
   };
 
-  const updateQuantity = (productId: string, delta: number) => {
+  const updateQuantity = (cartKey: string, delta: number) => {
     setCart((prev: any[]) => {
       return prev
         .map((item) => {
-          if (item.id === productId) {
+          if (item.cartKey === cartKey) {
             const newQty = item.quantity + delta;
             if (newQty <= 0) return null;
             return { ...item, quantity: newQty };
@@ -346,19 +518,15 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev: any[]) => prev.filter((item) => item.id !== productId));
+  const removeFromCart = (cartKey: string) => {
+    setCart((prev: any[]) => prev.filter((item) => item.cartKey !== cartKey));
   };
 
   async function handleCheckout() {
     if (!customerInfo.name || !customerInfo.phone) return;
     
-    if (paymentMethod === 'transfer' && !transferConfirmed) {
-      alert('Por favor confirma que ya transferiste el monto');
-      return;
-    }
-    if (paymentMethod === 'mp' && !mpConfirmed) {
-      alert('Por favor confirma que ya realizaste el pago por MercadoPago');
+    if (paymentMethod === 'transfer' && !transferProofUrl) {
+      alert('Por favor sube el comprobante de tu transferencia bancaria para continuar.');
       return;
     }
     
@@ -368,16 +536,19 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       let orderStatus = 'pending';
       let paymentNotes = '';
 
-      if (paymentMethod === 'cash') {
+      if (paymentMethod === 'transfer') {
         orderStatus = 'pending_confirmation';
-        paymentNotes = 'Pago en efectivo contra entrega';
-      } else if (paymentMethod === 'transfer') {
-        orderStatus = 'pending_confirmation';
-        paymentNotes = 'Transferencia verificada por cliente';
+        paymentNotes = `[Comprobante de Pago]: ${transferProofUrl}`;
       } else if (paymentMethod === 'mp') {
         orderStatus = 'pending_confirmation';
-        paymentNotes = 'MercadoPago verificado por cliente';
+        paymentNotes = 'Pago por MercadoPago (Pendiente de Aprobación)';
       }
+
+      let shippingNotes = deliveryMethod === 'pickup' 
+        ? '[Método: Retiro en Tienda]' 
+        : `[Método: Envío a Domicilio${matchedZone ? ` - Zona: ${matchedZone.name}` : ''}]`;
+
+      const orderNotesParts = [customerInfo.notes, shippingNotes, paymentNotes].filter(Boolean).join(' | ');
 
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
@@ -386,16 +557,17 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           customer_name: customerInfo.name,
           customer_email: customerInfo.email,
           customer_phone: customerInfo.phone,
-          customer_address: customerInfo.address,
-          customer_city: customerInfo.city,
-          customer_province: customerInfo.province,
-          customer_postal_code: customerInfo.postalCode,
+          customer_address: deliveryMethod === 'pickup' ? 'Retiro en Tienda' : customerInfo.address,
+          customer_city: deliveryMethod === 'pickup' ? 'Salta' : customerInfo.city,
+          customer_province: deliveryMethod === 'pickup' ? 'Salta' : customerInfo.province,
+          customer_postal_code: deliveryMethod === 'pickup' ? '' : customerInfo.postalCode,
           payment_method: paymentMethod,
           subtotal_ars: cartTotal,
           shipping_ars: shippingCost,
           total_ars: finalTotal,
           status: orderStatus,
-          notes: customerInfo.notes ? `${customerInfo.notes} | ${paymentNotes}` : paymentNotes,
+          channel: 'online',
+          notes: orderNotesParts,
         })
         .select()
         .single();
@@ -404,40 +576,25 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
       // 2. Descontar Stock de Inventario
       for (const item of cart) {
-        // Obtenemos el ID de la variante (usamos la primera si no hay variantes específicas seleccionadas)
-        // Esto asume que el objeto 'item' tiene la información de sus variantes cargada
-        const variantId = item.product_variants?.[0]?.id;
+        const variantId = item.variantId || item.product_variants?.[0]?.id;
         
         if (variantId) {
-          // Consultamos el stock actual de la variante para evitar números negativos
           const { data: invData } = await supabase
             .from('inventory_levels')
-            .select('on_hand, online_reserved')
+            .select('on_hand')
             .eq('variant_id', variantId)
             .single();
 
           if (invData) {
             const currentOnHand = invData.on_hand || 0;
-            const currentReserved = invData.online_reserved || 0;
-            
-            // Si hay stock reservado para la web, lo priorizamos
-            if (currentReserved >= item.quantity) {
-              await supabase
-                .from('inventory_levels')
-                .update({ online_reserved: currentReserved - item.quantity })
-                .eq('variant_id', variantId);
-            } else {
-              // Si no hay reserva suficiente, descontamos del stock físico general
-              const newOnHand = Math.max(0, currentOnHand - item.quantity);
-              await supabase
-                .from('inventory_levels')
-                .update({ on_hand: newOnHand })
-                .eq('variant_id', variantId);
-            }
+            const newOnHand = Math.max(0, currentOnHand - item.quantity);
+            await supabase
+              .from('inventory_levels')
+              .update({ on_hand: newOnHand })
+              .eq('variant_id', variantId);
           }
         }
         
-        // También actualizamos el campo online_reserved en products por compatibilidad/legacy
         const prodReserved = item.online_reserved || 0;
         if (prodReserved > 0) {
           await supabase
@@ -448,10 +605,15 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       }
 
       const orderItems = cart.map((item: any) => ({
+        tenant_id: tenant.id,
         order_id: orderData.id,
-        product_id: item.id,
+        product_id: item.id || null,
+        variant_id: item.variantId || null,
         quantity: item.quantity,
-        price: item.precio,
+        unit_price_ars: item.precio || 0,
+        unit_price: item.precio || 0,
+        title_snapshot: item.nombre || item.title || 'Producto',
+        sku_snapshot: item.sku || 'N/A',
       }));
 
       const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
@@ -488,6 +650,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       setCustomerInfo({ name: '', email: '', phone: '', address: '', city: '', province: '', postalCode: '', notes: '' });
       setTransferConfirmed(false);
       setMpConfirmed(false);
+      setTransferProofUrl('');
     } catch (error) {
       console.error('Error processing order:', error);
       alert('Error al procesar el pedido. Intenta de nuevo.');
@@ -497,14 +660,13 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
   }
 
   const defaultPaymentMethods = [
-    { id: 'cash', name: 'Efectivo', icon: 'payments', enabled: true },
     { id: 'transfer', name: 'Transferencia', icon: 'account_balance', enabled: true, config: { bank: '', cbu: '', alias: '' } },
     { id: 'mp', name: 'MercadoPago', icon: 'payment', enabled: true, config: { link: '' } },
   ];
   const paymentMethodsConfig = tenant?.store_payment_methods || [];
-  const enabledPaymentMethods = paymentMethodsConfig.length > 0 
+  const enabledPaymentMethods = (paymentMethodsConfig.length > 0 
     ? paymentMethodsConfig.filter((m: any) => m.enabled)
-    : defaultPaymentMethods;
+    : defaultPaymentMethods).filter((m: any) => m.id !== 'cash');
 
   const transferMethod = enabledPaymentMethods.find((m: any) => m.id === 'transfer');
   const mpMethod = enabledPaymentMethods.find((m: any) => m.id === 'mp');
@@ -803,7 +965,12 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                               if (product.external_url) {
                                 window.open(product.external_url, '_blank');
                               } else {
-                                addToCart(product); 
+                                const hasMultiple = product.product_variants && product.product_variants.filter((v: any) => v.variant_options && Object.keys(v.variant_options).length > 0).length > 0;
+                                if (hasMultiple) {
+                                  openProduct(product);
+                                } else {
+                                  addToCart(product);
+                                }
                               }
                             }}
                             className="p-3 rounded-full shadow-lg hover:shadow-xl transition-all text-white flex items-center justify-center"
@@ -888,7 +1055,12 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                             if (product.external_url) {
                               window.open(product.external_url, '_blank');
                             } else {
-                              addToCart(product); 
+                              const hasMultiple = product.product_variants && product.product_variants.filter((v: any) => v.variant_options && Object.keys(v.variant_options).length > 0).length > 0;
+                              if (hasMultiple) {
+                                openProduct(product);
+                              } else {
+                                addToCart(product);
+                              }
                             }
                           }}
                           className="px-6 py-3 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2"
@@ -1045,7 +1217,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       ) : (
                         <div className="space-y-3">
                           {cart.map((item: any) => (
-                            <div key={item.id} className="flex gap-4 p-3 rounded-2xl border transition-all duration-300" style={{ 
+                            <div key={item.cartKey} className="flex gap-4 p-3 rounded-2xl border transition-all duration-300" style={{ 
                               backgroundColor: appearance.dark_mode ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)',
                               borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
                             }}>
@@ -1064,6 +1236,11 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                               <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                                 <div className="min-w-0">
                                   <h4 className="font-bold text-xs truncate uppercase tracking-wider" style={{ color: textColor }}>{item.title || item.nombre}</h4>
+                                  {item.selectedVariantText && (
+                                    <p className="text-[9px] opacity-60 font-bold uppercase tracking-tight mt-0.5" style={{ color: currentTheme.primary }}>
+                                      {item.selectedVariantText}
+                                    </p>
+                                  )}
                                   <p className="text-xs mt-0.5 font-bold" style={{ color: currentTheme.primary }}>{formatPrice(item.precio, currency)}</p>
                                 </div>
                                 <div className="flex items-center justify-between mt-2">
@@ -1072,15 +1249,15 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                                     backgroundColor: inputBg,
                                     borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
                                   }}>
-                                    <button onClick={() => updateQuantity(item.id, -1)} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10" style={{ color: textColor }}>
+                                    <button onClick={() => updateQuantity(item.cartKey, -1)} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10" style={{ color: textColor }}>
                                       <span className="material-symbols-outlined text-[10px] font-black">remove</span>
                                     </button>
                                     <span className="w-6 text-center text-xs font-bold" style={{ color: textColor }}>{item.quantity}</span>
-                                    <button onClick={() => updateQuantity(item.id, 1)} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10" style={{ color: textColor }}>
+                                    <button onClick={() => updateQuantity(item.cartKey, 1)} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10" style={{ color: textColor }}>
                                       <span className="material-symbols-outlined text-[10px] font-black">add</span>
                                     </button>
                                   </div>
-                                  <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-red-500/10 text-red-400">
+                                  <button onClick={() => removeFromCart(item.cartKey)} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-red-500/10 text-red-400">
                                     <span className="material-symbols-outlined text-lg">delete</span>
                                   </button>
                                 </div>
@@ -1141,9 +1318,57 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                           />
                         </div>
                         {tenant.store_shipping_enabled && (
+                          <div className="col-span-2 space-y-3">
+                            <label className="block text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: mutedColor }}>Método de Entrega *</label>
+                            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl border border-white/5" style={{ backgroundColor: inputBg }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeliveryMethod('pickup');
+                                  setIsZoneUnsupported(false);
+                                  setMatchedZone(null);
+                                }}
+                                className={`py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${deliveryMethod === 'pickup' ? 'text-white shadow' : 'opacity-40 hover:opacity-75'}`}
+                                style={deliveryMethod === 'pickup' ? primaryBg : { color: textColor }}
+                              >
+                                <span className="material-symbols-outlined text-sm">store</span>
+                                Retiro en Tienda
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeliveryMethod('delivery');
+                                  if (customerInfo.postalCode) {
+                                    handlePostalCodeCheck(customerInfo.postalCode);
+                                  }
+                                }}
+                                className={`py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${deliveryMethod === 'delivery' ? 'text-white shadow' : 'opacity-40 hover:opacity-75'}`}
+                                style={deliveryMethod === 'delivery' ? primaryBg : { color: textColor }}
+                              >
+                                <span className="material-symbols-outlined text-sm">local_shipping</span>
+                                Envío a Domicilio
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Si es retiro en tienda */}
+                        {deliveryMethod === 'pickup' && (
+                          <div className="col-span-2 p-4 rounded-xl border bg-emerald-500/5 border-emerald-500/10 flex items-start gap-3">
+                            <span className="material-symbols-outlined text-emerald-400 mt-0.5">storefront</span>
+                            <div className="text-xs">
+                              <h5 className="font-bold text-white mb-0.5">Dirección de Retiro</h5>
+                              <p className="text-zinc-400 leading-relaxed mb-2">{tenant.address || 'Salta, Argentina'}</p>
+                              <span className="text-[10px] uppercase font-black text-emerald-400 tracking-wider">¡El retiro es 100% Gratis! 🎁</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Si es envío a domicilio */}
+                        {deliveryMethod === 'delivery' && (
                           <>
                             <div className="col-span-2">
-                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Dirección de Entrega</label>
+                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Dirección de Entrega *</label>
                               <input 
                                 type="text" 
                                 value={customerInfo.address} 
@@ -1158,7 +1383,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                               />
                             </div>
                             <div>
-                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Ciudad</label>
+                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Ciudad *</label>
                               <input 
                                 type="text" 
                                 value={customerInfo.city} 
@@ -1173,7 +1398,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                               />
                             </div>
                             <div>
-                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Provincia</label>
+                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Provincia *</label>
                               <input 
                                 type="text" 
                                 value={customerInfo.province} 
@@ -1187,6 +1412,45 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                                 placeholder="Provincia" 
                               />
                             </div>
+                            <div className="col-span-2">
+                              <label className="block text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: mutedColor }}>Código Postal *</label>
+                              <input 
+                                type="text" 
+                                value={customerInfo.postalCode} 
+                                onChange={e => {
+                                  setCustomerInfo({ ...customerInfo, postalCode: e.target.value });
+                                  handlePostalCodeCheck(e.target.value);
+                                }} 
+                                className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 border-2" 
+                                style={{ 
+                                  backgroundColor: inputBg, 
+                                  borderColor: 'transparent', 
+                                  color: inputText 
+                                }} 
+                                placeholder="Ej: 4400" 
+                              />
+                            </div>
+
+                            {/* Alertas de Zonas de Envío */}
+                            {isZoneUnsupported && (
+                              <div className="col-span-2 p-4 rounded-xl border bg-amber-500/5 border-amber-500/20 flex items-start gap-3 animate-pulse">
+                                <span className="material-symbols-outlined text-amber-500 mt-0.5">warning</span>
+                                <div className="text-xs">
+                                  <h5 className="font-bold text-white mb-0.5">Envío No Disponible</h5>
+                                  <p className="text-zinc-400 leading-relaxed">Lo sentimos, no realizamos envíos a tu zona. Por favor elige la opción de **Retiro en Tienda** para completar tu compra.</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {matchedZone && (
+                              <div className="col-span-2 p-4 rounded-xl border bg-emerald-500/5 border-emerald-500/20 flex items-start gap-3">
+                                <span className="material-symbols-outlined text-emerald-400 mt-0.5">local_shipping</span>
+                                <div className="text-xs">
+                                  <h5 className="font-bold text-white mb-0.5">Zona de Envío Detectada: {matchedZone.name}</h5>
+                                  <p className="text-zinc-400 leading-relaxed">Costo de envío para esta zona: **${matchedZone.cost.toLocaleString('es-AR')}**</p>
+                                </div>
+                              </div>
+                            )}
                           </>
                         )}
                         <div className="col-span-2">
@@ -1241,46 +1505,164 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       </div>
                       
                       {paymentMethod === 'transfer' && transferConfig && (
-                        <div className="animate-in fade-in slide-in-from-top-4 duration-300">
-                          <div className="rounded-2xl p-4 border space-y-2.5" style={{ 
+                        <div className="animate-in fade-in slide-in-from-top-4 duration-300 space-y-4">
+                          <div className="rounded-2xl p-5 border space-y-3.5" style={{ 
                             backgroundColor: cardBg, 
                             borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' 
                           }}>
-                            <h4 className="font-black text-xs uppercase tracking-wider" style={{ color: textColor }}>Datos de Transferencia</h4>
+                            <h4 className="font-black text-xs uppercase tracking-wider flex items-center gap-1.5" style={{ color: textColor }}>
+                              <span className="material-symbols-outlined text-sm" style={{ color: currentTheme.primary }}>account_balance</span>
+                              Datos de Transferencia
+                            </h4>
                             <div className="h-px w-full" style={{ backgroundColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
-                            <p className="text-xs" style={{ color: mutedColor }}>Banco: <strong style={{ color: textColor }}>{transferConfig.bank}</strong></p>
-                            <p className="text-xs" style={{ color: mutedColor }}>CBU: <strong style={{ color: textColor }}>{transferConfig.cbu}</strong></p>
-                            <p className="text-xs" style={{ color: mutedColor }}>Alias: <strong style={{ color: textColor }}>{transferConfig.alias}</strong></p>
-                            <p className="text-xs font-black mt-2 text-right uppercase tracking-wider" style={{ color: currentTheme.primary }}>Total: {formatPrice(finalTotal, currency)}</p>
+                            
+                            <div className="space-y-3 pt-1">
+                              {/* Banco */}
+                              <div className="flex justify-between items-center text-xs">
+                                <span style={{ color: mutedColor }}>Banco:</span>
+                                <strong style={{ color: textColor }} className="text-sm font-bold">{transferConfig.bank}</strong>
+                              </div>
+
+                              {/* Titular de la Cuenta */}
+                              {transferConfig.holder && (
+                                <div className="flex justify-between items-center text-xs">
+                                  <span style={{ color: mutedColor }}>Titular:</span>
+                                  <strong style={{ color: textColor }} className="text-sm font-bold">{transferConfig.holder}</strong>
+                                </div>
+                              )}
+
+                              {/* Nro de Cuenta */}
+                              {transferConfig.account && (
+                                <div className="flex justify-between items-center text-xs">
+                                  <span style={{ color: mutedColor }}>Nro Cuenta:</span>
+                                  <strong style={{ color: textColor }} className="text-xs font-semibold">{transferConfig.account}</strong>
+                                </div>
+                              )}
+
+                              {/* CBU / CVU con Copiar */}
+                              {transferConfig.cbu && (
+                                <div className="flex justify-between items-center text-xs gap-3">
+                                  <span style={{ color: mutedColor }}>CBU/CVU:</span>
+                                  <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl font-mono text-xs relative group">
+                                    <strong style={{ color: textColor }} className="tracking-wide select-all">{transferConfig.cbu}</strong>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(transferConfig.cbu);
+                                        setCopiedField('cbu');
+                                        setTimeout(() => setCopiedField(null), 2000);
+                                      }}
+                                      className="hover:scale-110 active:scale-95 transition-all text-xs flex items-center justify-center p-0.5"
+                                      style={{ color: copiedField === 'cbu' ? '#10b981' : currentTheme.primary }}
+                                    >
+                                      <span className="material-symbols-outlined text-sm leading-none">
+                                        {copiedField === 'cbu' ? 'check_circle' : 'content_copy'}
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Alias con Copiar */}
+                              {transferConfig.alias && (
+                                <div className="flex justify-between items-center text-xs gap-3">
+                                  <span style={{ color: mutedColor }}>Alias:</span>
+                                  <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl font-mono text-xs relative group">
+                                    <strong style={{ color: textColor }} className="tracking-wide select-all">{transferConfig.alias}</strong>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(transferConfig.alias);
+                                        setCopiedField('alias');
+                                        setTimeout(() => setCopiedField(null), 2000);
+                                      }}
+                                      className="hover:scale-110 active:scale-95 transition-all text-xs flex items-center justify-center p-0.5"
+                                      style={{ color: copiedField === 'alias' ? '#10b981' : currentTheme.primary }}
+                                    >
+                                      <span className="material-symbols-outlined text-sm leading-none">
+                                        {copiedField === 'alias' ? 'check_circle' : 'content_copy'}
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="h-px w-full my-2.5" style={{ backgroundColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
+                              <p className="text-xs font-black mt-2 text-right uppercase tracking-wider" style={{ color: currentTheme.primary }}>Total a Transferir: {formatPrice(finalTotal, currency)}</p>
+                            </div>
                           </div>
-                          <label className="flex items-center gap-3 p-4 rounded-2xl mt-3 cursor-pointer border" style={{ 
+
+                          <div className="rounded-2xl border p-4 space-y-3 relative overflow-hidden" style={{
                             backgroundColor: cardBg,
-                            borderColor: transferConfirmed ? currentTheme.primary : (appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
+                            borderColor: transferProofUrl ? currentTheme.primary : (appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
                           }}>
-                            <input type="checkbox" checked={transferConfirmed} onChange={(e) => setTransferConfirmed(e.target.checked)} className="w-4 h-4" style={{ accentColor: currentTheme.primary }} />
-                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: textColor }}>Ya realicé la transferencia bancaria</span>
-                          </label>
+                            <h4 className="font-black text-xs uppercase tracking-wider block" style={{ color: textColor }}>Comprobante de Transferencia</h4>
+                            <p className="text-[10px]" style={{ color: mutedColor }}>Es obligatorio adjuntar una captura o foto de la transferencia para que el negocio verifique y despache tu compra.</p>
+                            
+                            {uploadingReceipt && (
+                              <div className="flex flex-col items-center justify-center p-6 gap-3 bg-black/10 rounded-xl">
+                                <div className="w-8 h-8 border-3 border-t-transparent rounded-full animate-spin" style={{ borderColor: currentTheme.primary }} />
+                                <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: currentTheme.primary }}>Subiendo comprobante...</span>
+                              </div>
+                            )}
+
+                            {!uploadingReceipt && transferProofUrl && (
+                              <div className="flex items-center gap-4 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                                <div className="w-12 h-12 rounded-lg bg-cover bg-center border border-emerald-500/30 shrink-0" style={{ backgroundImage: `url(${transferProofUrl})` }} />
+                                <div className="flex-1">
+                                  <span className="text-xs font-black text-emerald-400 uppercase tracking-wide flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-sm">verified</span>
+                                    Subido con éxito
+                                  </span>
+                                  <button 
+                                    onClick={() => setTransferProofUrl('')} 
+                                    className="text-[9px] font-black uppercase tracking-wider text-red-500 hover:text-red-400 mt-1 block"
+                                  >
+                                    Reemplazar archivo
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {!uploadingReceipt && !transferProofUrl && (
+                              <div className="relative group cursor-pointer">
+                                <input 
+                                  type="file" 
+                                  accept="image/*"
+                                  onChange={handleReceiptUpload}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                                />
+                                <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 group-hover:border-zinc-400 transition-all duration-300" style={{
+                                  borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.1)'
+                                }}>
+                                  <span className="material-symbols-outlined text-zinc-500 text-3xl">upload_file</span>
+                                  <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: textColor }}>Seleccionar Captura / Foto</span>
+                                  <span className="text-[9px] font-medium" style={{ color: mutedColor }}>JPG, PNG o WEBP (Máx. 2MB)</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                       
                       {paymentMethod === 'mp' && mpConfig && (
-                        <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
-                          <a 
-                            href={mpConfig.link} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="block text-center py-4 rounded-full font-black text-xs tracking-wider uppercase hover:opacity-90 active:scale-[0.98] transition-all shadow-md" 
-                            style={{ backgroundColor: currentTheme.primary, color: currentTheme.text }}
-                          >
-                            Pagar con Mercado Pago
-                          </a>
-                          <label className="flex items-center gap-3 p-4 rounded-2xl cursor-pointer border" style={{ 
+                        <div className="animate-in fade-in slide-in-from-top-4 duration-300 space-y-4">
+                          <div className="rounded-2xl p-6 border text-center space-y-4 shadow-xl" style={{ 
                             backgroundColor: cardBg,
-                            borderColor: mpConfirmed ? currentTheme.primary : (appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
+                            borderColor: currentTheme.primary
                           }}>
-                            <input type="checkbox" checked={mpConfirmed} onChange={(e) => setMpConfirmed(e.target.checked)} className="w-4 h-4" style={{ accentColor: currentTheme.primary }} />
-                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: textColor }}>Ya realicé el pago en Mercado Pago</span>
-                          </label>
+                            <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto">
+                              <span className="material-symbols-outlined text-2xl text-blue-400 animate-pulse">security</span>
+                            </div>
+                            <div>
+                              <h4 className="font-black text-sm uppercase tracking-wider" style={{ color: textColor }}>Pago Seguro 100% Protegido</h4>
+                              <p className="text-[11px] mt-2 max-w-sm mx-auto leading-relaxed" style={{ color: mutedColor }}>
+                                Al hacer clic en <strong style={{ color: textColor }}>"Confirmar Compra"</strong> abajo, serás redirigido a la pasarela oficial de <strong style={{ color: textColor }}>Mercado Pago</strong> para abonar de forma inmediata y automática.
+                              </p>
+                            </div>
+                            <div className="h-px w-full" style={{ backgroundColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
+                            <p className="text-xs font-black text-right uppercase tracking-wider" style={{ color: currentTheme.primary }}>Monto a abonar: {formatPrice(finalTotal, currency)}</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1336,7 +1718,17 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       </button>
                       <button 
                         onClick={() => setCheckoutStep(3)} 
-                        disabled={!customerInfo.name || !customerInfo.phone} 
+                        disabled={
+                          !customerInfo.name || 
+                          !customerInfo.phone || 
+                          (deliveryMethod === 'delivery' && (
+                            !customerInfo.address || 
+                            !customerInfo.city || 
+                            !customerInfo.province || 
+                            !customerInfo.postalCode || 
+                            isZoneUnsupported
+                          ))
+                        } 
                         className="flex-1 py-4 text-white rounded-full font-black text-xs tracking-wider uppercase disabled:opacity-30 disabled:pointer-events-none hover:opacity-90 active:scale-[0.98] transition-all shadow-lg" 
                         style={primaryBg}
                       >
@@ -1356,7 +1748,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                       </button>
                       <button 
                         onClick={handleCheckout} 
-                        disabled={processingOrder || (paymentMethod === 'transfer' && !transferConfirmed) || (paymentMethod === 'mp' && !mpConfirmed)} 
+                        disabled={processingOrder || uploadingReceipt || (paymentMethod === 'transfer' && !transferProofUrl)} 
                         className="flex-1 py-4 text-white rounded-full font-black text-xs tracking-wider uppercase disabled:opacity-30 disabled:pointer-events-none hover:opacity-90 active:scale-[0.98] transition-all shadow-lg" 
                         style={primaryBg}
                       >
@@ -1442,30 +1834,29 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                 </p>
               </div>
               
-              {/* Variant Selector */}
-              {Object.entries(productAttributes).length > 0 && (
+              {selectedProduct && getProductAttributesForSelected(selectedProduct).length > 0 && (
                 <div className="mb-6 space-y-4">
-                  {Object.entries(productAttributes).map(([slug, attr]: [string, any]) => (
-                    <div key={slug}>
-                      <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: mutedColor }}>{attr[0]?.name}</p>
+                  {getProductAttributesForSelected(selectedProduct).map((attr: any) => (
+                    <div key={attr.slug}>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: mutedColor }}>{attr.name}</p>
                       <div className="flex flex-wrap gap-2">
-                        {attr[0]?.options?.map((opt: any) => (
+                        {attr.options?.map((opt: any) => (
                           <button
                             key={opt.id}
-                            onClick={() => setSelectedVariant({ ...selectedVariant, [slug]: opt.slug })}
+                            onClick={() => setSelectedVariant({ ...selectedVariant, [attr.slug]: opt.slug })}
                             className={`px-4 py-2 rounded-xl text-xs font-black transition-all border ${
-                              selectedVariant[slug] === opt.slug
-                                ? 'border-transparent shadow-lg shadow-yellow-500/20'
+                              selectedVariant[attr.slug] === opt.slug
+                                ? 'border-transparent shadow-lg shadow-yellow-500/20 scale-[1.02]'
                                 : 'border-white/5 hover:border-white/20'
                             }`}
-                            style={selectedVariant[slug] === opt.slug 
+                            style={selectedVariant[attr.slug] === opt.slug 
                               ? { backgroundColor: currentTheme.primary, color: '#fff' } 
                               : { backgroundColor: appearance.dark_mode ? '#27272a' : '#f1f1f1', color: mutedColor }
                             }
                           >
-                            {attr[0]?.type === 'color' && opt.color && (
+                            {attr.type === 'color' && opt.color && (
                               <span 
-                                className="inline-block w-3 h-3 rounded-full mr-2 shadow-sm" 
+                                className="inline-block w-3.5 h-3.5 rounded-full mr-2 shadow-sm border border-black/10" 
                                 style={{ backgroundColor: opt.color }}
                               />
                             )}
@@ -1482,10 +1873,17 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
                 <div className="flex items-end justify-between">
                   <div>
                     <p className="text-xs font-black uppercase tracking-widest mb-1" style={{ color: mutedColor }}>Precio Final</p>
-                    <p className="text-4xl font-black" style={{ color: textColor }}>{formatPrice(selectedProduct.precio || 0, currency)}</p>
+                    <p className="text-4xl font-black animate-in fade-in duration-200" style={{ color: textColor }}>
+                      {formatPrice(
+                        getActiveVariant(selectedProduct) ? (getActiveVariant(selectedProduct).price_ars || selectedProduct.precio) : selectedProduct.precio, 
+                        currency
+                      )}
+                    </p>
                   </div>
-                  {selectedProduct.sku && (
-                    <p className="text-[10px] font-medium opacity-40 mb-1" style={{ color: textColor }}>REF: {selectedProduct.sku}</p>
+                  {(getActiveVariant(selectedProduct)?.sku || selectedProduct.sku) && (
+                    <p className="text-[10px] font-medium opacity-40 mb-1" style={{ color: textColor }}>
+                      REF: {getActiveVariant(selectedProduct)?.sku || selectedProduct.sku}
+                    </p>
                   )}
                 </div>
 

@@ -30,6 +30,7 @@ interface CatalogItem {
   available: number;
   product: ProductData;
   variant: VariantData;
+  allVariants?: any[];
 }
 
 interface OrderStats {
@@ -142,35 +143,54 @@ export default function OnlineCatalogPage() {
       inventory = invData || [];
     }
 
-    // Combine data
+    // Combine data - Grouped by Product for correct Catalog view
     const formatted: CatalogItem[] = [];
     for (const product of (products || [])) {
       const productVariants = variants.filter(v => v.product_id === product.id);
       
-      for (const variant of productVariants) {
+      let totalOnHand = 0;
+      let totalCommitted = 0;
+      let totalAvailable = 0;
+
+      productVariants.forEach(variant => {
         const inv = inventory.find(i => i.variant_id === variant.id);
-        
-        formatted.push({
-          id: variant.id,
-          variant_id: variant.id,
-          on_hand: inv?.on_hand || 0,
-          committed: inv?.committed || 0,
-          available: inv?.available || 0,
-          product: {
-            id: product.id,
-            nombre: product.nombre,
-            slug: product.slug,
-            available_online: product.available_online,
-            online_reserved: (product as any).online_reserved || 0,
-            external_url: product.external_url || (product as any).seo?.ml_url || null,
-          },
-          variant: {
-            id: variant.id,
-            sku: variant.sku,
-            price_ars: variant.price_ars,
-          },
-        });
-      }
+        totalOnHand += inv?.on_hand || 0;
+        totalCommitted += inv?.committed || 0;
+        totalAvailable += (inv?.on_hand || 0) - (inv?.committed || 0);
+      });
+
+      const representativeVariant = productVariants[0] || { id: '', sku: 'N/A', price_ars: 0 };
+
+      formatted.push({
+        id: product.id,
+        variant_id: representativeVariant.id,
+        on_hand: totalOnHand,
+        committed: totalCommitted,
+        available: totalAvailable,
+        product: {
+          id: product.id,
+          nombre: product.nombre,
+          slug: product.slug,
+          available_online: product.available_online,
+          online_reserved: (product as any).online_reserved || 0,
+          external_url: product.external_url || (product as any).seo?.ml_url || null,
+        },
+        variant: {
+          id: representativeVariant.id,
+          sku: representativeVariant.sku,
+          price_ars: representativeVariant.price_ars,
+        },
+        // Store all variants on this item to allow details/delete operations
+        allVariants: productVariants.map(v => {
+          const inv = inventory.find(i => i.variant_id === v.id);
+          return {
+            ...v,
+            on_hand: inv?.on_hand || 0,
+            committed: inv?.committed || 0,
+            available: (inv?.on_hand || 0) - (inv?.committed || 0)
+          };
+        }) as any
+      });
     }
 
     setItems(formatted);
@@ -250,7 +270,8 @@ export default function OnlineCatalogPage() {
   const filteredItems = items.filter(item => {
     const matchesSearch = !searchQuery || 
       (item.product.nombre || item.product.title)?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
-      item.variant.sku?.toLowerCase()?.includes(searchQuery.toLowerCase());
+      item.variant.sku?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+      (item.allVariants && item.allVariants.some(v => v.sku?.toLowerCase()?.includes(searchQuery.toLowerCase())));
     const matchesFilter = !filterOnline || 
       (filterOnline === 'online' && item.product.available_online) ||
       (filterOnline === 'offline' && !item.product.available_online);
@@ -430,9 +451,12 @@ export default function OnlineCatalogPage() {
     if (!confirm('¿Estás seguro de que deseas eliminar este producto del catálogo? Esta acción no se puede deshacer.')) return;
     setSaving(true);
     try {
+      const variantIds = item.allVariants?.map(v => v.id) || [item.variant.id];
       // Delete in correct order for FK constraints
-      await supabase.from('inventory_levels').delete().eq('variant_id', item.variant.id);
-      await supabase.from('product_variants').delete().eq('id', item.variant.id);
+      if (variantIds.length > 0) {
+        await supabase.from('inventory_levels').delete().in('variant_id', variantIds);
+        await supabase.from('product_variants').delete().in('id', variantIds);
+      }
       const { error } = await supabase.from('products').delete().eq('id', item.product.id);
       
       if (error) throw error;
@@ -562,8 +586,19 @@ export default function OnlineCatalogPage() {
                   <td className="py-4 px-6">
                     <p className="font-bold text-sm text-white">{item.product.nombre || item.product.title}</p>
                   </td>
-                  <td className="py-4 px-6 text-zinc-400 text-xs font-mono">
-                    {item.variant.sku}
+                   <td className="py-4 px-6 text-zinc-400 text-xs font-mono">
+                    {item.allVariants && item.allVariants.length > 1 ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="font-bold text-white bg-violet-500/20 border border-violet-500/30 px-2 py-0.5 rounded text-[9px] w-fit">
+                          {item.allVariants.length} VARIANTES
+                        </span>
+                        <span className="text-[10px] text-zinc-500">
+                          Base: {item.variant.sku.split('-')[0]}
+                        </span>
+                      </div>
+                    ) : (
+                      item.variant.sku
+                    )}
                   </td>
                   <td className="py-4 px-6 text-right">
                     <div className="flex flex-col items-end">
@@ -594,7 +629,16 @@ export default function OnlineCatalogPage() {
                     </span>
                   </td>
                   <td className="py-4 px-6 text-right text-white font-bold">
-                    ${((item.variant.price_ars || 0)).toLocaleString('es-AR')}
+                    {item.allVariants && item.allVariants.length > 1 ? (() => {
+                      const prices = item.allVariants.map(v => v.price_ars || 0);
+                      const minPrice = Math.min(...prices);
+                      const maxPrice = Math.max(...prices);
+                      return minPrice === maxPrice 
+                        ? `$${minPrice.toLocaleString('es-AR')}`
+                        : `$${minPrice.toLocaleString('es-AR')} - $${maxPrice.toLocaleString('es-AR')}`;
+                    })() : (
+                      `$${(item.variant.price_ars || 0).toLocaleString('es-AR')}`
+                    )}
                   </td>
                   <td className="py-4 px-6 text-center">
                     <button
