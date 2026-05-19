@@ -48,9 +48,54 @@
   }
 }
 
+/* PWA Native optimizations */
+html, body {
+  /* Prevent pull-to-refresh on mobile browsers */
+  overscroll-behavior-y: contain;
+  /* Prevent horizontal scrolling at document root */
+  overflow-x: hidden;
+  /* Adjust scrolling physics */
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   @apply bg-background text-on-background font-body-sm;
+  /* Prevents gray touch overlays on iOS Safari */
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* Touch friendly optimizations */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Force buttons, links and navigation options to not select text on hold */
+button, 
+a, 
+nav, 
+.material-symbols-outlined {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Native-feel micro-interactions */
+.btn-native-active {
+  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.1s ease;
+}
+.btn-native-active:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* Utility classes for safe areas */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 
 /* Material Symbols Outlined */
 .material-symbols-outlined {

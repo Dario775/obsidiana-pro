@@ -242,6 +242,11 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 - [x] Sistema de Tickets y Comprobantes: formato térmico (58mm/80mm), datos de contacto, logo y datos fiscales personalizables
 - [x] Panel de Gestión de Impresoras: soporte para WebUSB directo, impresoras de Red (TCP/IP) e impresión nativa de sistema
 - [x] Impresión Inteligente de Cierre de Caja: redimensionamiento automático entre rollo térmico y hoja A4 según config de reportes
+- [x] Aplicación Web Progresiva (PWA): manifest.json, service worker básico (sw.js) y registro cliente para soportar descarga e instalación
+- [x] Configuración de Viewport inalterable y Safe Areas (viewport-fit=cover) para evitar distorsiones de zoom y cortes de pantalla en móviles
+- [x] Optimizaciones CSS de interacción nativa (overscroll-behavior-y, user-select: none, tap-highlight-color, transiciones activas)
+- [x] Barra de navegación dinámica inferior que resalta rutas activas y menú deslizable (Bottom Sheet Drawer) para secciones secundarias
+- [x] Banner flotante PWA de instalación premium con soporte para Android/Chrome y tutorial guiado interactivo para iOS Safari
 
 ## 12. Pendientes / Roadmap
 
@@ -267,8 +272,8 @@ pnpm build
 
 # Push a producción
 git add .
-git commit -m "feat: integrate logo v2 and unify branding"
+git commit -m "feat: implement premium PWA support and mobile native optimizations"
 git push
 ```
 
-*Última actualización: 2026-05-19 18:49 — Obsidiana Team*
+*Última actualización: 2026-05-19 19:50 — Obsidiana Team*

@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { PWARegistry } from "../components/pwa-registry";
 import "./globals.css";
 
 const geist = localFont({
@@ -17,6 +18,21 @@ const geist = localFont({
 export const metadata: Metadata = {
   title: "Obsidiana - SaaS Multitenant",
   description: "SaaS multi-tenant de tiendas con POS integrado",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Obsidiana",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#131313",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -27,6 +43,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body className={`${geist.variable} antialiased bg-background text-on-background font-body-sm min-h-screen`}>
+        <PWARegistry />
         {children}
       </body>
     </html>
