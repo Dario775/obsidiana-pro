@@ -63,36 +63,7 @@ export default function OnlineCatalogPage() {
     price: 0
   });
 
-  // Helper to create affiliate URL if tenant settings are present
-  const createAffiliateUrl = (originalUrl: string) => {
-    if (!tenant) return originalUrl;
-    
-    // If it's already a short link or contains affiliate parameters, leave it
-    if (originalUrl.includes('meli.la') || originalUrl.includes('matt_tool')) {
-      return originalUrl;
-    }
 
-    // Only process Mercado Libre links
-    if (!originalUrl.includes('mercadolibre.com')) {
-      return originalUrl;
-    }
-
-    const ml_affiliate_id = (tenant as any).ml_affiliate_id;
-    const ml_affiliate_word = (tenant as any).ml_affiliate_word;
-    
-    if (!ml_affiliate_id) return originalUrl;
-
-    try {
-      const url = new URL(originalUrl);
-      url.searchParams.set('matt_tool', ml_affiliate_id);
-      if (ml_affiliate_word) {
-        url.searchParams.set('matt_word', ml_affiliate_word);
-      }
-      return url.toString();
-    } catch {
-      return originalUrl;
-    }
-  };
 
   useEffect(() => {
     if (tenant?.id) {

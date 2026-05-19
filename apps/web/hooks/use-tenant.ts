@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, createContext, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 
 export interface Tenant {
@@ -77,13 +77,27 @@ export interface Plan {
   created_at: string;
 }
 
-export function useTenant() {
+interface TenantContextValue {
+  tenant: Tenant | null;
+  plan: Plan | null;
+  loading: boolean;
+  error: string | null;
+  hasFeature: (featureName: string) => boolean;
+  getPlanName: () => string;
+  isOnlineStoreEnabled: boolean;
+}
+
+const TenantContext = createContext<TenantContextValue | null>(null);
+
+export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchTenant() {
       try {
         setLoading(true);
@@ -93,8 +107,10 @@ export function useTenant() {
         
         if (!user) {
           // Not logged in — don't load any tenant
-          setError('No hay sesión activa');
-          setLoading(false);
+          if (!cancelled) {
+            setError('No hay sesión activa');
+            setLoading(false);
+          }
           return;
         }
 
@@ -115,9 +131,10 @@ export function useTenant() {
         }
 
         if (!tenantId) {
-          // User has no tenant assigned — this is a configuration issue
-          setError('Tu cuenta no tiene un negocio asignado. Contactá al administrador.');
-          setLoading(false);
+          if (!cancelled) {
+            setError('Tu cuenta no tiene un negocio asignado. Contactá al administrador.');
+            setLoading(false);
+          }
           return;
         }
         
@@ -130,10 +147,151 @@ export function useTenant() {
 
         if (tenantError) throw tenantError;
         
+        if (tenantData && !cancelled) {
+          // Fetch plan alongside tenant to batch the state updates
+          let planData: Plan | null = null;
+          if (tenantData.plan_id) {
+            const { data: pData, error: planError } = await supabase
+              .from('plans')
+              .select('*')
+              .eq('id', tenantData.plan_id)
+              .single();
+            
+            if (!planError && pData) {
+              planData = pData;
+            }
+          }
+
+          // Set both states together to avoid intermediate re-renders
+          if (!cancelled) {
+            setTenant(tenantData);
+            setPlan(planData);
+          }
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchTenant();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const hasFeature = useCallback((featureName: string): boolean => {
+    if (!tenant || !plan) return false;
+    
+    // 1. Check direct boolean columns in the plan table (legacy/core)
+    if (featureName === 'online_store' && plan.online_store === true) return true;
+    if (featureName === 'pos' && plan.pos === true) return true;
+
+    // 2. Check granular features in the JSONB object
+    if (plan.features && plan.features[featureName] === true) {
+      return true;
+    }
+    
+    // 3. Specific business rules
+    if (featureName === 'online_store') {
+      // Must be allowed by plan AND enabled by tenant
+      const planAllows = plan.online_store === true || plan.features?.['online_store'] === true;
+      return !!(planAllows && tenant.online_store_enabled);
+    }
+    
+    return false;
+  }, [tenant, plan]);
+
+  const getPlanName = useCallback((): string => {
+    if (!plan) return 'Sin Plan';
+    return plan.name || plan.nombre || 'Sin Nombre';
+  }, [plan]);
+
+  const value = useMemo<TenantContextValue>(() => ({
+    tenant,
+    plan,
+    loading,
+    error,
+    hasFeature,
+    getPlanName,
+    isOnlineStoreEnabled: tenant?.online_store_enabled === true,
+  }), [tenant, plan, loading, error, hasFeature, getPlanName]);
+
+  return React.createElement(TenantContext.Provider, { value }, children);
+}
+
+export function useTenant(): TenantContextValue {
+  const ctx = useContext(TenantContext);
+  
+  // Fallback: if used outside TenantProvider (e.g. in storefront pages),
+  // return a standalone instance so existing code doesn't break
+  if (!ctx) {
+    return useTenantStandalone();
+  }
+  
+  return ctx;
+}
+
+/**
+ * Standalone fallback — only used when there's no TenantProvider in the tree.
+ * Kept for backward-compatibility with storefront/non-admin pages.
+ */
+function useTenantStandalone(): TenantContextValue {
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchTenant() {
+      try {
+        setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          setError('No hay sesión activa');
+          setLoading(false);
+          return;
+        }
+
+        let tenantId = user.user_metadata?.tenant_id;
+ 
+        if (!tenantId) {
+          const { data: memberData } = await supabase
+            .from('tenant_members')
+            .select('tenant_id')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle();
+          
+          if (memberData) {
+            tenantId = memberData.tenant_id;
+          }
+        }
+
+        if (!tenantId) {
+          setError('Tu cuenta no tiene un negocio asignado. Contactá al administrador.');
+          setLoading(false);
+          return;
+        }
+        
+        const { data: tenantData, error: tenantError } = await supabase
+          .from('tenants')
+          .select('*')
+          .eq('id', tenantId)
+          .single();
+
+        if (tenantError) throw tenantError;
+        
         if (tenantData) {
           setTenant(tenantData);
           
-          // Fetch plan if tenant has one
           if (tenantData.plan_id) {
             const { data: planData, error: planError } = await supabase
               .from('plans')
@@ -156,32 +314,22 @@ export function useTenant() {
     fetchTenant();
   }, []);
 
-  const hasFeature = (featureName: string): boolean => {
+  const hasFeature = useCallback((featureName: string): boolean => {
     if (!tenant || !plan) return false;
-    
-    // 1. Check direct boolean columns in the plan table (legacy/core)
     if (featureName === 'online_store' && plan.online_store === true) return true;
     if (featureName === 'pos' && plan.pos === true) return true;
-
-    // 2. Check granular features in the JSONB object
-    if (plan.features && plan.features[featureName] === true) {
-      return true;
-    }
-    
-    // 3. Specific business rules
+    if (plan.features && plan.features[featureName] === true) return true;
     if (featureName === 'online_store') {
-      // Must be allowed by plan AND enabled by tenant
       const planAllows = plan.online_store === true || plan.features?.['online_store'] === true;
       return !!(planAllows && tenant.online_store_enabled);
     }
-    
     return false;
-  };
+  }, [tenant, plan]);
 
-  const getPlanName = (): string => {
+  const getPlanName = useCallback((): string => {
     if (!plan) return 'Sin Plan';
     return plan.name || plan.nombre || 'Sin Nombre';
-  };
+  }, [plan]);
 
   return {
     tenant,

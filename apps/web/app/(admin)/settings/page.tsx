@@ -73,18 +73,18 @@ export default function SettingsPage() {
       color: 'violet',
     },
     {
-      title: 'Productos ML',
-      description: 'Importar productos de Mercado Libre',
-      icon: 'shopping_cart',
-      href: '/settings/ml-products',
-      color: 'amber',
-    },
-    {
       title: 'Atributos de Producto',
       description: 'Tallas, colores y variantes para la tienda online',
       icon: 'layers',
       href: '/settings/attributes',
       color: 'pink',
+    },
+    {
+      title: 'Tickets y Comprobantes',
+      description: 'Personalizá el formato de tus tickets térmicos e impresoras',
+      icon: 'receipt_long',
+      href: '/settings/tickets',
+      color: 'violet',
     },
   ];
 

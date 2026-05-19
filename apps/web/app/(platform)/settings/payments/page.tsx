@@ -122,7 +122,7 @@ export default function PlatformPaymentSettingsPage() {
         },
         body: JSON.stringify({
           items: [{
-            title: 'Suscripción Obsidiana Pro',
+            title: 'Suscripción Obsidiana',
             quantity: 1,
             currency_id: 'ARS',
             unit_price: amount,

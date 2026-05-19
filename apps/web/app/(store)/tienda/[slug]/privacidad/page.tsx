@@ -149,7 +149,7 @@ export default function PrivacidadPage({ params }: { params: Promise<{ slug: str
               En <strong>{storeName}</strong> valoramos profundamente la confianza que depositas en nosotros al realizar tus compras online. Por ello, nos comprometemos formalmente a proteger la confidencialidad y seguridad de tus datos personales.
             </p>
             <p>
-              Para proveer este sitio web y gestionar tus pedidos de manera digital, {storeName} hace uso de la plataforma multitenant <strong>Obsidiana Pro</strong>. Toda la información personal compartida a través de este canal de checkout es administrada en bases de datos aisladas e independientes mediante políticas estrictas de seguridad a nivel de base de datos (Row Level Security o RLS). Esto garantiza que únicamente los administradores autorizados de {storeName} tengan acceso a tus datos para la preparación de tu orden.
+              Para proveer este sitio web y gestionar tus pedidos de manera digital, {storeName} hace uso de la plataforma multitenant <strong>Obsidiana</strong>. Toda la información personal compartida a través de este canal de checkout es administrada en bases de datos aisladas e independientes mediante políticas estrictas de seguridad a nivel de base de datos (Row Level Security o RLS). Esto garantiza que únicamente los administradores autorizados de {storeName} tengan acceso a tus datos para la preparación de tu orden.
             </p>
           </section>
 

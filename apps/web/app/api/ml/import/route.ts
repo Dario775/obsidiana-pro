@@ -42,16 +42,8 @@ export async function POST(req: Request) {
     } else if (action === 'insert') {
       const slug = (scrapedData.title || 'producto-ml').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
       
-      // Affiliate URL logic
-      const affiliateId = "74040993"; // Or from tenant if possible
+      // Use direct link
       let mlUrl = importUrl;
-      try {
-        const itemMatch = importUrl.match(/(?:MLA-?|mercadolibre\.com\.ar\/p\/[A-Za-z0-9]+|item\/MLA)[0-9]+/);
-        if (itemMatch) {
-          const itemId = itemMatch[0].replace(/[-/a-zA-Z]+/, 'MLA');
-          mlUrl = `https://www.mercadolibre.com.ar/p/${itemId}?pdp_filters=deal:28751538-1#polycard_client=homes-korriban&affiliate_id=${affiliateId}`;
-        }
-      } catch (e) {}
 
       // 1. Create Product
       const { data: product, error: pError } = await supabaseAdmin

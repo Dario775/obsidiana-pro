@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { buildPosCheckoutPayload } from '@/lib/pos-checkout';
+import Link from 'next/link';
 
 import { useTenant } from '@/hooks/use-tenant';
 import { FeatureGate } from '@/components/feature-gate';
@@ -63,10 +64,99 @@ export default function POSPage() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const DEFAULT_CUSTOMER_ID = '54573d5c-23c0-44f3-83e8-78fecdbcb049'; // Consumidor Final
 
+  // Cash Session States
+  const [activeSession, setActiveSession] = useState<any>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionName, setSessionName] = useState('Caja #01');
+  const [initialAmount, setInitialAmount] = useState('0.00');
+  const [user, setUser] = useState<any>(null);
+  const [openingSession, setOpeningSession] = useState(false);
+
   useEffect(() => {
-    fetchProducts();
-    fetchCustomers();
-  }, [tenant]);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, []);
+
+  const dataFetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (tenant?.id) {
+      checkActiveSession();
+    }
+  }, [tenant?.id]);
+
+  useEffect(() => {
+    if (tenant?.id && activeSession && !dataFetchedRef.current) {
+      dataFetchedRef.current = true;
+      fetchProducts();
+      fetchCustomers();
+    }
+    // Reset the ref when session changes to null (e.g. closed)
+    if (!activeSession) {
+      dataFetchedRef.current = false;
+    }
+  }, [tenant?.id, activeSession]);
+
+  async function checkActiveSession() {
+    setSessionLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('cash_sessions')
+        .select('*')
+        .eq('tenant_id', tenant!.id)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      setActiveSession(data);
+    } catch (err) {
+      console.error('Error checking active session:', err);
+    } finally {
+      setSessionLoading(false);
+    }
+  }
+
+  async function handleOpenSession(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tenant?.id || !user?.id) {
+      alert('Error: Inquilino o usuario no autenticado');
+      return;
+    }
+
+    const amt = parseFloat(initialAmount) || 0;
+    if (amt < 0) {
+      alert('El monto inicial no puede ser negativo');
+      return;
+    }
+
+    setOpeningSession(true);
+    try {
+      const { data, error } = await supabase
+        .from('cash_sessions')
+        .insert({
+          tenant_id: tenant.id,
+          user_id: user.id,
+          name: sessionName || 'Caja #01',
+          status: 'open',
+          initial_amount: amt,
+          expected_amount: amt,
+          opened_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setActiveSession(data);
+    } catch (err: any) {
+      console.error('Error opening session:', err);
+      alert('Error al abrir la caja: ' + err.message);
+    } finally {
+      setOpeningSession(false);
+    }
+  }
 
   // Keyboard shortcut: Alt+B to focus search
   useEffect(() => {
@@ -450,9 +540,84 @@ export default function POSPage() {
     }
   }
 
+  if (sessionLoading) {
+    return (
+      <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center text-zinc-400 gap-4">
+        <div className="w-12 h-12 rounded-full border-4 border-violet-500 border-t-transparent animate-spin"></div>
+        <p className="font-black text-xs uppercase tracking-[0.2em] animate-pulse text-zinc-500">Verificando estado de caja...</p>
+      </div>
+    );
+  }
+
+  if (!activeSession) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-6">
+        <div className="bg-[#1A1A1A] border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col gap-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none"></div>
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center text-primary-container">
+              <span className="material-symbols-outlined text-2xl">lock_open</span>
+            </div>
+            <h2 className="text-xl font-black text-white tracking-tight uppercase mt-2">Apertura de Caja</h2>
+            <p className="text-xs text-zinc-400">Ingresá los datos para iniciar el turno de ventas y arqueo físico.</p>
+          </div>
+          
+          <form onSubmit={handleOpenSession} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nombre / Terminal de Caja</label>
+              <input 
+                className="w-full bg-zinc-950 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-zinc-600" 
+                type="text" 
+                placeholder="Ej: Caja Principal, Caja #02..." 
+                value={sessionName}
+                onChange={(e) => setSessionName(e.target.value)}
+                required
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Monto Inicial en Efectivo (ARS)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                <input 
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl py-3 pl-8 pr-4 text-white text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  value={initialAmount}
+                  onChange={(e) => setInitialAmount(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={openingSession}
+              className="w-full bg-primary-container hover:bg-opacity-90 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 active:scale-95 mt-2"
+            >
+              {openingSession ? (
+                <>
+                  <span className="material-symbols-outlined animate-spin text-base">sync</span>
+                  Abriendo Caja...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-base">key</span>
+                  Abrir Caja e Iniciar Turno
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <FeatureGate feature="pos">
-      <div className="h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col gap-6 h-[calc(100vh-120px)]">
+        <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
       {/* Product Selection Area */}
       <div className="flex-1 flex flex-col gap-6 overflow-hidden">
         {/* Search Bar */}
@@ -932,13 +1097,13 @@ export default function POSPage() {
             </div>
 
             <div className="p-4 bg-gray-50 flex gap-3">
-              <button 
-                onClick={() => window.print()}
-                className="flex-1 bg-black text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+              <Link 
+                href={`/pos/tickets/${lastSale.orderId}`}
+                className="flex-1 bg-violet-600 hover:bg-violet-500 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all text-center"
               >
                 <span className="material-symbols-outlined text-sm">print</span>
                 Imprimir
-              </button>
+              </Link>
               <button 
                 onClick={() => setShowReceipt(false)}
                 className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-xl font-black text-xs uppercase tracking-widest"
@@ -1015,60 +1180,119 @@ export default function POSPage() {
               </div>
               
               <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1 custom-scrollbar">
-                {selectedParentProduct.variants.map((v, index) => {
-                  const hasStock = v.available > 0;
-                  
-                  // Formatear opciones como Color: Azul, Talle: L
-                  const optionsString = v.variant_options && typeof v.variant_options === 'object'
-                    ? Object.entries(v.variant_options)
-                        .map(([key, val]) => `${key.toUpperCase()}: ${String(val).toUpperCase()}`)
-                        .join(' • ')
-                    : `SKU: ${v.sku}`;
+                {(() => {
+                  const availableVariants = selectedParentProduct.variants.filter(v => v.available > 0);
+                  const outOfStockVariants = selectedParentProduct.variants.filter(v => v.available <= 0);
 
                   return (
-                    <button
-                      key={v.id}
-                      disabled={!hasStock}
-                      style={{ animationDelay: `${index * 45}ms` }}
-                      onClick={() => {
-                        addToCart(v);
-                        setSelectedParentProduct(null);
-                      }}
-                      className={`variant-explode-item w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all duration-300 group shadow-lg ${
-                        hasStock
-                          ? 'bg-zinc-900/40 border-white/5 hover:border-violet-500/40 hover:bg-violet-500/[0.03] active:scale-[0.98]'
-                          : 'bg-zinc-950/20 border-white/5 opacity-40 grayscale pointer-events-none'
-                      }`}
-                    >
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <span className="font-bold text-white text-sm group-hover:text-violet-400 transition-colors truncate">
-                          {optionsString}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
-                            SKU: {v.sku}
-                          </span>
-                          <span className={`w-1.5 h-1.5 rounded-full ${hasStock ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                          <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">
-                            Stock: {v.available}
-                          </span>
+                    <>
+                      {/* Available variants */}
+                      {availableVariants.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest px-1 mb-1.5 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Disponibles ({availableVariants.length})
+                          </div>
+                          {availableVariants.map((v, index) => {
+                            const optionsString = v.variant_options && typeof v.variant_options === 'object'
+                              ? Object.entries(v.variant_options)
+                                  .map(([key, val]) => `${key.toUpperCase()}: ${String(val).toUpperCase()}`)
+                                  .join(' • ')
+                              : `SKU: ${v.sku}`;
+
+                            return (
+                              <button
+                                key={v.id}
+                                style={{ animationDelay: `${index * 45}ms` }}
+                                onClick={() => {
+                                  addToCart(v);
+                                  setSelectedParentProduct(null);
+                                }}
+                                className="variant-explode-item w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all duration-300 group shadow-lg bg-zinc-900/40 border-white/5 hover:border-violet-500/40 hover:bg-violet-500/[0.03] active:scale-[0.98]"
+                              >
+                                <div className="flex flex-col gap-1 min-w-0">
+                                  <span className="font-bold text-white text-sm group-hover:text-violet-400 transition-colors truncate">
+                                    {optionsString}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
+                                      SKU: {v.sku}
+                                    </span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">
+                                      Stock: {v.available}
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <span className="font-black text-violet-400 text-base">$ {v.precio.toLocaleString('es-AR')}</span>
+                                  <span className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 group-hover:bg-violet-500 group-hover:text-white transition-all flex items-center justify-center material-symbols-outlined text-sm font-bold">
+                                    add
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="font-black text-violet-400 text-base">$ {v.precio.toLocaleString('es-AR')}</span>
-                        <span className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 group-hover:bg-violet-500 group-hover:text-white transition-all flex items-center justify-center material-symbols-outlined text-sm font-bold">
-                          add
-                        </span>
-                      </div>
-                    </button>
+                      )}
+
+                      {/* Out of Stock variants */}
+                      {outOfStockVariants.length > 0 && (
+                        <div className="space-y-3 mt-6">
+                          <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1 mb-1.5 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-700"></span>
+                            Sin Stock ({outOfStockVariants.length})
+                          </div>
+                          {outOfStockVariants.map((v, index) => {
+                            const optionsString = v.variant_options && typeof v.variant_options === 'object'
+                              ? Object.entries(v.variant_options)
+                                  .map(([key, val]) => `${key.toUpperCase()}: ${String(val).toUpperCase()}`)
+                                  .join(' • ')
+                              : `SKU: ${v.sku}`;
+
+                            return (
+                              <button
+                                key={v.id}
+                                disabled
+                                style={{ animationDelay: `${(index + availableVariants.length) * 45}ms` }}
+                                className="variant-explode-item w-full p-4 rounded-2xl border border-[#ffffff]/5 text-left flex items-center justify-between transition-all duration-300 group shadow-lg bg-zinc-950/20 opacity-30 grayscale pointer-events-none"
+                              >
+                                <div className="flex flex-col gap-1 min-w-0">
+                                  <span className="font-bold text-zinc-500 text-sm truncate">
+                                    {optionsString}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider">
+                                      SKU: {v.sku}
+                                    </span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500/80"></span>
+                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">
+                                      Stock: 0
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <span className="font-black text-zinc-600 text-base">$ {v.precio.toLocaleString('es-AR')}</span>
+                                  <span className="w-8 h-8 rounded-xl bg-zinc-900 border border-white/5 text-zinc-700 flex items-center justify-center material-symbols-outlined text-sm font-bold">
+                                    close
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </div>
             </div>
           </div>
         </div>
       )}
+      </div>
     </div>
     </FeatureGate>
   );

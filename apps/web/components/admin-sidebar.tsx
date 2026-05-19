@@ -6,7 +6,12 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from './auth-provider';
 import { useTenant } from '../hooks/use-tenant';
 
-export function Sidebar() {
+interface SidebarProps {
+  isCollapsed?: boolean;
+  onToggle?: () => void;
+}
+
+export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
   const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading, tenant } = useTenant();
@@ -28,9 +33,22 @@ export function Sidebar() {
   };
 
   return (
-    <nav className="hidden lg:flex flex-col h-full py-6 bg-zinc-900 border-r border-white/5 w-64 fixed top-0 left-0 z-40">
-      <div className="px-6 mb-8 flex flex-col gap-2">
-        <h1 className="text-lg font-black text-white">Obsidiana Admin</h1>
+    <nav className={`hidden lg:flex flex-col h-full py-6 bg-zinc-900 border-r border-white/5 w-64 fixed top-0 left-0 z-40 transition-all duration-300 ease-in-out ${
+      isCollapsed ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0'
+    }`}>
+      <div className="px-6 mb-8 flex flex-col gap-2 relative">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-bold text-white">Obsidiana Admin</h1>
+          {onToggle && (
+            <button 
+              onClick={onToggle}
+              className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-zinc-500 hover:text-white"
+              title="Esconder Menú"
+            >
+              <span className="material-symbols-outlined text-[18px]">menu_open</span>
+            </button>
+          )}
+        </div>
         <p className="font-body-sm text-zinc-400 truncate">
           {isSuperAdmin ? 'Administración Global' : tenant?.nombre || 'Mi Tienda'}
         </p>
@@ -42,7 +60,7 @@ export function Sidebar() {
             <span className="font-data-tabular text-on-background text-sm font-medium truncate max-w-[140px]">
               {user?.email || 'Admin de Tienda'}
             </span>
-            <span className={`text-[10px] font-black uppercase tracking-widest ${isSuperAdmin ? 'text-violet-400' : 'text-zinc-600'}`}>
+            <span className={`text-[10px] font-semibold uppercase tracking-wider ${isSuperAdmin ? 'text-violet-400' : 'text-zinc-600'}`}>
               {isSuperAdmin ? 'Super Admin' : 'Propietario'}
             </span>
           </div>
@@ -64,7 +82,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto px-4 space-y-8 custom-scrollbar">
         {/* Retail Core Section */}
         <div>
-          <h2 className="px-3 mb-3 text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]">Gestión Retail</h2>
+          <h2 className="px-3 mb-3 text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Gestión Retail</h2>
           <ul className="flex flex-col gap-1">
             <li>
               <Link href="/dashboard" className={navItemClasses('/dashboard')}>
@@ -76,6 +94,18 @@ export function Sidebar() {
               <Link href="/pos" className={navItemClasses('/pos')}>
                 <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/pos') ? "'FILL' 1" : "" }}>point_of_sale</span>
                 Terminal POS
+              </Link>
+            </li>
+            <li>
+              <Link href="/pos/closure" className={navItemClasses('/pos/closure')}>
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/pos/closure') ? "'FILL' 1" : "" }}>lock</span>
+                Cierre de Caja (Z)
+              </Link>
+            </li>
+            <li>
+              <Link href="/pos/history" className={navItemClasses('/pos/history')}>
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/pos/history') ? "'FILL' 1" : "" }}>history</span>
+                Historial de Caja
               </Link>
             </li>
             <li>
@@ -96,13 +126,13 @@ export function Sidebar() {
         {/* Online Store Module */}
         <div className={`rounded-2xl p-2 border ${isOnlineStoreEnabled ? 'bg-violet-500/5 border-violet-500/20' : 'bg-zinc-900/50 border-white/5'}`}>
           <div className="flex items-center justify-between px-3 py-2 mb-2">
-            <h2 className="text-[10px] font-black text-secondary uppercase tracking-[0.2em]">Tienda Online</h2>
+            <h2 className="text-[10px] font-medium text-secondary uppercase tracking-wider">Tienda Online</h2>
             {tenantLoading ? (
-              <span className="bg-zinc-500/10 text-zinc-500 text-[8px] font-black px-1.5 py-0.5 rounded border border-zinc-500/20 uppercase tracking-widest">Cargando...</span>
+              <span className="bg-zinc-500/10 text-zinc-400 text-[8px] font-semibold px-1.5 py-0.5 rounded border border-zinc-500/20 uppercase tracking-wider">Cargando...</span>
             ) : isOnlineStoreEnabled ? (
-              <span className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">{getPlanName()}</span>
+              <span className="bg-emerald-500/10 text-emerald-400 text-[8px] font-semibold px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-wider">{getPlanName()}</span>
             ) : (
-              <span className="bg-amber-500/10 text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-widest">Requiere Plan</span>
+              <span className="bg-amber-500/10 text-amber-400 text-[8px] font-semibold px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">Requiere Plan</span>
             )}
           </div>
           <ul className="flex flex-col gap-1">

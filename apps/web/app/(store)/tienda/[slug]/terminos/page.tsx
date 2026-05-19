@@ -146,10 +146,10 @@ export default function TerminosPage({ params }: { params: Promise<{ slug: strin
               1. Relación de las Partes y Rol de la Plataforma
             </h2>
             <p>
-              El presente sitio web y catálogo online es de propiedad exclusiva de <strong>{storeName}</strong>, quien lo administra de forma independiente. Para hospedar, organizar y canalizar la muestra de sus productos y la recepción de pedidos, {storeName} utiliza el software como servicio (SaaS) provisto por <strong>Obsidiana Pro</strong>.
+              El presente sitio web y catálogo online es de propiedad exclusiva de <strong>{storeName}</strong>, quien lo administra de forma independiente. Para hospedar, organizar y canalizar la muestra de sus productos y la recepción de pedidos, {storeName} utiliza el software como servicio (SaaS) provisto por <strong>Obsidiana</strong>.
             </p>
             <p>
-              <strong>Obsidiana Pro</strong> actúa únicamente como proveedor tecnológico de la infraestructura de tienda online e integración de punto de venta (POS). En tal carácter, Obsidiana Pro no es dueño de los artículos exhibidos, no interviene en la determinación de precios, no maneja la logística de envío, ni actúa como intermediario comercial o garante en las transacciones. Toda relación de compra, pago y reclamos comerciales es concertada de manera directa y exclusiva entre el Cliente Final (comprador) y {storeName} (vendedor).
+              <strong>Obsidiana</strong> actúa únicamente como proveedor tecnológico de la infraestructura de tienda online e integración de punto de venta (POS). En tal carácter, Obsidiana no es dueño de los artículos exhibidos, no interviene en la determinación de precios, no maneja la logística de envío, ni actúa como intermediario comercial o garante en las transacciones. Toda relación de compra, pago y reclamos comerciales es concertada de manera directa y exclusiva entre el Cliente Final (comprador) y {storeName} (vendedor).
             </p>
           </section>
 
@@ -224,7 +224,7 @@ export default function TerminosPage({ params }: { params: Promise<{ slug: strin
               6. Protección de Datos Personales
             </h2>
             <p>
-              Conforme a las leyes de protección de datos, la información que proporcionas al momento del checkout (nombre, teléfono, correo electrónico, dirección y notas adicionales) es almacenada de forma segura en las bases de datos en la nube de Obsidiana Pro con aislamiento estricto multi-tenant (RLS).
+              Conforme a las leyes de protección de datos, la información que proporcionas al momento del checkout (nombre, teléfono, correo electrónico, dirección y notas adicionales) es almacenada de forma segura en las bases de datos en la nube de Obsidiana con aislamiento estricto multi-tenant (RLS).
             </p>
             <p>
               Estos datos serán accedidos única y exclusivamente por los operadores autorizados de {storeName} con el único fin de procesar el despacho de tu orden, verificar tus pagos y entablar contacto directo de posventa sobre tu pedido.

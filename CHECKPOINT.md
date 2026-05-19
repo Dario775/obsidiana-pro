@@ -1,158 +1,274 @@
-# Obsidiana Pro - Sistema Checkpoint
+# Obsidiana - Sistema Checkpoint
 
-> Fecha: 2026-05-18
-> Estado: Protección Multitenant y Aislamiento del Super Admin + Políticas Resilientes de Clientes + Selección del Plan Free Automático ✅
-
----
-
-## 1. Base de Datos & Transaccionalidad POS (Evolución SaaS)
-
-### Tablas clave y Alineación de Esquema
-Hemos unificado y alineado las tablas transaccionales de venta en la base de datos de Supabase en la nube (`fjgwenrebdwssquebfay.supabase.co`):
-- **orders**: Agregados de forma segura `total` y `currency`.
-- **order_items**: Añadidos campos `tenant_id`, `unit_price`, `tax_ars`, `title_snapshot` y `sku_snapshot`.
-- **payments**: Añadidos campos `gateway`, `amount_ars`, `currency` y `processed_at`.
-
-### Función PL/pgSQL Transaccional (`complete_pos_checkout`)
-Desarrollamos e implementamos una función atómica en Supabase que:
-1. Registra la orden y calcula de manera segura el IVA.
-2. Agrega los ítems con snapshots de títulos y códigos.
-3. Descuenta de manera segura e inteligente el stock físico (`on_hand`) o prioritariamente el stock reservado online (`online_reserved`) si existe.
-4. Registra el pago en la misma transacción para asegurar la integridad referencial.
-5. Permite realizar ventas rápidas con consumidor final (`p_customer_id = NULL`).
-
-### Seguridad y Bypass de RLS Coherente
-Se configuraron políticas de bypass completas (`USING (true) WITH CHECK (true)`) en Supabase remota para las tablas `orders` y `order_items` asociadas al rol `authenticated` and `anon`. La seguridad multi-tenant se delega de manera robusta al frontend a través de filtros `.eq('tenant_id', tenant.id)`.
+> Fecha: 2026-05-19
+> Estado: Sistema de Caja Operativo + ARCA Premium Gating + Chatbot Práctico + Branding Unificado ✅
 
 ---
 
-## 2. Optimización del Historial de Ventas (`/pos/sales`)
-Refactorizamos integralmente la carga y el filtrado del historial para eliminar renderizados innecesarios y estados duplicados:
-- **Remoción de `filteredOrders`**: Reemplazado por un cómputo sincrónico utilizando `React.useMemo` que filtra por rango de fechas y buscador de manera instantánea.
-- **Estabilización de Hooks**: Estrechamientode dependencias del efecto de carga a `tenant?.id`, evitando la recarga doble producida por mutaciones de referencia de objetos.
+## 1. Arquitectura General del Proyecto
+
+### Stack Tecnológico
+- **Framework**: Next.js (App Router) con Turbopack
+- **Monorepo**: Turborepo con pnpm (`apps/web`, `packages/shared`, `packages/ui`)
+- **Base de Datos**: Supabase (`fjgwenrebdwssquebfay.supabase.co`)
+- **Hosting**: Vercel (`obsidiana-pro.vercel.app`)
+- **Imágenes**: Cloudinary
+- **Estilos**: TailwindCSS con design tokens personalizados
+
+### Estructura de Rutas (App Router)
+Los grupos de rutas entre paréntesis `(admin)`, `(store)`, `(pos)`, `(platform)` NO forman parte de la URL final.
+
+| Ruta del Archivo | URL Real |
+|---|---|
+| `app/(admin)/dashboard/page.tsx` | `/dashboard` |
+| `app/(admin)/pos/page.tsx` | `/pos` |
+| `app/(admin)/pos/closure/page.tsx` | `/pos/closure` |
+| `app/(admin)/pos/history/page.tsx` | `/pos/history` |
+| `app/(admin)/pos/sales/page.tsx` | `/pos/sales` |
+| `app/(admin)/inventory/page.tsx` | `/inventory` |
+| `app/(admin)/customers/page.tsx` | `/customers` |
+| `app/(admin)/orders/page.tsx` | `/orders` |
+| `app/(admin)/online-catalog/page.tsx` | `/online-catalog` |
+| `app/(admin)/settings/page.tsx` | `/settings` |
+| `app/(admin)/settings/billing/page.tsx` | `/settings/billing` |
+| `app/(admin)/settings/store/page.tsx` | `/settings/store` |
+| `app/(admin)/settings/ml-products/` | `/settings/ml-products` |
+| `app/(store)/tienda/[slug]/page.tsx` | `/tienda/{slug}` |
+
+> ⚠️ **IMPORTANTE**: Todos los `<Link href>` internos deben usar la URL real SIN el grupo de ruta. Ej: `/pos/history` y NO `/admin/pos/history`.
 
 ---
 
-## 3. Tiendas Online - Estética Premium y Soporte de Temas (Storefront)
+## 2. Branding y Nomenclatura
 
-### Footer Premium Inspirado en "CASAMALKA" con Filtros Interactivos
-Reescribimos completamente el footer del storefront (`apps/web/app/(store)/tienda/[slug]/page.tsx`) logrando un diseño minimalista, lujoso y adaptativo:
-- **Filtros en tiempo real (Tienda Local y Mercado Libre)**: Agregamos navegación interactiva al lado de *Inicio* y *Productos*. Al clickear "Tienda Local" o "Mercado Libre", la pantalla realiza un scroll fluido hasta la rejilla de productos y aplica de forma sincrónica el filtro del catálogo (`local` o `ml`).
-- **Retorno de Enlaces Legales**: Restablecimos los enlaces de *Términos de Uso* y *Política de Privacidad* al sub-footer tal como estaban antes.
-- **WhatsApp Integrado en Fila Social**: Se incorporó el logotipo oficial SVG de WhatsApp en la fila de redes sociales flotante con opacidad reactiva junto a Instagram y Facebook.
-
-### Cabecera Unificada Logo/Marca (Siempre Visible)
-Modificamos el área de branding de la barra de navegación superior:
-- **Visualización en Paralelo Obligatoria**: La cabecera ahora muestra siempre de forma clara el nombre comercial del negocio (`tenant.store_name` o `tenant.nombre`). Si existe un logotipo cargado, se coloca a la par con un espaciado armónico de `gap-3`.
-- **Interacciones Fluidas**: Se añadieron micro-escalas de hover (`scale-105` en logo, transición de opacidad en texto) agrupadas bajo un único enlace raíz para maximizar la usabilidad.
-
-### Carrito Deslizable Boutique de Alta Costura (Shopify-like Side Drawer)
-Rediseñamos integralmente el carrito de compras online en un panel lateral interactivo:
-- **Desplazamiento Lateral Lujoso**: Panel deslizante desde el lateral derecho con glassmorphism traslúcido de fondo (`backdrop-blur-md bg-white/98 dark:bg-zinc-950/98`) y sombra 3D premium.
-- **Micro-Stepper Interactivo**: Visualización paso a paso ("Paso 1 de 3", "Paso 2 de 3", "Paso 3 de 3") apoyada por una barra de progreso horizontal reactiva que se expande del 33% al 100% de forma animada según la etapa de la compra.
-- **Barra de Progreso de Envío Gratis**: Indicador gamificado basado en `tenant.store_shipping_free_threshold` que anima un progreso dinámico e incentiva a los clientes a agregar más productos.
-
-### Tipografía Boutique Premium Unificada
-Revisamos y eliminamos las fuentes predeterminadas básicas (`Georgia`, `monospace`) de la tienda online para dar paso a una curaduría tipográfica impecable y de alta gama:
-- **Importación Global**: Añadimos soporte para familias tipográficas Google Fonts de primer nivel en [globals.css](file:///d:/PROYECTOS DE PRUEBA/Obsidiana-Pro/apps/web/app/globals.css) (`Inter` y `Outfit`).
-- **Unificación de Opciones (Compatibilidad Total)**:
-  - **Sans Estándar**: Mantiene el estilo rápido y familiar nativo (`system-ui`).
-  - **Outfit Boutique (Serif id)**: Transmutamos la antigua opción Serif a **Outfit**, una fuente sans-serif geométrica, súper elegante y refinada, ideal para el comercio electrónico premium de moda y retail.
-  - **Inter Elegante (Mono id)**: Transmutamos la antigua opción Mono a **Inter**, el estándar de legibilidad moderno.
-
-### Páginas Legales Descentralizadas e Inteligentes
-Diseñamos e implementamos dos subrutas legales completamente funcionales y de calidad editorial:
-- **Términos de Uso**: Ubicado en [page.tsx (términos)](file:///d:/PROYECTOS DE PRUEBA/Obsidiana-Pro/apps/web/app/%28store%29/tienda/%5Bslug%5D/terminos/page.tsx).
-- **Política de Privacidad**: Ubicado en [page.tsx (privacidad)](file:///d:/PROYECTOS DE PRUEBA/Obsidiana-Pro/apps/web/app/%28store%29/tienda/%5Bslug%5D/privacidad/page.tsx).
+| Elemento | Valor Correcto |
+|---|---|
+| **Nombre del SaaS** | **Obsidiana** (NO "Obsidiana Pro") |
+| **Branding POS** | OBSIDIANA POS |
+| **Sidebar Header** | Obsidiana Admin |
+| **Dominio** | obsidiana.com.ar |
+| **Sistema de afiliados ML** | ❌ Eliminado — se usa importación por link directo |
 
 ---
 
-## 4. Blindaje y Seguridad contra Inyección de Código (Anti-XSS / DoS)
+## 3. Sistema de Caja (POS Cash Management)
 
-### Validador Centralizado de Archivos (`validateImageFile`)
-Implementamos una capa de seguridad criptográficamente robusta para todas las subidas de imágenes:
-- **Bloqueo SVG/HTML**: Se restringe la subida estrictamente a imágenes rasterizadas seguras (`jpeg`, `png`, `webp`), bloqueando extensiones SVG y HTML para anular cualquier inyección de payloads ejecutables (XSS).
-- **Filtro contra Spoofing de Doble Extensión**: El validador descompone los nombres de los archivos para rechazar cualquier intento de doble extensión maliciosa (ej. `archivo.js.webp`, `script.html.png`).
-- **Límite de Tamaño Físico**: Se limita rígidamente la subida a un máximo de **2MB** por imagen para optimizar el almacenamiento de Cloudinary y asegurar tiempos de carga óptimos en producción.
+### Tabla `cash_sessions` (Supabase)
+Migración: `supabase/migrations/20260519130000_create_cash_sessions.sql`
 
----
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `id` | uuid | PK |
+| `tenant_id` | uuid | FK → tenants.id |
+| `user_id` | uuid | Usuario que operó |
+| `name` | text | Nombre de la caja (ej: "Caja Principal") |
+| `status` | text | `open` / `closed` |
+| `opened_at` | timestamptz | Apertura |
+| `closed_at` | timestamptz | Cierre |
+| `initial_amount` | numeric | Monto inicial de efectivo |
+| `expected_amount` | numeric | Efectivo esperado por el sistema |
+| `actual_amount` | numeric | Efectivo contado real |
+| `difference` | numeric | Diferencia de arqueo |
+| `total_sales` | numeric | Total facturado en el turno |
+| `operations_count` | integer | Cantidad de ventas |
+| `sales_breakdown` | jsonb | Desglose por método: efectivo, tarjeta, mercadopago, transferencia |
+| `arca_status` | text | `none` / `pending` / `approved` / `failed` |
+| `arca_report_id` | text | ID del reporte fiscal Z (null si local) |
+| `notes` | text | Observaciones del cierre |
 
-## 5. Buscador Inteligente e Híbrido de Imágenes (Cloudinary + Base de Datos) y Modal Premium
+### Flujo Operativo
+1. **Apertura** (`/pos`): Al ingresar a Terminal POS sin sesión activa, se solicita nombre de caja y monto inicial.
+2. **Operación**: Ventas normales se registran vinculadas a la sesión activa.
+3. **Cierre** (`/pos/closure`): El usuario ingresa el efectivo real contado. Se calcula la diferencia, se genera el ticket y se cierra la sesión.
+4. **Historial** (`/pos/history`): Tabla de todos los turnos con detalle, diferencia de arqueo y estado fiscal.
 
-### API de Búsqueda Segura en Servidor (`/api/cloudinary/search`)
-Dado que la tabla remota `global_catalog` de la base de datos se encontraba vacía (0 registros), creamos un puente inteligente y seguro en Next.js App Router para buscar directamente en Cloudinary:
-- **Búsqueda en Tiempo Real**: Traduce consultas de código de barras (EAN-13) o texto libre por nombre en expresiones válidas de la API de Cloudinary (`folder:obsidiana* AND (public_id:*query* OR filename:*query* OR tags:query)`).
-- **Seguridad**: Protege las credenciales de Cloudinary (`API_KEY`, `API_SECRET`) ejecutándolas en el servidor y devolviendo solo tokens estructurados seguros (`ImageMatchResult`).
+### ARCA (Integración Fiscal) — Gating por Plan
+Las funciones fiscales de ARCA están **bloqueadas por defecto** y solo se habilitan para planes premium:
 
-### Mecanismo de Búsqueda Híbrida Inteligente (`findGlobalImage`)
-Optimizamos la utilidad core para realizar búsquedas inteligentes paso a paso:
-1. **Intento en Base de Datos**: Busca primero en la tabla `global_catalog` para reutilizar registros indexados y mantener consistencia.
-2. **Consultas por Nombre y Código de Barras**: Si la búsqueda contiene números (código de barras), realiza un filtro inteligente dinámico utilizando la cláusula `or(...)` en Supabase para buscar tanto en el campo `barcode_ean13` como en el campo `normalized_name`.
-3. **Fallback Dinámico a Cloudinary**: Si no hay coincidencias (o se desean sugerencias enriquecidas por nombre), consulta de manera instantánea y transparente nuestro endpoint seguro `/api/cloudinary/search`, el cual busca en Cloudinary la coincidencia del código de barra o nombre dentro del public_id, nombre del archivo o tags de las imágenes.
-4. **Autocompletado Rápido y Silencioso**: En lugar de interrumpir al usuario con incómodos y viejos mensajes `confirm()`, el sistema autocompleta silenciosamente:
-   - **Nombre del Producto**
-   - **Código de Barras (EAN-13)**
-   - **Descripción**
-   - **Precio de Venta Sugerido**
-   Todos estos campos quedan enlazados a inputs editables por si el administrador desea cambiar el nombre, código de barra u otros campos libremente antes de guardar.
+| Plan | Comportamiento |
+|---|---|
+| **Free / Básico** | Cierre local: `arca_status='none'`, sin reporte Z fiscal. Tarjeta informativa invitando a mejorar plan. |
+| **Premium (con `arca_integration`)** | Cierre con reporte Z automático: `arca_status='approved'`, ID de reporte fiscal generado. |
 
-### Refactorización Premium del Modal "Nuevo Producto" (Workspace 2 Columnas)
-Transformamos la ventana emergente minimalista anterior en un panel de control estilo Dashboard de gama ultra-alta:
-- **Estructura en 2 Columnas (`max-w-4xl`)**:
-  - **Columna Izquierda (Ficha Técnica)**: Información básica con inputs de primer nivel.
-    - **Ubicación Paralela del Código de Barras**: Colocamos el campo de **Código de Barras (EAN-13)** directamente al lado del campo de **Nombre del Producto** en una grilla responsive fluida.
-    - **Búsqueda Dinámica Dual**: Al escribir en cualquiera de los dos campos (Nombre o Código de Barras), se activa el autocompletado inteligente de imágenes global que muestra sugerencias interactivas debajo de la sección en tiempo real.
-    - Área de descripción enriquecida, selector de atributos de producto (color, talle, etc.) y un control interactivo (peer-styled CSS) para activar/desactivar la disponibilidad online.
-  - **Columna Derecha (Multimedia & Valores)**: Previsualización de gran lienzo de la portada activa del producto con esquinas redondeadas y sombras envolventes de color violeta, carrusel de miniaturas secundarias e indicador de procedencia ("Global Library").
-- **Micro-interacciones y UI Glassmorphic**:
-  - Encabezado y pie de página pegajosos (sticky) con un efecto de desenfoque de fondo traslúcido y sombras violetas animadas de fondo (`animate-in fade-in zoom-in-95`).
-  - Botones con gradientes de color de primer nivel (`from-primary to-purple-600`) y micro-escalados activos (`active:scale-[0.98]`).
-
----
-
-## 6. Estado de Desarrollo
-
-### ✅ Completado:
-- [x] Función de checkout transaccional POS atómica en Supabase remota.
-- [x] Corrección de RLS que impedía visualizar ventas creadas.
-- [x] Optimización de renderizado y filtros memorizados en el Historial de Ventas (`/pos/sales`).
-- [x] Rediseño premium CASAMALKA en el storefront con soporte de temas claro/oscuro.
-- [x] Carrito de compras boutique deslizante premium (Sliding Side Drawer) con micro-stepper interactivo y barra de envío gratis.
-- [x] Tipografías Premium unificadas con Google Fonts (Inter y Outfit) aplicadas dinámicamente.
-- [x] Páginas de Términos de Uso y Política de Privacidad de la tienda integradas, adaptativas y enlazadas cruzadamente.
-- [x] Filtros del Catálogo en tiempo real ("Tienda Local" y "Mercado Libre") integrados en el pie de página de la tienda.
-- [x] Cabecera unificada: el logotipo y el nombre comercial se muestran siempre de forma visible y paralela.
-- [x] Validador de seguridad anti-XSS y spoofing con límite de 2MB en subidas de imágenes de logos y portadas.
-- [x] **API de Búsqueda Segura en Servidor** para consultas directas a Cloudinary.
-- [x] **Buscador Híbrido Avanzado** (`global_catalog` + Cloudinary) integrado de forma silenciosa e inteligente al formulario.
-- [x] **Refactor Estético Premium a 2 Columnas** del modal de creación de productos con lienzo de portada interactivo.
-- [x] **Asignación Automática de Plan Free**: Los nuevos tenants registrados ahora obtienen de forma predeterminada el plan "Free" garantizando accesibilidad y consistencia de datos.
-- [x] **Aislamiento Total del Super Admin**: La consola de administración de tenants (`/tenants`, `/overview`, etc.) está restringida a nivel de `PlatformGuard` estrictamente al email `admin@admin.com`, impidiendo accesos no autorizados.
-- [x] **Redirección Directa de Login**: El Super Admin es enviado de inmediato a su panel global al iniciar sesión.
-- [x] **Intercepción Estricta de Dashboard**: Modificado `AuthGuard` para que detecte e intercepte en tiempo real cualquier intento del Super Admin de ingresar a rutas estándar de comerciantes (`/dashboard`, `/pos`, `/inventory`, etc.), redirigiéndolo instantáneamente a `/overview`.
-- [x] **Mejora Premium de Sidebar**: El menú lateral ahora muestra de forma dinámica el nombre del negocio del comerciante, y si inicia sesión el Super Admin, se le asigna su etiqueta y un botón exclusivo de control global en lugar del de ventas.
-- [x] **Información Dinámica e Interactiva (Tooltips)**: Agregados globos de ayuda "?" interactivos con ejemplos claros en los formularios para explicar qué son y cómo usar el **SKU** y el **Slug**.
-- [x] **Políticas de RLS Resilientes**: Solución definitiva al error de seguridad de la tabla `customers` configurando políticas robustas tanto para comerciantes autenticados como para flujos de checkout anónimos.
-- [x] Compilación local Next.js con Turbopack exitosa al 100% (0 errores).
-
-### 🚀 Siguientes Pasos:
-1. **Integración Completa de Envío Web**: Flujo de tracking en tiempo real para compras online.
-2. **Onboarding Visual**: Diseñar la personalización del banner directamente desde el panel del tenant.
+**Archivos involucrados:**
+- `app/(admin)/pos/closure/page.tsx` → Usa `hasFeature('arca_integration')` para condicionar la lógica de cierre y la UI
+- `app/(admin)/pos/history/page.tsx` → Muestra etiqueta "Local" para sesiones sin ARCA, oculta Z-Report en detalle modal
 
 ---
 
-## 7. Comandos de Producción
+## 4. Hook `useTenant` y Feature Gating
+
+**Archivo**: `hooks/use-tenant.ts`
+
+```typescript
+const { tenant, plan, loading, error, hasFeature, getPlanName, isOnlineStoreEnabled } = useTenant();
+```
+
+- `hasFeature(name)`: Verifica features del plan actual (boolean columns o JSONB `features`)
+- Features soportadas: `online_store`, `pos`, `arca_integration`
+- `isOnlineStoreEnabled`: Atajo para verificar tienda online activa
+
+**Componente `<FeatureGate>`** (`components/feature-gate.tsx`):
+Wrapper declarativo para bloquear secciones con pantalla de upgrade.
+
+---
+
+## 5. Chatbot Asistente
+
+**Archivo**: `components/chatbot-assistant.tsx`
+
+Chatbot flotante integrado en el layout admin con respuestas predefinidas por keywords.
+
+### Reglas de Contenido
+- **Lenguaje práctico y simple**: Sin jerga técnica, sin rutas URL, sin términos de programación
+- Las instrucciones hacen referencia a **opciones reales del menú lateral** (ej: "Dirigite a Terminal POS en el menú lateral")
+- Incluye funciones: nueva conversación, borrar historial
+- Keywords: plan, mercado libre, caja/apertura/cierre, stock/inventario, cliente/fiar/crédito, whatsapp/tienda online, ayuda/soporte
+
+### Ejemplo de Respuesta (Caja)
+> Para abrir o cerrar tu caja, seguí estos pasos sencillos:
+> 1. **Apertura de Caja**: Dirigite a Terminal POS en el menú lateral...
+> 2. **Operar Ventas**: Una vez abierta, podés registrar tus ventas normalmente...
+> 3. **Cierre de Caja**: Al finalizar tu turno, hacé click en Cierre de Caja (Z)...
+
+---
+
+## 6. Base de Datos & Transaccionalidad POS
+
+### Tablas Principales
+| Tabla | Descripción |
+|---|---|
+| `tenants` | Comercios (multi-tenancy). Incluye config de tienda online, plan, ML tokens |
+| `plans` | Planes de suscripción con features JSONB |
+| `products` | Catálogo de productos (campo `nombre` — NO `title`) |
+| `product_variants` | Variantes (talle, color) con SKU y barcode |
+| `inventory_levels` | Stock por ubicación |
+| `orders` | Ventas (POS y online) |
+| `order_items` | Items de cada venta |
+| `payments` | Pagos registrados |
+| `customers` | Base de clientes con crédito |
+| `cash_sessions` | Turnos de caja |
+| `tenant_members` | Relación usuario↔tenant |
+
+### Función PL/pgSQL `complete_pos_checkout`
+Función atómica que: registra orden, calcula IVA, agrega items con snapshots, descuenta stock, registra pago.
+
+### Seguridad
+- RLS habilitado con bypass policy para development (`authenticated` + `anon`)
+- Multi-tenancy delegado al frontend con filtros `.eq('tenant_id', tenant.id)`
+
+---
+
+## 7. Sidebar y Navegación Principal
+
+**Archivo**: `components/admin-sidebar.tsx`
+
+### Secciones del Menú
+1. **Gestión Retail**
+   - Panel General (`/dashboard`)
+   - Terminal POS (`/pos`)
+   - Cierre de Caja Z (`/pos/closure`)
+   - Historial de Caja (`/pos/history`)
+   - Inventario (`/inventory`)
+   - Clientes (`/customers`)
+
+2. **Tienda Online** (condicional a plan)
+   - Pedidos Web (`/orders`)
+   - Catálogo Web (`/online-catalog`)
+   - Personalización (`/settings/store`)
+
+3. **Footer**
+   - Ajustes Globales (`/settings`)
+   - Cerrar Sesión
+
+### Super Admin
+- Email: `admin@admin.com`
+- Redirige a `/overview` (panel global de tenants)
+- Interceptado por `AuthGuard` si intenta acceder a rutas de comerciante
+
+---
+
+## 8. Tienda Online (Storefront)
+
+- Ruta dinámica: `app/(store)/tienda/[slug]/page.tsx`
+- Subdominios: `{slug}.obsidiana.com.ar` → reescrito por middleware a `/tienda/{slug}`
+- Carrito deslizante boutique con micro-stepper de 3 pasos
+- Checkout por WhatsApp
+- Tipografías: Inter, Outfit
+- Temas: claro/oscuro
+- Páginas legales: Términos y Privacidad
+
+---
+
+## 9. Seguridad
+
+- **Anti-XSS**: Validador `validateImageFile` bloquea SVG/HTML, doble extensión, límite 2MB
+- **Middleware**: Autenticación Supabase SSR, redirección de rutas protegidas, multi-tenancy por subdominio
+- **CORS**: Rutas API protegidas
+
+---
+
+## 10. Estado de Compilación
+
+```
+✅ TypeScript (tsc --noEmit): 0 errores
+✅ Next.js route types: generados exitosamente
+✅ Turbo: 3/3 tareas exitosas (web, @repo/shared, @repo/ui)
+```
+
+---
+
+## 11. Módulos Completados
+
+- [x] POS transaccional atómico con función Supabase
+- [x] Sistema de apertura/cierre de caja (cash_sessions)
+- [x] Integración fiscal ARCA bloqueada por plan premium
+- [x] Historial de turnos con auditoría y etiquetas de estado
+- [x] Chatbot asistente con respuestas prácticas y no-técnicas
+- [x] Branding unificado: "Obsidiana" (sin "Pro")
+- [x] ML Afiliados eliminado — importación por link directo
+- [x] Feature gating por plan (FeatureGate + hasFeature)
+- [x] Tienda online con carrito boutique y checkout WhatsApp
+- [x] Dashboard con KPIs en tiempo real
+- [x] Historial de ventas POS con filtros y exportación CSV
+- [x] Gestión de clientes con cuentas corrientes
+- [x] Inventario con alertas de stock crítico
+- [x] Validación de seguridad en uploads de imágenes
+- [x] Buscador híbrido de imágenes (DB + Cloudinary)
+- [x] Páginas legales (Términos, Privacidad)
+- [x] Auto-asignación de Plan Free para nuevos tenants
+- [x] Aislamiento de Super Admin
+- [x] Rutas internas corregidas (sin prefijo /admin/)
+- [x] Sistema de Tickets y Comprobantes: formato térmico (58mm/80mm), datos de contacto, logo y datos fiscales personalizables
+- [x] Panel de Gestión de Impresoras: soporte para WebUSB directo, impresoras de Red (TCP/IP) e impresión nativa de sistema
+- [x] Impresión Inteligente de Cierre de Caja: redimensionamiento automático entre rollo térmico y hoja A4 según config de reportes
+
+## 12. Pendientes / Roadmap
+
+1. **Integración real ARCA**: Conectar con servidores fiscales de ARCA (ex-AFIP) para emisión real de reportes Z
+2. **Tracking de envíos**: Flujo de seguimiento en tiempo real para compras online
+3. **Onboarding visual**: Wizard de personalización de banner al registrar un nuevo tenant
+4. **Notificaciones push**: Alertas de stock crítico y nuevos pedidos
+5. **Reportes avanzados**: Gráficos de rendimiento mensual y comparativos
+
+---
+
+## 13. Comandos de Producción
+
 ```bash
 # Servidor local de desarrollo
 pnpm dev
 
+# Verificar tipos
+pnpm check-types
+
 # Compilar proyecto completo (Turbo)
 pnpm build
 
-# Push de cambios a producción
+# Push a producción
 git add .
-git commit -m "feat: strict super admin dashboard interceptor, resilient customers table RLS, and dynamic sidebar updates"
+git commit -m "feat: ticket customization and advanced printer management integration"
 git push
 ```
 
-*Última actualización: 2026-05-18 09:15 - Obsidiana Pro Team*
+*Última actualización: 2026-05-19 17:53 — Obsidiana Team*

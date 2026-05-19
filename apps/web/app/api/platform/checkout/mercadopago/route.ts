@@ -59,7 +59,7 @@ export async function POST(req: Request) {
         items: [
           {
             id: plan.id,
-            title: `Suscripción Obsidiana Pro: ${plan.name || plan.nombre}`,
+            title: `Suscripción Obsidiana: ${plan.name || plan.nombre}`,
             quantity: 1,
             unit_price: plan.monthly_price || plan.precio_mensual,
             currency_id: 'ARS',

@@ -31,15 +31,93 @@ export default function POSTerminalPage() {
   const [lastOrderNumber, setLastOrderNumber] = useState<number | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Cash Session States
+  const [activeSession, setActiveSession] = useState<any>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionName, setSessionName] = useState('Caja #01');
+  const [initialAmount, setInitialAmount] = useState('0.00');
+  const [user, setUser] = useState<any>(null);
+  const [openingSession, setOpeningSession] = useState(false);
+
   useEffect(() => {
-    fetchProducts();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (tenant?.id) {
+      checkActiveSession();
+      fetchProducts();
+    }
   }, [tenant]);
+
+  async function checkActiveSession() {
+    setSessionLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('cash_sessions')
+        .select('*')
+        .eq('tenant_id', tenant!.id)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      setActiveSession(data);
+    } catch (err) {
+      console.error('Error checking active session:', err);
+    } finally {
+      setSessionLoading(false);
+    }
+  }
+
+  async function handleOpenSession(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tenant?.id || !user?.id) {
+      alert('Error: Inquilino o usuario no autenticado');
+      return;
+    }
+
+    const amt = parseFloat(initialAmount) || 0;
+    if (amt < 0) {
+      alert('El monto inicial no puede ser negativo');
+      return;
+    }
+
+    setOpeningSession(true);
+    try {
+      const { data, error } = await supabase
+        .from('cash_sessions')
+        .insert({
+          tenant_id: tenant.id,
+          user_id: user.id,
+          name: sessionName || 'Caja #01',
+          status: 'open',
+          initial_amount: amt,
+          expected_amount: amt,
+          opened_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setActiveSession(data);
+    } catch (err: any) {
+      console.error('Error opening session:', err);
+      alert('Error al abrir la caja: ' + err.message);
+    } finally {
+      setOpeningSession(false);
+    }
+  }
+
 
   async function fetchProducts() {
     if (!tenant?.id) return;
     setLoading(true);
     try {
-      // Get variants with their products
+      // Get variants with their products and inventory levels in a single query
       const { data: variants, error: variantsError } = await supabase
         .from('product_variants')
         .select(`
@@ -55,6 +133,10 @@ export default function POSTerminalPage() {
             images,
             online_reserved,
             tenant_id
+          ),
+          inventory_levels (
+            on_hand,
+            committed
           )
         `)
         .eq('products.tenant_id', tenant.id);
@@ -65,42 +147,18 @@ export default function POSTerminalPage() {
         return;
       }
 
-      // Get inventory for these variants
-      const variantIds = variants?.map(v => v.id) || [];
-      
-      if (variantIds.length === 0) {
-        setProducts([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data: inventory, error: inventoryError } = await supabase
-        .from('inventory_levels')
-        .select('variant_id, on_hand, committed')
-        .eq('tenant_id', tenant.id)
-        .in('variant_id', variantIds);
-
-      if (inventoryError) {
-        console.error('Error fetching inventory:', inventoryError);
-      }
-
-      // Build inventory lookup map
-      const inventoryMap = new Map();
-      inventory?.forEach((inv: any) => {
-        inventoryMap.set(inv.variant_id, inv);
-      });
-
-      // Combine data — FIX: use variant.products for online_reserved instead of stale state
+      // Combine data
       const formattedProducts: Product[] = (variants || [])
         .filter((v: any) => !(v.sku || '').startsWith('ML-'))
         .map((variant: any) => {
           const product = variant.products;
-          const inv = inventoryMap.get(variant.id);
-          const onHand = inv?.on_hand || 0;
-          const reserved = product?.online_reserved || 0;
+          const invs = variant.inventory_levels || [];
           
-          // POS available = on_hand - reserved_for_web
-          const posAvailable = Math.max(0, onHand - reserved);
+          // Sum stock across branches (if multiple)
+          const onHand = Array.isArray(invs)
+            ? invs.reduce((sum: number, inv: any) => sum + (inv.on_hand || 0), 0)
+            : 0;
+          const reserved = product?.online_reserved || 0;
           
           return {
             id: variant.id,
@@ -296,6 +354,91 @@ export default function POSTerminalPage() {
     { key: 'tarjeta' as PaymentMethod, label: 'Tarjeta', icon: 'credit_card', color: 'orange' },
   ];
 
+  if (sessionLoading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center text-zinc-400 bg-[#121212] gap-4 w-full">
+        <div className="w-12 h-12 rounded-full border-4 border-violet-500 border-t-transparent animate-spin"></div>
+        <p className="font-black text-xs uppercase tracking-[0.2em] animate-pulse text-zinc-500">Verificando estado de caja...</p>
+      </div>
+    );
+  }
+
+  if (!activeSession) {
+    return (
+      <div className="flex-1 p-6 lg:p-8 flex items-center justify-center w-full min-h-[calc(100vh-140px)] overflow-y-auto bg-zinc-950/20">
+        <div className="w-full max-w-lg bg-[#1A1A1A] border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-violet-600/5 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
+          
+          <div className="relative z-10 flex flex-col gap-6">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-2 shadow-[0_0_20px_rgba(124,58,237,0.2)]">
+                <span className="material-symbols-outlined text-3xl">lock_open</span>
+              </div>
+              <h2 className="text-2xl font-black text-white tracking-tight uppercase">Apertura de Caja</h2>
+              <p className="text-sm text-zinc-400 max-w-xs">
+                Iniciá un nuevo turno para poder registrar operaciones en el Punto de Venta (POS) de Obsidiana.
+              </p>
+            </div>
+
+            <form onSubmit={handleOpenSession} className="flex flex-col gap-5 mt-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nombre de Caja / Terminal</label>
+                <div className="relative group">
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-violet-400 transition-colors text-lg">point_of_sale</span>
+                  <input
+                    type="text"
+                    required
+                    value={sessionName}
+                    onChange={(e) => setSessionName(e.target.value)}
+                    className="w-full bg-zinc-900 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-sm text-white focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none transition-all placeholder:text-zinc-600"
+                    placeholder="Ej. Caja #01"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Monto Inicial de Efectivo (Arqueo Inicial)</label>
+                <div className="relative group">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-violet-400 font-bold">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={initialAmount}
+                    onChange={(e) => setInitialAmount(e.target.value)}
+                    className="w-full bg-zinc-900 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-sm text-white font-data-tabular focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none transition-all"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-500">Monto de efectivo que se encuentra físicamente en el cajón.</p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={openingSession}
+                className="w-full bg-primary-container hover:bg-[#6D28D9] text-white py-4 rounded-xl font-black text-sm uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 mt-2 shadow-[0_0_20px_rgba(124,58,237,0.2)] active:scale-95 disabled:opacity-50"
+              >
+                {openingSession ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-lg">autorenew</span>
+                    Abriendo...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">key</span>
+                    Abrir Caja e Iniciar Turno
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] overflow-hidden">
       {/* Success Toast */}
@@ -333,10 +476,13 @@ export default function POSTerminalPage() {
         <div className="flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-emerald-400 font-black text-[10px] uppercase tracking-widest">Online - Caja #04</span>
+            <span className="text-emerald-400 font-black text-[10px] uppercase tracking-widest">
+              Online - {activeSession ? activeSession.name : 'Caja Cerrada'}
+            </span>
           </div>
         </div>
       </div>
+
 
       <div className="flex-1 flex overflow-hidden">
         {/* Product Grid Area */}

@@ -130,7 +130,7 @@ export default function PlatformDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
         <div>
           <h1 className="text-3xl font-black uppercase tracking-tighter text-white">Vista General</h1>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Estado en tiempo real del ecosistema Obsidiana Pro.</p>
+          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Estado en tiempo real del ecosistema Obsidiana.</p>
         </div>
         <div className="flex items-center gap-3">
            <div className="flex flex-col items-end mr-4">

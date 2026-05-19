@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
+import Link from 'next/link';
 
 interface Order {
   id: string;
@@ -369,6 +370,13 @@ export default function POSSalesHistoryPage() {
                     </td>
                     <td className="py-5 px-8 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                        <Link
+                          href={`/pos/tickets/${order.id}`}
+                          className="p-2 text-zinc-500 hover:text-violet-400 transition-colors flex items-center"
+                          title="Ver y Reimprimir Ticket"
+                        >
+                          <span className="material-symbols-outlined">print</span>
+                        </Link>
                         <button 
                           onClick={() => viewOrderDetail(order)}
                           className="p-2 text-zinc-500 hover:text-secondary transition-colors"
@@ -445,9 +453,27 @@ export default function POSSalesHistoryPage() {
                       <span className="text-zinc-500">IVA (21%)</span>
                       <span className="font-black text-white">$ {(selectedOrder.tax_ars || 0).toLocaleString('es-AR')}</span>
                     </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                    <div className="flex justify-between items-center pt-2 border-t border-white/5 pb-4">
                       <span className="text-secondary font-black uppercase tracking-[0.2em]">TOTAL</span>
                       <span className="text-2xl font-black text-white">$ {(selectedOrder.total_ars || 0).toLocaleString('es-AR')}</span>
+                    </div>
+                    <div className="flex gap-3 pt-4 border-t border-white/5">
+                      <Link
+                        href={`/pos/tickets/${selectedOrder.id}`}
+                        className="flex-1 bg-violet-600 hover:bg-violet-500 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 text-center"
+                      >
+                        <span className="material-symbols-outlined text-sm">print</span>
+                        Imprimir Ticket
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setShowDetailModal(false);
+                          setOrderItems([]);
+                        }}
+                        className="flex-1 bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all"
+                      >
+                        Cerrar
+                      </button>
                     </div>
                   </div>
                 </>

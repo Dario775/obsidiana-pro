@@ -53,7 +53,7 @@ export default function UnauthorizedPage() {
                 Lo sentimos, <span className="font-semibold text-violet-400">{user?.email || 'usuario'}</span>. Tu cuenta no dispone de los niveles de autorización requeridos para acceder al panel de administración central de la plataforma.
               </p>
               <p className="text-zinc-400 text-[13px] leading-relaxed bg-zinc-950/40 p-4 rounded-xl border border-white/5">
-                Esta sección está reservada únicamente para auditores globales y administradores de infraestructura del sistema Obsidiana Pro.
+                Esta sección está reservada únicamente para auditores globales y administradores de infraestructura del sistema Obsidiana.
               </p>
             </div>
           )}
@@ -93,7 +93,7 @@ export default function UnauthorizedPage() {
 
         {/* Footer */}
         <p className="text-zinc-600 text-xs">
-          Obsidiana Pro &copy; {new Date().getFullYear()} &bull; Todos los derechos reservados.
+          Obsidiana &copy; {new Date().getFullYear()} &bull; Todos los derechos reservados.
         </p>
       </div>
     </div>
