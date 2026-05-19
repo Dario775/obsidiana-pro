@@ -50,8 +50,6 @@
 
 /* PWA Native optimizations */
 html, body {
-  /* Prevent pull-to-refresh on mobile browsers */
-  overscroll-behavior-y: contain;
   /* Prevent horizontal scrolling at document root */
   overflow-x: hidden;
   /* Adjust scrolling physics */
