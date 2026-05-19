@@ -295,7 +295,10 @@ export function Topbar({ isSidebarCollapsed = false, onToggleSidebar }: TopbarPr
           </button>
         )}
 
-        <span className="text-xl font-bold tracking-tight text-white uppercase lg:hidden">Obsidiana</span>
+        <div className="flex items-center gap-2 lg:hidden">
+          <img src="/logo.svg" alt="Obsidiana" className="w-5 h-5 object-contain brightness-110" />
+          <span className="text-lg font-black tracking-tight text-white uppercase leading-none">Obsidiana</span>
+        </div>
         
         {/* Dynamic Tabs */}
         <nav className="hidden md:flex gap-1 h-full items-center">

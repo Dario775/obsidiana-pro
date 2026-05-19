@@ -429,7 +429,7 @@ export default function TicketSettingsPage() {
               <div className="text-center flex flex-col gap-1">
                 {config.show_logo && (
                   <div className="flex items-center justify-center gap-1.5 mb-1">
-                    <span className="material-symbols-outlined text-lg font-black">diamond</span>
+                    <img src="/logo.svg" alt="Logo" className="w-4 h-4 object-contain" />
                     <span className="text-sm font-black tracking-tighter uppercase">{tenant?.nombre || 'MI NEGOCIO'}</span>
                   </div>
                 )}
@@ -503,7 +503,7 @@ export default function TicketSettingsPage() {
                 {config.footer_msg && (
                   <p className="text-[9px] whitespace-pre-line text-zinc-700">{config.footer_msg}</p>
                 )}
-                <p className="text-[8px] text-zinc-500 uppercase tracking-wider">Desarrollado por Obsidiana Pro</p>
+                <p className="text-[8px] text-zinc-500 uppercase tracking-wider">Desarrollado por Obsidiana</p>
               </div>
             </div>
           </div>

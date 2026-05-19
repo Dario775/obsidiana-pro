@@ -38,7 +38,10 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
     }`}>
       <div className="px-6 mb-8 flex flex-col gap-2 relative">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold text-white">Obsidiana Admin</h1>
+          <div className="flex items-center gap-2">
+            <img src="/logo.svg" alt="Obsidiana" className="w-6 h-6 object-contain brightness-110" />
+            <h1 className="text-lg font-black text-white leading-none tracking-tight">Obsidiana</h1>
+          </div>
           {onToggle && (
             <button 
               onClick={onToggle}

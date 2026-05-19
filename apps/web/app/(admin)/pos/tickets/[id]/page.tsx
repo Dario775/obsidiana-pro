@@ -188,7 +188,7 @@ export default function FiscalTicketPage() {
               <div className="text-center flex flex-col gap-1.5">
                 {ticketConfig.show_logo && (
                   <div className="flex items-center justify-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-xl font-bold">diamond</span>
+                    <img src="/logo.svg" alt="Logo" className="w-5 h-5 object-contain" />
                     <span className="text-xl font-black tracking-tighter uppercase">{tenant?.nombre || 'OBSIDIANA'}</span>
                   </div>
                 )}

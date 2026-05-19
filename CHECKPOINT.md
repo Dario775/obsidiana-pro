@@ -225,7 +225,7 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 - [x] Integración fiscal ARCA bloqueada por plan premium
 - [x] Historial de turnos con auditoría y etiquetas de estado
 - [x] Chatbot asistente con respuestas prácticas y no-técnicas
-- [x] Branding unificado: "Obsidiana" (sin "Pro")
+- [x] Branding unificado: "Obsidiana" (sin "Pro") e integración del nuevo Logo V2 en Sidebar, Topbar, registro de usuarios y comprobantes de tickets impresos
 - [x] ML Afiliados eliminado — importación por link directo
 - [x] Feature gating por plan (FeatureGate + hasFeature)
 - [x] Tienda online con carrito boutique y checkout WhatsApp
@@ -267,8 +267,8 @@ pnpm build
 
 # Push a producción
 git add .
-git commit -m "feat: ticket customization and advanced printer management integration"
+git commit -m "feat: integrate logo v2 and unify branding"
 git push
 ```
 
-*Última actualización: 2026-05-19 17:53 — Obsidiana Team*
+*Última actualización: 2026-05-19 18:49 — Obsidiana Team*
