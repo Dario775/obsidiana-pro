@@ -180,7 +180,7 @@ export function ChatbotAssistant() {
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed right-6 bottom-6 md:right-8 md:bottom-8 z-50 w-14 h-14 bg-violet-600 hover:bg-violet-500 hover:scale-110 active:scale-95 text-white rounded-full flex items-center justify-center shadow-[0_10px_30px_rgba(109,40,217,0.5)] transition-all duration-300 border border-violet-400/30"
+        className="fixed right-6 bottom-20 lg:bottom-8 lg:right-8 z-50 w-14 h-14 bg-violet-600 hover:bg-violet-500 hover:scale-110 active:scale-95 text-white rounded-full flex items-center justify-center shadow-[0_10px_30px_rgba(109,40,217,0.5)] transition-all duration-300 border border-violet-400/30"
         title="Asistente de Obsidiana"
       >
         <span className="material-symbols-outlined text-[28px] animate-pulse">
@@ -190,7 +190,7 @@ export function ChatbotAssistant() {
 
       {/* Expanded Chat Dialog */}
       {isOpen && (
-        <div className="fixed right-6 bottom-24 md:right-8 md:bottom-28 w-[92%] max-w-sm h-[520px] bg-zinc-900/95 border border-white/10 backdrop-blur-md text-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 flex flex-col font-inter overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed right-6 bottom-36 lg:bottom-24 lg:right-8 w-[92%] max-w-sm h-[520px] bg-zinc-900/95 border border-white/10 backdrop-blur-md text-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 flex flex-col font-inter overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
           
           {/* Header */}
           <div className="bg-zinc-950/60 p-4 border-b border-white/5 flex items-center gap-3">
