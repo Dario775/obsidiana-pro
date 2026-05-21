@@ -36,16 +36,21 @@ export default function LoginPage() {
             await handlePostLogin(session.user);
           } else {
             setTimeout(async () => {
-              const { data: { session: retrySession } } = await supabase.auth.getSession();
-              if (retrySession?.user) {
-                await handlePostLogin(retrySession.user);
-              } else {
+              try {
+                const { data: { session: retrySession } } = await supabase.auth.getSession();
+                if (retrySession?.user) {
+                  await handlePostLogin(retrySession.user);
+                } else {
+                  setProcessing(false);
+                  setError('No se pudo validar la sesión. Por favor, intenta ingresar de nuevo.');
+                }
+              } catch {
                 setProcessing(false);
-                setError('No se pudo validar la sesión. Por favor, intenta ingresar de nuevo.');
+                setError('Error al validar la sesión. Por favor, intenta ingresar de nuevo.');
               }
             }, 1500);
           }
-        } catch (err: any) {
+        } catch {
           setProcessing(false);
           setError('Error de conexión con el servidor de autenticación.');
         }
@@ -58,11 +63,17 @@ export default function LoginPage() {
     try {
       const tenantId = user.user_metadata?.tenant_id;
       if (tenantId) {
-        const { data: tenantData } = await supabase
+        const { data: tenantData, error: tenantError } = await supabase
           .from('tenants')
-          .select('is_platform_admin')
+          .select('is_platform_admin, status')
           .eq('id', tenantId)
           .maybeSingle();
+        if (tenantError) throw tenantError;
+        if (tenantData?.status !== 'active') {
+          setProcessing(false);
+          setError('Tu cuenta está suspendida. Contactá al soporte.');
+          return;
+        }
         if (tenantData?.is_platform_admin === true) {
           router.refresh();
           window.location.href = '/overview';
@@ -70,36 +81,52 @@ export default function LoginPage() {
         }
       }
 
-      const { data: memberData } = await supabase
+      const { data: memberData, error: memberError } = await supabase
         .from('tenant_members')
         .select('tenant_id')
         .eq('user_id', user.id)
         .limit(1)
         .maybeSingle();
 
+      if (memberError) throw memberError;
+
       if (memberData) {
-        const { data: tenantData } = await supabase
+        const { data: tenantData, error: tenantError } = await supabase
           .from('tenants')
-          .select('is_platform_admin')
+          .select('is_platform_admin, status')
           .eq('id', memberData.tenant_id)
           .maybeSingle();
+        if (tenantError) throw tenantError;
+        if (tenantData?.status !== 'active') {
+          setProcessing(false);
+          setError('Tu cuenta está suspendida. Contactá al soporte.');
+          return;
+        }
         const target = tenantData?.is_platform_admin ? '/overview' : '/dashboard';
         router.refresh();
         window.location.href = target;
         return;
       }
 
+      const storedStoreName = typeof window !== 'undefined' ? sessionStorage.getItem('pendingStoreName') : null;
       const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mi Tienda';
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, storeName: `Tienda de ${userName}`, googleUserId: user.id }),
+        body: JSON.stringify({ email: user.email, storeName: storedStoreName || `Tienda de ${userName}`, googleUserId: user.id }),
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Error al crear tu negocio');
+      }
+
+      if (typeof window !== 'undefined') sessionStorage.removeItem('pendingStoreName');
       router.refresh();
       window.location.href = '/dashboard';
-    } catch {
-      window.location.href = '/dashboard';
+    } catch (err: any) {
+      setProcessing(false);
+      setError(err.message || 'Error al completar el inicio de sesión.');
     }
   }
 
@@ -124,7 +151,7 @@ export default function LoginPage() {
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/login`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: { access_type: 'offline', prompt: 'consent' }
         },
       });

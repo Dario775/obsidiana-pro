@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 
 export default function RegisterPage() {
@@ -30,9 +31,17 @@ export default function RegisterPage() {
       if (!res.ok) throw new Error(data.error || 'Error al registrarse');
 
       setSuccess(true);
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-      if (!loginError) {
+      try {
+        const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+        if (loginError) {
+          setError('Cuenta creada pero no pudimos iniciar sesión automáticamente. Por favor iniciá sesión manualmente.');
+          setTimeout(() => router.push('/login'), 3000);
+          return;
+        }
         setTimeout(() => router.push('/dashboard'), 2000);
+      } catch {
+        setError('Cuenta creada pero ocurrió un error al iniciar sesión. Por favor iniciá sesión manualmente.');
+        setTimeout(() => router.push('/login'), 3000);
       }
     } catch (err: any) {
       setError(err.message);
@@ -43,9 +52,12 @@ export default function RegisterPage() {
 
   async function signInWithGoogle() {
     try {
+      if (storeName) {
+        sessionStorage.setItem('pendingStoreName', storeName);
+      }
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/login` },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Google');
@@ -83,12 +95,13 @@ export default function RegisterPage() {
       {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative flex-col justify-between p-12 xl:p-16 z-10">
         <div className="relative">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+          <Link href="/" className="flex items-center gap-3 mb-8 group">
+            <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
               <span className="material-symbols-outlined text-violet-400 text-2xl">storefront</span>
             </div>
             <span className="text-lg font-black text-white tracking-tight">Obsidiana</span>
-          </div>
+            <span className="material-symbols-outlined text-zinc-600 text-sm ml-2 group-hover:text-zinc-400 transition-colors">arrow_back</span>
+          </Link>
         </div>
 
         <div className="max-w-lg space-y-8">
@@ -139,12 +152,13 @@ export default function RegisterPage() {
       {/* Right Panel - Register Form */}
       <div className="w-full lg:w-1/2 xl:w-[45%] flex items-center justify-center p-6 sm:p-10 z-10">
         <div className="w-full max-w-[420px]">
-          <div className="lg:hidden flex items-center gap-3 mb-10">
+          <Link href="/" className="lg:hidden flex items-center gap-3 mb-10 group">
             <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-violet-400">storefront</span>
             </div>
             <span className="text-lg font-black text-white">Obsidiana</span>
-          </div>
+            <span className="material-symbols-outlined text-zinc-600 text-sm ml-2">arrow_back</span>
+          </Link>
 
           <div className="space-y-8">
             <div className="space-y-2">

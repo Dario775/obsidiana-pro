@@ -47,16 +47,21 @@ export async function POST(request: NextRequest) {
 
     // Generate slug and check uniqueness
     let slug = storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const baseSlug = slug;
     
-    const { data: existingTenant } = await supabaseAdmin
-      .from('tenants')
-      .select('id')
-      .eq('slug', slug)
-      .maybeSingle();
+    // Retry with unique suffixes if slug exists (up to 5 attempts)
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data: existingTenant } = await supabaseAdmin
+        .from('tenants')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
 
-    if (existingTenant) {
-      // Add random suffix to make it unique
-      slug = slug + '-' + Date.now().toString(36);
+      if (!existingTenant) break;
+      
+      // Use crypto-random suffix for uniqueness under concurrent requests
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      slug = `${baseSlug}-${randomSuffix}`;
     }
 
     // 1. Create tenant first
@@ -83,7 +88,7 @@ export async function POST(request: NextRequest) {
     // 2. Handle user creation / association
     if (isGoogleUser) {
       // Google user already exists in Auth — just create tenant_members association
-      await supabaseAdmin
+      const { error: memberError } = await supabaseAdmin
         .from('tenant_members')
         .insert({
           tenant_id: tenantData.id,
@@ -91,13 +96,27 @@ export async function POST(request: NextRequest) {
           role: 'owner',
         });
 
+      if (memberError) {
+        console.error('tenant_members insert failed, cleaning up tenant:', memberError);
+        await supabaseAdmin.from('tenants').delete().eq('id', tenantData.id);
+        return NextResponse.json(
+          { error: 'Error al asociar tu cuenta con el negocio: ' + memberError.message },
+          { status: 500 }
+        );
+      }
+
       // Update user metadata with tenant_id
-      await supabaseAdmin.auth.admin.updateUserById(googleUserId, {
+      const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(googleUserId, {
         user_metadata: {
           store_name: storeName,
           tenant_id: tenantData.id,
         },
       });
+
+      if (metaError) {
+        console.error('User metadata update failed:', metaError);
+        // Don't fail registration — metadata can be updated later
+      }
 
     } else {
       // Traditional email/password registration
@@ -124,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Create default location for this tenant
-    await supabaseAdmin
+    const { error: locationError } = await supabaseAdmin
       .from('locations')
       .insert({
         tenant_id: tenantData.id,
@@ -132,7 +151,12 @@ export async function POST(request: NextRequest) {
         is_default: true,
       })
       .select()
-      .maybeSingle(); // Ignore if exists
+      .maybeSingle();
+
+    if (locationError) {
+      console.warn('Default location creation failed (non-critical):', locationError);
+      // Don't fail registration — location can be created manually later
+    }
 
     return NextResponse.json({
       success: true,

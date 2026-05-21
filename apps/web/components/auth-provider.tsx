@@ -139,13 +139,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const sessionUser = session?.user ?? null;
-      setUser(sessionUser);
-      await fetchRoleAndPermissions(sessionUser);
+    let debounceTimer: NodeJS.Timeout | null = null;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only react to meaningful events, debounce rapid-fire events
+      if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const sessionUser = session?.user ?? null;
+          setUser(sessionUser);
+          await fetchRoleAndPermissions(sessionUser);
+        }, 300);
+      } else if (event === 'SIGNED_OUT') {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        setUser(null);
+        setRole('member');
+        setIsSuperAdmin(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   }, []);
 
   const signOut = async () => {
@@ -297,7 +312,9 @@ export function PlatformGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (!isSuperAdmin) {
+      setChecking(false);
       window.location.href = '/unauthorized';
+      return;
     }
     setChecking(false);
   }, [user, loading, isSuperAdmin]);
