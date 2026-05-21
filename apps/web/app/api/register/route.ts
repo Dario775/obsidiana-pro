@@ -24,6 +24,14 @@ export async function POST(request: NextRequest) {
     const isGoogleUser = !!googleUserId;
 
     // Validate input
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!isGoogleUser && email && !emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'El formato del email no es válido' },
+        { status: 400 }
+      );
+    }
+
     if (!storeName) {
       return NextResponse.json(
         { error: 'El nombre del negocio es obligatorio' },
@@ -64,6 +72,22 @@ export async function POST(request: NextRequest) {
       slug = `${baseSlug}-${randomSuffix}`;
     }
 
+    // Validate plan_id exists before creating tenant
+    const planId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'; // Free plan ID
+    const { data: planData } = await supabaseAdmin
+      .from('plans')
+      .select('id')
+      .eq('id', planId)
+      .maybeSingle();
+
+    if (!planData) {
+      console.error('Free plan not found in database');
+      return NextResponse.json(
+        { error: 'Error de configuración: el plan gratuito no existe en la base de datos' },
+        { status: 500 }
+      );
+    }
+
     // 1. Create tenant first
     const { data: tenantData, error: tenantError } = await supabaseAdmin
       .from('tenants')
@@ -72,7 +96,7 @@ export async function POST(request: NextRequest) {
         slug,
         status: 'active',
         online_store_enabled: true,
-        plan_id: 'free',
+        plan_id: planId,
       }])
       .select('id')
       .single();
@@ -135,27 +159,55 @@ export async function POST(request: NextRequest) {
         console.error('User creation failed, cleaning up tenant:', userError);
         await supabaseAdmin.from('tenants').delete().eq('id', tenantData.id);
         
+        // Handle duplicate email case
+        if (userError.message?.includes('already registered') || userError.message?.includes('already exists') || userError.message?.includes('User already registered')) {
+          return NextResponse.json(
+            { error: 'Ya existe una cuenta con ese email. Iniciá sesión o recuperá tu contraseña.' },
+            { status: 400 }
+          );
+        }
+        
         return NextResponse.json(
           { error: userError.message },
           { status: 400 }
         );
       }
+
+      // Create tenant_members association for email/password users
+      const { error: memberError } = await supabaseAdmin
+        .from('tenant_members')
+        .insert({
+          tenant_id: tenantData.id,
+          user_id: userData.user.id,
+          role: 'owner',
+        });
+
+      if (memberError) {
+        console.error('tenant_members insert failed for email user, cleaning up:', memberError);
+        await supabaseAdmin.from('tenants').delete().eq('id', tenantData.id);
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+        return NextResponse.json(
+          { error: 'Error al asociar tu cuenta con el negocio: ' + memberError.message },
+          { status: 500 }
+        );
+      }
     }
 
-    // 3. Create default location for this tenant
-    const { error: locationError } = await supabaseAdmin
-      .from('locations')
-      .insert({
-        tenant_id: tenantData.id,
-        name: 'Local Principal',
-        is_default: true,
-      })
-      .select()
-      .maybeSingle();
-
-    if (locationError) {
-      console.warn('Default location creation failed (non-critical):', locationError);
-      // Don't fail registration — location can be created manually later
+    // 3. Create default location for this tenant (if table exists)
+    // Note: locations table may not exist in all environments, so we handle this gracefully
+    try {
+      await supabaseAdmin
+        .from('locations')
+        .insert({
+          tenant_id: tenantData.id,
+          name: 'Local Principal',
+          is_default: true,
+        })
+        .select()
+        .maybeSingle();
+    } catch (locErr) {
+      console.warn('Default location creation skipped (table may not exist):', locErr);
+      // Non-critical: location can be created manually later via admin panel
     }
 
     return NextResponse.json({

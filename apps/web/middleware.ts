@@ -74,11 +74,14 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname === '/' ||
     request.nextUrl.pathname === '/login' ||
     request.nextUrl.pathname === '/register' ||
+    request.nextUrl.pathname === '/forgot-password' ||
+    request.nextUrl.pathname === '/reset-password' ||
     request.nextUrl.pathname.startsWith('/auth/') ||
     request.nextUrl.pathname.startsWith('/tienda/');
 
-  // Redirect authenticated users away from login/register to dashboard
-  if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
+  // Redirect authenticated users away from auth pages to dashboard
+  const authPages = ['/login', '/register', '/forgot-password', '/reset-password'];
+  if (user && authPages.includes(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

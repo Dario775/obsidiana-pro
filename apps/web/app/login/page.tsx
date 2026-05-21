@@ -13,6 +13,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -20,6 +22,11 @@ export default function LoginPage() {
     const hasCode = params.get('code');
     const hasHash = window.location.hash?.includes('access_token');
     const hasError = params.get('error');
+    const hasMessage = params.get('message');
+
+    if (hasMessage) {
+      setInfoMessage(decodeURIComponent(hasMessage));
+    }
 
     if (hasError) {
       setError(decodeURIComponent(params.get('error_description') || params.get('error') || 'Error de autenticación'));
@@ -139,7 +146,16 @@ export default function LoginPage() {
       if (authError) throw authError;
       if (data.user) await handlePostLogin(data.user);
     } catch (err: any) {
-      setError(err.message === 'Invalid login credentials' ? 'Credenciales inválidas' : 'Error al iniciar sesión');
+      const msg = err.message || '';
+      if (msg.includes('Invalid login credentials')) {
+        setError('Credenciales inválidas');
+      } else if (msg.includes('Email not confirmed') || msg.includes('not confirmed')) {
+        setError('Tu email no ha sido confirmado. Revisá tu bandeja de entrada.');
+      } else if (msg.includes('Too many requests') || msg.includes('rate limit')) {
+        setError('Demasiados intentos. Esperá unos minutos y volvÉ a intentar.');
+      } else {
+        setError('Error al iniciar sesión');
+      }
     } finally {
       setLoading(false);
     }
@@ -147,6 +163,7 @@ export default function LoginPage() {
 
   async function signInWithGoogle() {
     setError('');
+    setGoogleLoading(true);
     try {
       await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -157,6 +174,7 @@ export default function LoginPage() {
       });
     } catch {
       setError('No pudimos conectar con Google. Reintenta en unos instantes.');
+      setGoogleLoading(false);
     }
   }
 
@@ -294,6 +312,13 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Info message */}
+            {infoMessage && (
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium animate-in fade-in slide-in-from-top-1">
+                {infoMessage}
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={processLogin} className="space-y-5">
               <div className="space-y-1.5">
@@ -301,7 +326,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setError(''); setInfoMessage(''); }}
                   placeholder="tu@email.com"
                   className="w-full px-4 py-3.5 rounded-xl bg-zinc-900/50 border border-white/10 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all text-white placeholder:text-zinc-600"
                   required
@@ -314,7 +339,7 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); setError(''); setInfoMessage(''); }}
                     placeholder="••••••••"
                     className="w-full px-4 py-3.5 rounded-xl bg-zinc-900/50 border border-white/10 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all text-white placeholder:text-zinc-600 pr-12"
                     required
@@ -336,7 +361,7 @@ export default function LoginPage() {
                   <input type="checkbox" className="w-4 h-4 rounded bg-zinc-900 border-white/10 text-violet-500 focus:ring-violet-500/20 focus:ring-offset-0" />
                   <span className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">Recordarme</span>
                 </label>
-                <button type="button" className="text-sm font-bold text-violet-400 hover:text-violet-300 transition-colors">
+                <button type="button" onClick={() => router.push('/forgot-password')} className="text-sm font-bold text-violet-400 hover:text-violet-300 transition-colors">
                   ¿Olvidaste tu contraseña?
                 </button>
               </div>
@@ -358,15 +383,20 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="w-full bg-zinc-900/50 text-zinc-300 py-3.5 rounded-xl font-bold text-sm border border-white/10 flex items-center justify-center gap-3 hover:bg-zinc-900 hover:border-white/20 transition-all"
+                disabled={googleLoading}
+                className="w-full bg-zinc-900/50 text-zinc-300 py-3.5 rounded-xl font-bold text-sm border border-white/10 flex items-center justify-center gap-3 hover:bg-zinc-900 hover:border-white/20 transition-all disabled:opacity-50"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#EA4335" d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z" />
-                  <path fill="#34A853" d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z" />
-                  <path fill="#4285F4" d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z" />
-                  <path fill="#FBBC05" d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z" />
-                </svg>
-                Continuar con Google
+                {googleLoading ? (
+                  <div className="w-5 h-5 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z" />
+                    <path fill="#34A853" d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z" />
+                    <path fill="#4285F4" d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z" />
+                    <path fill="#FBBC05" d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z" />
+                  </svg>
+                )}
+                {googleLoading ? 'Conectando...' : 'Continuar con Google'}
               </button>
             </form>
 

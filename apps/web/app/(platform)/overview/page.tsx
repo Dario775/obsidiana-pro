@@ -93,7 +93,7 @@ export default function PlatformDashboard() {
         slug: formData.slug.toLowerCase().replace(/\s+/g, '-'),
         status: formData.status,
         online_store_enabled: formData.online_store_enabled,
-        plan_id: 'free'
+        plan_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'
       }]).select();
 
       if (!error && data) {

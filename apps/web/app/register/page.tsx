@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
 
   async function handleRegister(e: React.FormEvent) {
@@ -31,18 +32,26 @@ export default function RegisterPage() {
       if (!res.ok) throw new Error(data.error || 'Error al registrarse');
 
       setSuccess(true);
-      try {
-        const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-        if (loginError) {
-          setError('Cuenta creada pero no pudimos iniciar sesión automáticamente. Por favor iniciá sesión manualmente.');
-          setTimeout(() => router.push('/login'), 3000);
-          return;
+      
+      // Retry auto-login with backoff (Supabase may need a moment to propagate the new user)
+      const tryLogin = async (attempts: number): Promise<boolean> => {
+        for (let i = 0; i < attempts; i++) {
+          const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+          if (!loginError) return true;
+          if (i < attempts - 1) {
+            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+          }
         }
-        setTimeout(() => router.push('/dashboard'), 2000);
-      } catch {
-        setError('Cuenta creada pero ocurrió un error al iniciar sesión. Por favor iniciá sesión manualmente.');
+        return false;
+      };
+
+      const loggedIn = await tryLogin(3);
+      if (!loggedIn) {
+        setError('Cuenta creada pero no pudimos iniciar sesión automáticamente. Por favor iniciá sesión manualmente.');
         setTimeout(() => router.push('/login'), 3000);
+        return;
       }
+      setTimeout(() => router.push('/dashboard'), 2000);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -52,15 +61,19 @@ export default function RegisterPage() {
 
   async function signInWithGoogle() {
     try {
-      if (storeName) {
-        sessionStorage.setItem('pendingStoreName', storeName);
-      }
+      setGoogleLoading(true);
+      const state = storeName ? encodeURIComponent(storeName) : '';
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+          state: state || undefined,
+        },
       });
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Google');
+      setGoogleLoading(false);
     }
   }
 
@@ -247,15 +260,20 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="w-full bg-zinc-900/50 text-zinc-300 py-3.5 rounded-xl font-bold text-sm border border-white/10 flex items-center justify-center gap-3 hover:bg-zinc-900 hover:border-white/20 transition-all"
+                disabled={googleLoading}
+                className="w-full bg-zinc-900/50 text-zinc-300 py-3.5 rounded-xl font-bold text-sm border border-white/10 flex items-center justify-center gap-3 hover:bg-zinc-900 hover:border-white/20 transition-all disabled:opacity-50"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#EA4335" d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z" />
-                  <path fill="#34A853" d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z" />
-                  <path fill="#4285F4" d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z" />
-                  <path fill="#FBBC05" d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z" />
-                </svg>
-                Registrarse con Google
+                {googleLoading ? (
+                  <div className="w-5 h-5 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M5.2662 9.76453C6.19903 6.93863 8.85469 4.90909 12 4.90909C13.6909 4.90909 15.2182 5.50909 16.4182 6.49091L19.9091 3C17.7818 1.14545 15.0545 0 12 0C7.27273 0 3.19091 2.69091 1.23636 6.65455L5.2662 9.76453Z" />
+                    <path fill="#34A853" d="M16.0409 18.0136C14.8703 18.7164 13.4854 19.0909 12 19.0909C8.85469 19.0909 6.19903 17.0614 5.2662 14.2355L1.23636 17.3455C3.19091 21.3091 7.27273 24 12 24C15.0545 24 17.7818 23.0182 19.8545 21.2727L16.0409 18.0136Z" />
+                    <path fill="#4285F4" d="M19.8545 21.2727C21.6218 19.7782 22.9091 17.1545 22.9091 13.9091C22.9091 13.1836 22.8436 12.4091 22.7127 11.7273H12V16.6473H18.1527C17.8909 17.8909 17.1545 18.9055 16.0409 19.7455L19.8545 21.2727Z" />
+                    <path fill="#FBBC05" d="M5.2662 14.2355C5.03182 13.5273 4.90909 12.7745 4.90909 12C4.90909 11.2255 5.03182 10.4727 5.2662 9.76453L1.23636 6.65455C0.447273 8.25818 0 10.08 0 12C0 13.92 0.447273 15.7418 1.23636 17.3455L5.2662 14.2355Z" />
+                  </svg>
+                )}
+                {googleLoading ? 'Conectando...' : 'Registrarse con Google'}
               </button>
             </form>
 
