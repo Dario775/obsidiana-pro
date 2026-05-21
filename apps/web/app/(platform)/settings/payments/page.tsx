@@ -37,19 +37,27 @@ export default function PlatformPaymentSettingsPage() {
   }, []);
 
   async function fetchConfig() {
+    console.log('fetchConfig: Iniciando carga de configuración...');
     setLoading(true);
     try {
+      console.log('fetchConfig: Llamando a Supabase para platform_config...');
       const { data, error } = await supabase
         .from('platform_config')
         .select('*')
         .eq('key', 'payment_config')
         .maybeSingle();
 
-      if (error) throw error;
+      console.log('fetchConfig: Respuesta de Supabase recibida:', { data, error });
+
+      if (error) {
+        console.error('fetchConfig: Error detectado en la respuesta:', error);
+        throw error;
+      }
 
       if (data) {
+        console.log('fetchConfig: Configuración encontrada, actualizando estado:', data.value);
         setConfig({
-          id: data.id,
+          id: data.id || '',
           transfer_bank: data.value?.transfer_bank || '',
           transfer_cbu: data.value?.transfer_cbu || '',
           transfer_alias: data.value?.transfer_alias || '',
@@ -59,10 +67,13 @@ export default function PlatformPaymentSettingsPage() {
           mp_enabled: data.value?.mp_enabled || false,
           transfer_enabled: data.value?.transfer_enabled !== false,
         });
+      } else {
+        console.warn('fetchConfig: No se encontró ningún registro para payment_config');
       }
     } catch (err: any) {
-      console.error('Error fetching config:', err);
+      console.error('fetchConfig: Excepción capturada:', err);
     } finally {
+      console.log('fetchConfig: Finalizando carga, setLoading(false)');
       setLoading(false);
     }
   }

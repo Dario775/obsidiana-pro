@@ -5,6 +5,17 @@ import { useEffect } from 'react';
 export function PWARegistry() {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      // Desactivar Service Worker en modo desarrollo para evitar conflictos de caché y red local
+      if (process.env.NODE_ENV === 'development') {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister();
+            console.log('PWA Service Worker removido en entorno de desarrollo.');
+          }
+        });
+        return;
+      }
+
       const registerSW = () => {
         navigator.serviceWorker
           .register('/sw.js')

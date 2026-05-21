@@ -220,7 +220,7 @@ export default function InventoryPage() {
   const toggleExpand = (productId: string) => {
     setExpandedProducts(prev => ({
       ...prev,
-      [productId]: prev[productId] === false ? true : false
+      [productId]: !prev[productId]
     }));
   };
   const [showModal, setShowModal] = useState(false);
@@ -1583,16 +1583,16 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#1E1E1E]/50 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
-                <th className="py-4 px-8">Producto / SKU</th>
-                <th className="py-4 px-8">Variante</th>
-                <th className="py-4 px-8 text-right">En Mano</th>
-                <th className="py-4 px-8 text-right">Reservado POS</th>
-                <th className="py-4 px-8 text-right text-amber-400">Reservado Web</th>
-                <th className="py-4 px-8 text-right text-primary-container">Disponible</th>
-                <th className="py-4 px-8 text-center">Estado</th>
-                <th className="py-4 px-8 text-center">Online</th>
-                <th className="py-4 px-8 w-20"></th>
+              <tr className="bg-zinc-800/40 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 border-b border-white/5">
+                <th className="py-3 px-6">Producto / SKU</th>
+                <th className="py-3 px-6">Variante</th>
+                <th className="py-3 px-6 text-right">En Mano</th>
+                <th className="py-3 px-6 text-right">Reservado POS</th>
+                <th className="py-3 px-6 text-right">Reservado Web</th>
+                <th className="py-3 px-6 text-right">Disponible</th>
+                <th className="py-3 px-6 text-center">Estado</th>
+                <th className="py-3 px-6 text-center">Online</th>
+                <th className="py-3 px-6 w-20"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-sm font-data-tabular text-white">
@@ -1668,9 +1668,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
 
                     return (
                       <tr key={itemKey} className="hover:bg-white/[0.02] transition-colors group relative">
-                        <td className="py-5 px-8">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                        <td className="py-3 px-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
                               {thumbSrc ? (
                                 <img 
                                   src={thumbSrc} 
@@ -1687,28 +1687,28 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                             </div>
                             <div>
                               <p className="font-bold text-sm text-white">{product?.nombre || 'Desconocido'}</p>
-                              <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-0.5">
+                              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mt-0.5">
                                 SKU: {item.product_variants?.sku || 'N/A'}
                                 {item.product_variants?.barcode && <span className="ml-2">• EAN: {item.product_variants.barcode}</span>}
                               </p>
                             </div>
                           </div>
                         </td>
-                        <td className="py-5 px-8">
-                          <span className="text-zinc-500 italic text-xs font-bold">Única</span>
+                        <td className="py-3 px-6">
+                          <span className="text-zinc-400 italic text-xs font-bold">Única</span>
                         </td>
-                        <td className="py-5 px-8 text-right font-black text-white">{item.on_hand || 0}</td>
-                        <td className="py-5 px-8 text-right font-black text-secondary">{item.committed || 0}</td>
-                        <td className="py-5 px-8 text-right font-black text-amber-400">{onlineReserved}</td>
-                        <td className={`py-5 px-8 text-right font-black text-lg text-${color}-400`}>
+                        <td className="py-3 px-6 text-right font-black text-white">{item.on_hand || 0}</td>
+                        <td className="py-3 px-6 text-right font-black text-secondary">{item.committed || 0}</td>
+                        <td className="py-3 px-6 text-right font-black text-amber-400">{onlineReserved}</td>
+                        <td className={`py-3 px-6 text-right font-black text-lg text-${color}-400`}>
                           {product?.available_online ? posAvailable : available}
                         </td>
-                        <td className="py-5 px-8 text-center">
+                        <td className="py-3 px-6 text-center">
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-${color}-500/10 text-${color}-400 border-${color}-500/20`}>
                             {status}
                           </span>
                         </td>
-                        <td className="py-5 px-8 text-center">
+                        <td className="py-3 px-6 text-center">
                           {product?.available_online ? (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                               Sí
@@ -1719,10 +1719,10 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                             </span>
                           )}
                         </td>
-                        <td className="py-5 px-8 text-right relative">
+                        <td className="py-3 px-6 text-right relative">
                           <button 
                             onClick={() => setActionModalItem(item)}
-                            className="p-2 text-zinc-600 hover:text-white transition-colors"
+                            className="p-2 text-zinc-400 hover:text-white transition-colors"
                           >
                             <span className="material-symbols-outlined">more_vert</span>
                           </button>
@@ -1732,7 +1732,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                   }
 
                   // Si tiene múltiples variantes, se renderiza una fila master (Padre) y luego las filas de variantes hijas (indendadas)
-                  const isExpanded = expandedProducts[productId] !== false; // Expandido por defecto
+                  const isExpanded = !!expandedProducts[productId]; // Colapsado por defecto
                   
                   // Totales acumulados de todas las variantes
                   const totalOnHand = groupItems.reduce((acc, curr) => acc + (curr.on_hand || 0), 0);
@@ -1757,9 +1757,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                       className="bg-white/[0.02] border-l-4 border-violet-500 hover:bg-white/[0.04] transition-colors group relative cursor-pointer" 
                       onClick={() => toggleExpand(productId)}
                     >
-                      <td className="py-5 px-8">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                      <td className="py-3 px-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
                             {thumbSrc ? (
                               <img 
                                 src={thumbSrc} 
@@ -1787,27 +1787,27 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                                 {groupItems.length} Variantes
                               </span>
                             </div>
-                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-0.5 ml-7">
+                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mt-0.5 ml-7">
                               Producto Base
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="py-5 px-8">
-                        <span className="text-zinc-400 font-bold text-xs uppercase tracking-wider font-mono">Múltiples</span>
+                      <td className="py-3 px-6">
+                        <span className="text-zinc-300 font-bold text-xs uppercase tracking-wider font-mono">Múltiples</span>
                       </td>
-                      <td className="py-5 px-8 text-right font-black text-white/70">{totalOnHand}</td>
-                      <td className="py-5 px-8 text-right font-black text-secondary/70">{totalCommitted}</td>
-                      <td className="py-5 px-8 text-right font-black text-amber-400/70">{onlineReserved}</td>
-                      <td className={`py-5 px-8 text-right font-black text-lg text-${masterColor}-400/80`}>
+                      <td className="py-3 px-6 text-right font-black text-white/70">{totalOnHand}</td>
+                      <td className="py-3 px-6 text-right font-black text-secondary/70">{totalCommitted}</td>
+                      <td className="py-3 px-6 text-right font-black text-amber-400/70">{onlineReserved}</td>
+                      <td className={`py-3 px-6 text-right font-black text-lg text-${masterColor}-400/80`}>
                         {product?.available_online ? posAvailable : totalAvailable}
                       </td>
-                      <td className="py-5 px-8 text-center">
+                      <td className="py-3 px-6 text-center">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-${masterColor}-500/10 text-${masterColor}-400 border-${masterColor}-500/20`}>
                           {masterStatus}
                         </span>
                       </td>
-                      <td className="py-5 px-8 text-center">
+                      <td className="py-3 px-6 text-center">
                         {product?.available_online ? (
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                             Sí
@@ -1818,8 +1818,8 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                           </span>
                         )}
                       </td>
-                      <td className="py-5 px-8 text-right relative" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-xs font-black uppercase tracking-widest text-zinc-600 font-mono">Grupo</span>
+                      <td className="py-3 px-6 text-right relative" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs font-black uppercase tracking-widest text-zinc-400 font-mono">Grupo</span>
                       </td>
                     </tr>
                   );
@@ -1835,9 +1835,9 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                     
                     return (
                       <tr key={vItemKey} className="bg-white/[0.005] border-l-4 border-zinc-700/50 hover:bg-white/[0.02] transition-colors group relative">
-                        <td className="py-3 px-8 pl-16">
+                        <td className="py-2 px-6 pl-14">
                           <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-zinc-600 text-sm">
+                            <span className="material-symbols-outlined text-zinc-400 text-sm">
                               subdirectory_arrow_right
                             </span>
                             <div className="flex flex-col">
@@ -1845,14 +1845,14 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                                 SKU: {variant?.sku || 'N/A'}
                               </span>
                               {variant?.barcode && (
-                                <span className="text-[9px] font-mono text-zinc-500 tracking-wider">
+                                <span className="text-[9px] font-mono text-zinc-400 tracking-wider">
                                   EAN: {variant.barcode}
                                 </span>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-8">
+                        <td className="py-2 px-6">
                           {variant?.variant_options && typeof variant.variant_options === 'object' ? (
                             <div className="flex flex-wrap gap-1.5">
                               {Object.entries(variant.variant_options).map(([key, val]) => (
@@ -1865,27 +1865,27 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                               ))}
                             </div>
                           ) : (
-                            <span className="text-zinc-500 italic text-xs font-bold">Variante</span>
+                            <span className="text-zinc-400 italic text-xs font-bold">Variante</span>
                           )}
                         </td>
-                        <td className="py-3 px-8 text-right font-black text-white/90">{item.on_hand || 0}</td>
-                        <td className="py-3 px-8 text-right font-black text-secondary/90">{item.committed || 0}</td>
-                        <td className="py-3 px-8 text-right font-black text-zinc-600 font-mono text-xs">-</td>
-                        <td className={`py-3 px-8 text-right font-black text-zinc-300`}>
+                        <td className="py-2 px-6 text-right font-black text-white/90">{item.on_hand || 0}</td>
+                        <td className="py-2 px-6 text-right font-black text-secondary/90">{item.committed || 0}</td>
+                        <td className="py-2 px-6 text-right font-black text-zinc-400 font-mono text-xs">-</td>
+                        <td className={`py-2 px-6 text-right font-black text-zinc-300`}>
                           {available}
                         </td>
-                        <td className="py-3 px-8 text-center">
+                        <td className="py-2 px-6 text-center">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-${vColor}-500/10 text-${vColor}-400 border-${vColor}-500/20`}>
                             {vStatus}
                           </span>
                         </td>
-                        <td className="py-3 px-8 text-center">
-                          <span className="text-xs text-zinc-600 font-mono font-black">-</span>
+                        <td className="py-2 px-6 text-center">
+                          <span className="text-xs text-zinc-400 font-mono font-black">-</span>
                         </td>
-                        <td className="py-3 px-8 text-right relative">
+                        <td className="py-2 px-6 text-right relative">
                           <button 
                             onClick={() => setActionModalItem(item)}
-                            className="p-1.5 text-zinc-600 hover:text-white transition-colors rounded-lg bg-zinc-900 border border-white/5"
+                            className="p-1.5 text-zinc-400 hover:text-white transition-colors rounded-lg bg-zinc-900 border border-white/5"
                           >
                             <span className="material-symbols-outlined text-sm">more_vert</span>
                           </button>

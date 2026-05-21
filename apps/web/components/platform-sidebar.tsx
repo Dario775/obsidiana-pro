@@ -18,7 +18,7 @@ export function Sidebar() {
   ];
 
   return (
-    <nav className="hidden lg:flex flex-col h-full py-6 bg-black border-r border-white/5 w-64 fixed top-0 left-0 z-50">
+    <nav className="hidden lg:flex flex-col h-screen overflow-y-auto py-6 bg-black border-r border-white/5 w-64 fixed top-0 left-0 z-50">
       <div className="px-6 mb-8 flex flex-col gap-1">
         <h1 className="text-xl font-black text-white tracking-tighter uppercase flex items-center gap-2">
           <img src="/logo.svg" alt="Obsidiana" className="w-6 h-6 object-contain brightness-110" />

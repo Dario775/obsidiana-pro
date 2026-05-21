@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './auth-provider';
 import { useTenant } from '../hooks/use-tenant';
+import { useTheme } from './theme-provider';
+import { ThemeToggle } from './theme-toggle';
 
 interface MobileMenuDrawerProps {
   isOpen: boolean;
@@ -13,8 +15,9 @@ interface MobileMenuDrawerProps {
 
 export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, signOut, role, permissions } = useAuth();
   const { tenant, isOnlineStoreEnabled } = useTenant();
+  const { theme } = useTheme();
 
   // Prevent background scrolling when drawer is open
   useEffect(() => {
@@ -48,18 +51,20 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
       icon: 'calculate',
       desc: 'Registrar ventas rápidas'
     },
-    {
-      title: 'Cierre de Caja Z',
-      href: '/pos/closure',
-      icon: 'lock',
-      desc: 'Cerrar turno y arqueo'
-    },
-    {
-      title: 'Historial de Caja',
-      href: '/pos/history',
-      icon: 'history',
-      desc: 'Auditoría de sesiones de caja'
-    },
+    ...(permissions.cash_close !== false ? [
+      {
+        title: 'Cierre de Caja Z',
+        href: '/pos/closure',
+        icon: 'lock',
+        desc: 'Cerrar turno y arqueo'
+      },
+      {
+        title: 'Historial de Caja',
+        href: '/pos/history',
+        icon: 'history',
+        desc: 'Auditoría de sesiones de caja'
+      }
+    ] : []),
     {
       title: 'Control de Stock',
       href: '/inventory',
@@ -149,11 +154,11 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
                     onClick={onClose}
                     className={`flex items-center gap-4 p-3 rounded-xl transition-all btn-native-active ${
                       active 
-                        ? 'bg-violet-500/10 text-violet-400 border-l-4 border-violet-500' 
+                        ? 'bg-secondary/10 text-secondary border-l-4 border-secondary' 
                         : 'bg-white/5 text-zinc-300 hover:text-white'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[22px] text-violet-500" style={{ fontVariationSettings: active ? "'FILL' 1" : "" }}>
+                    <span className="material-symbols-outlined text-[22px] text-secondary" style={{ fontVariationSettings: active ? "'FILL' 1" : "" }}>
                       {item.icon}
                     </span>
                     <div className="flex-1 flex flex-col">
@@ -182,11 +187,11 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
                       !isOnlineStoreEnabled ? 'opacity-65' : ''
                     } ${
                       active 
-                        ? 'bg-violet-500/10 text-violet-400 border-l-4 border-violet-500' 
+                        ? 'bg-secondary/10 text-secondary border-l-4 border-secondary' 
                         : 'bg-white/5 text-zinc-300 hover:text-white'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[22px] text-violet-500" style={{ fontVariationSettings: active ? "'FILL' 1" : "" }}>
+                    <span className="material-symbols-outlined text-[22px] text-secondary" style={{ fontVariationSettings: active ? "'FILL' 1" : "" }}>
                       {item.icon}
                     </span>
                     <div className="flex-1 flex flex-col">
@@ -207,16 +212,29 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
 
           {/* Foot Actions */}
           <div className="pt-4 border-t border-white/5 flex flex-col gap-2">
-            <Link 
-              href="/settings"
-              onClick={onClose}
-              className={`flex items-center gap-4 p-3 rounded-xl transition-all btn-native-active ${
-                isActive('/settings') ? 'bg-violet-500/10 text-violet-400' : 'bg-white/5 text-zinc-300'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[20px] text-zinc-400">settings</span>
-              <span className="text-[13px] font-bold">Ajustes Globales</span>
-            </Link>
+            {/* Selector de Tema */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 text-zinc-300">
+              <div className="flex items-center gap-4">
+                <span className="material-symbols-outlined text-[20px] text-zinc-400">
+                  {theme === 'dark' ? 'dark_mode' : 'light_mode'}
+                </span>
+                <span className="text-[13px] font-bold">Tema: {theme === 'dark' ? 'Oscuro' : 'Claro'}</span>
+              </div>
+              <ThemeToggle />
+            </div>
+
+            {(role === 'owner' || role === 'admin') && (
+              <Link 
+                href="/settings"
+                onClick={onClose}
+                className={`flex items-center gap-4 p-3 rounded-xl transition-all btn-native-active ${
+                  isActive('/settings') ? 'bg-secondary/10 text-secondary' : 'bg-white/5 text-zinc-300'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px] text-zinc-400">settings</span>
+                <span className="text-[13px] font-bold">Ajustes Globales</span>
+              </Link>
+            )}
 
             <button 
               onClick={() => {

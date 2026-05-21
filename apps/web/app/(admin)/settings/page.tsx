@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTenant } from '../../../hooks/use-tenant';
+import { useAuth } from '../../../components/auth-provider';
 import { supabase } from '../../../lib/supabase';
 
 interface SettingsCard {
@@ -15,6 +16,7 @@ interface SettingsCard {
 
 export default function SettingsPage() {
   const { tenant, loading: tenantLoading } = useTenant();
+  const { role } = useAuth();
   const [businessName, setBusinessName] = useState('');
   const [cuit, setCuit] = useState('');
   const [ivaCondition, setIvaCondition] = useState('');
@@ -35,29 +37,24 @@ export default function SettingsPage() {
       description: 'Razón social, CUIT, condición IVA y datos fiscales',
       icon: 'business',
       href: '/settings/business',
-      color: 'violet',
+      color: 'cyan',
     },
-    {
-      title: 'Planes y Suscripción',
-      description: 'Gestioná tu plan, tiempo restante y historial de pagos',
-      icon: 'workspace_premium',
-      href: '/settings/billing',
-      color: 'emerald',
-    },
-    {
-      title: 'Sucursales',
-      description: 'Gestión de puntos de venta y ubicaciones',
-      icon: 'store',
-      href: '/settings/branches',
-      color: 'blue',
-    },
-    {
-      title: 'Usuarios y Permisos',
-      description: 'Administración de acceso y roles',
-      icon: 'group',
-      href: '/settings/permissions',
-      color: 'amber',
-    },
+    ...(role === 'owner' ? [
+      {
+        title: 'Planes y Suscripción',
+        description: 'Gestioná tu plan, tiempo restante y historial de pagos',
+        icon: 'workspace_premium',
+        href: '/settings/billing',
+        color: 'emerald',
+      },
+      {
+        title: 'Usuarios y Permisos',
+        description: 'Administración de acceso y roles',
+        icon: 'group',
+        href: '/settings/permissions',
+        color: 'amber',
+      }
+    ] : []),
     {
       title: 'Alertas de Stock',
       description: 'Configurar niveles mínimos de inventario',
@@ -70,7 +67,7 @@ export default function SettingsPage() {
       description: 'Personalización y configuración del e-commerce',
       icon: 'language',
       href: '/settings/store',
-      color: 'violet',
+      color: 'cyan',
     },
     {
       title: 'Atributos de Producto',
@@ -84,7 +81,7 @@ export default function SettingsPage() {
       description: 'Personalizá el formato de tus tickets térmicos e impresoras',
       icon: 'receipt_long',
       href: '/settings/tickets',
-      color: 'violet',
+      color: 'cyan',
     },
   ];
 
@@ -127,7 +124,7 @@ export default function SettingsPage() {
       {/* Quick Settings - Business Info */}
       <div className="bg-zinc-900 border border-white/5 rounded-xl p-6 space-y-6">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-violet-400 text-2xl">business</span>
+          <span className="material-symbols-outlined text-secondary text-2xl">business</span>
           <h2 className="text-sm font-black text-white uppercase tracking-widest">Datos del Negocio</h2>
         </div>
         
@@ -138,7 +135,7 @@ export default function SettingsPage() {
               type="text"
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
-              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-secondary/50"
               placeholder="Nombre de tu negocio"
             />
           </div>
@@ -148,7 +145,7 @@ export default function SettingsPage() {
               type="text"
               value={cuit}
               onChange={(e) => setCuit(e.target.value)}
-              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-secondary/50"
               placeholder="XX-XXXXXXXX-X"
             />
           </div>
@@ -157,7 +154,7 @@ export default function SettingsPage() {
             <select
               value={ivaCondition}
               onChange={(e) => setIvaCondition(e.target.value)}
-              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-secondary/50"
             >
               <option value="">Seleccionar...</option>
               <option value="responsable_inscripto">Responsable Inscripto</option>
@@ -170,7 +167,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full px-4 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full px-4 py-3 bg-secondary text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2 hover:brightness-110"
             >
               {saving ? (
                 <>

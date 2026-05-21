@@ -263,7 +263,6 @@ export default function POSTerminalPage() {
           number: orderNumber,
           status: 'paid',
           financial_status: 'paid',
-          fulfillment_status: 'fulfilled',
           channel: 'pos',
           payment_method: selectedPayment,
           subtotal_ars: Math.round(subtotal * 100) / 100,

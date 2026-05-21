@@ -7,6 +7,7 @@ import Link from 'next/link';
 
 import { useTenant } from '@/hooks/use-tenant';
 import { FeatureGate } from '@/components/feature-gate';
+import { useAuth } from '@/components/auth-provider';
 
 interface Product {
   id: string;
@@ -24,27 +25,30 @@ interface CartItem extends Product {
   quantity: number;
 }
 
+type PaymentMethod = 'efectivo' | 'mercadopago' | 'tarjeta' | 'credito';
+
 interface Customer {
   id: string;
-  nombre: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string;
-  dni_cuit: string | null;
-  document_number: string | null;
-  credit_limit: number;
-  phone: string | null;
+  nombre: string;
+  dni_cuit: string;
+  phone?: string;
+  email?: string;
+  current_balance?: number;
+  credit_limit?: number;
+  first_name?: string;
+  last_name?: string;
+  document_number?: string;
 }
-
-type PaymentMethod = 'efectivo' | 'tarjeta' | 'mp' | null;
 
 export default function POSPage() {
   const { tenant } = useTenant();
+  const { user, permissions } = useAuth();
+  const [cart, setCart] = useState<any[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'mercadopago' | 'tarjeta' | 'credito' | null>('efectivo');
   const [cashReceived, setCashReceived] = useState('');
   const prevAutoCashRef = useRef<string | null>(null);
   const [discount, setDiscount] = useState(0);
@@ -69,14 +73,7 @@ export default function POSPage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionName, setSessionName] = useState('Caja #01');
   const [initialAmount, setInitialAmount] = useState('0.00');
-  const [user, setUser] = useState<any>(null);
   const [openingSession, setOpeningSession] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-  }, []);
 
   const dataFetchedRef = useRef(false);
 
@@ -157,6 +154,16 @@ export default function POSPage() {
       setOpeningSession(false);
     }
   }
+
+  // Auto-focus search input when active session is open or receipt modal closes
+  useEffect(() => {
+    if (activeSession && !showReceipt && !selectedParentProduct) {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [activeSession, showReceipt, selectedParentProduct]);
 
   // Keyboard shortcut: Alt+B to focus search
   useEffect(() => {
@@ -326,6 +333,7 @@ export default function POSPage() {
     if (cart.length === 0) return;
     if (confirm('¿Limpiar el carrito?')) {
       setCart([]);
+      setIsMobileCartOpen(false);
       setPaymentMethod(null);
       setCashReceived('');
       setDiscount(0);
@@ -521,6 +529,7 @@ export default function POSPage() {
 
       // Limpiar carrito
       setCart([]);
+      setIsMobileCartOpen(false);
       setPaymentMethod(null);
       setCashReceived('');
       setDiscount(0);
@@ -550,65 +559,80 @@ export default function POSPage() {
   }
 
   if (!activeSession) {
+    const canOpenCash = permissions.cash_open !== false;
+
     return (
       <div className="max-w-md mx-auto py-16 px-6">
         <div className="bg-[#1A1A1A] border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col gap-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none"></div>
           <div className="flex flex-col items-center text-center gap-2">
             <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center text-primary-container">
-              <span className="material-symbols-outlined text-2xl">lock_open</span>
+              <span className="material-symbols-outlined text-2xl">{canOpenCash ? 'lock_open' : 'lock'}</span>
             </div>
-            <h2 className="text-xl font-black text-white tracking-tight uppercase mt-2">Apertura de Caja</h2>
-            <p className="text-xs text-zinc-400">Ingresá los datos para iniciar el turno de ventas y arqueo físico.</p>
+            <h2 className="text-xl font-black text-white tracking-tight uppercase mt-2">
+              {canOpenCash ? 'Apertura de Caja' : 'Acceso Restringido'}
+            </h2>
+            <p className="text-xs text-zinc-400">
+              {canOpenCash 
+                ? 'Ingresá los datos para iniciar el turno de ventas y arqueo físico.' 
+                : 'No tenés permisos para realizar la apertura de caja.'}
+            </p>
           </div>
           
-          <form onSubmit={handleOpenSession} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nombre / Terminal de Caja</label>
-              <input 
-                className="w-full bg-zinc-950 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-zinc-600" 
-                type="text" 
-                placeholder="Ej: Caja Principal, Caja #02..." 
-                value={sessionName}
-                onChange={(e) => setSessionName(e.target.value)}
-                required
-              />
-            </div>
-            
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Monto Inicial en Efectivo (ARS)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+          {canOpenCash ? (
+            <form onSubmit={handleOpenSession} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nombre / Terminal de Caja</label>
                 <input 
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl py-3 pl-8 pr-4 text-white text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  value={initialAmount}
-                  onChange={(e) => setInitialAmount(e.target.value)}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-zinc-600" 
+                  type="text" 
+                  placeholder="Ej: Caja Principal, Caja #02..." 
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
                   required
                 />
               </div>
-            </div>
+              
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Monto Inicial en Efectivo (ARS)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                  <input 
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl py-3 pl-8 pr-4 text-white text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
+                    type="number" 
+                    step="0.01"
+                    min="0"
+                    value={initialAmount}
+                    onChange={(e) => setInitialAmount(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
-            <button 
-              type="submit" 
-              disabled={openingSession}
-              className="w-full bg-primary-container hover:bg-opacity-90 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 active:scale-95 mt-2"
-            >
-              {openingSession ? (
-                <>
-                  <span className="material-symbols-outlined animate-spin text-base">sync</span>
-                  Abriendo Caja...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-base">key</span>
-                  Abrir Caja e Iniciar Turno
-                </>
-              )}
-            </button>
-          </form>
+              <button 
+                type="submit" 
+                disabled={openingSession}
+                className="w-full bg-primary-container hover:bg-opacity-90 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 active:scale-95 mt-2"
+              >
+                {openingSession ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-base">sync</span>
+                    Abriendo Caja...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-base">key</span>
+                    Abrir Caja e Iniciar Turno
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center text-red-400 text-xs font-semibold">
+              Tu usuario no tiene habilitada la opción de "Apertura y Arqueo Inicial".
+              <p className="mt-2 text-zinc-500 font-medium">Comunicate con el dueño de la tienda para solicitar el permiso correspondiente.</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -616,131 +640,154 @@ export default function POSPage() {
 
   return (
     <FeatureGate feature="pos">
-      <div className="flex flex-col gap-6 h-[calc(100vh-120px)]">
-        <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
-      {/* Product Selection Area */}
-      <div className="flex-1 flex flex-col gap-6 overflow-hidden">
-        {/* Search Bar */}
-        <div className="relative group">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-violet-400 transition-colors">search</span>
-          <input 
-            ref={searchInputRef}
-            type="text" 
-            placeholder="Buscar por nombre, SKU o Cód. Barras... (Alt+B)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#1C1C1C]/80 border border-white/5 rounded-2xl py-4 pl-12 pr-12 text-sm text-white font-medium focus:ring-2 focus:ring-violet-500/50 outline-none transition-all placeholder:text-zinc-600 backdrop-blur-xl shadow-inner shadow-black/10"
-          />
-          {search && (
-            <button 
-              onClick={() => setSearch('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
-          )}
-        </div>
-
-        {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-5 items-start content-start pr-2 custom-scrollbar">
-          {loading ? (
-             <div className="col-span-full py-20 text-center text-zinc-500 font-black uppercase tracking-widest animate-pulse">
-                Conectando con la base de datos...
-             </div>
-          ) : groupedPosProducts.length === 0 ? (
-            <div className="col-span-full py-20 text-center text-zinc-500 font-black uppercase tracking-widest">
-              No se encontraron productos
+      <div className="flex flex-col gap-6 h-[calc(100vh-160px)] lg:h-[calc(100vh-120px)] relative">
+        <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:overflow-hidden min-h-0">
+          {/* Product Selection Area */}
+          <div className="flex-grow flex flex-col gap-6 lg:overflow-hidden min-h-0">
+            {/* Search Bar */}
+            <div className="relative group">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 text-xl group-focus-within:text-violet-500 transition-colors">
+                search
+              </span>
+              <input 
+                ref={searchInputRef}
+                type="text" 
+                placeholder="Buscar por nombre, SKU o Cód. Barras... (Alt+B)"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-10 text-sm text-zinc-100 font-medium focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500 shadow-sm"
+              />
+              {search && (
+                <button 
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              )}
             </div>
-          ) : groupedPosProducts.map((groupedProduct) => {
-            const hasVariants = groupedProduct.hasVariants;
-            const hasStock = groupedProduct.totalAvailable > 0;
-            
-            const handleProductClick = () => {
-              if (hasVariants) {
-                setSelectedParentProduct({
-                  productId: groupedProduct.productId,
-                  nombre: groupedProduct.nombre,
-                  img: groupedProduct.img,
-                  variants: groupedProduct.variants
-                });
-              } else {
-                const singleVariant = groupedProduct.variants[0];
-                if (singleVariant) addToCart(singleVariant);
-              }
-            };
 
-            return (
-              <div 
-                key={groupedProduct.productId}
-                onClick={handleProductClick}
-                className={`bg-[#1E1E1E]/60 backdrop-blur-md border border-white/5 rounded-3xl p-4 flex flex-col gap-4 cursor-pointer transition-all duration-300 hover:scale-[1.03] active:scale-95 group relative overflow-hidden shadow-lg h-fit ${!hasStock ? 'opacity-50 grayscale pointer-events-none' : 'hover:border-violet-500/30'}`}
-              >
-                <div className="aspect-square rounded-2xl bg-zinc-950 flex items-center justify-center relative overflow-hidden border border-white/5 group-hover:border-white/10 transition-all duration-300">
-                  {groupedProduct.img ? (
-                    <img src={groupedProduct.img} alt={groupedProduct.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" />
-                  ) : (
-                    <span className="material-symbols-outlined text-4xl text-zinc-800">image</span>
-                  )}
-                  <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md border border-white/10 px-2 py-1 rounded-xl">
-                    <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${groupedProduct.totalAvailable <= 5 ? 'text-red-400 animate-pulse' : 'text-zinc-300'}`}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                      Stock: {groupedProduct.totalAvailable}
-                    </span>
-                  </div>
-                  {hasVariants && (
-                    <div className="absolute bottom-2 left-2 bg-violet-600/90 backdrop-blur-md border border-violet-500/30 px-2 py-1 rounded-xl">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[10px]">layers</span>
-                        {groupedProduct.variants.length} Variantes
-                      </span>
+            {/* Product Grid */}
+            <div className="flex-1 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-5 items-start content-start pr-2 custom-scrollbar">
+              {loading ? (
+                 <div className="col-span-full py-20 text-center text-zinc-500 font-black uppercase tracking-widest animate-pulse">
+                    Conectando con la base de datos...
+                 </div>
+              ) : groupedPosProducts.length === 0 ? (
+                <div className="col-span-full py-20 text-center text-zinc-500 font-black uppercase tracking-widest">
+                  No se encontraron productos
+                </div>
+              ) : groupedPosProducts.map((groupedProduct) => {
+                const hasVariants = groupedProduct.hasVariants;
+                const hasStock = groupedProduct.totalAvailable > 0;
+                
+                const handleProductClick = () => {
+                  if (hasVariants) {
+                    setSelectedParentProduct({
+                      productId: groupedProduct.productId,
+                      nombre: groupedProduct.nombre,
+                      img: groupedProduct.img,
+                      variants: groupedProduct.variants
+                    });
+                  } else {
+                    const singleVariant = groupedProduct.variants[0];
+                    if (singleVariant) addToCart(singleVariant);
+                  }
+                };
+
+                return (
+                  <div 
+                    key={groupedProduct.productId}
+                    onClick={handleProductClick}
+                    className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 rounded-2xl flex flex-col cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-98 group relative overflow-hidden shadow-sm hover:shadow-md h-fit ${!hasStock ? 'opacity-50 grayscale pointer-events-none' : 'hover:border-violet-500/30'}`}
+                  >
+                    <div className="aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-950 flex items-center justify-center relative overflow-hidden border-b border-zinc-200 dark:border-white/5">
+                      {groupedProduct.img ? (
+                        <img src={groupedProduct.img} alt={groupedProduct.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />
+                      ) : (
+                        <span className="material-symbols-outlined text-4xl text-zinc-350 dark:text-zinc-800">image</span>
+                      )}
+                      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm border border-white/10 px-2 py-0.5 rounded-full">
+                        <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${groupedProduct.totalAvailable <= 5 ? 'text-red-400 animate-pulse' : 'text-zinc-300'}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                          Stock: {groupedProduct.totalAvailable}
+                        </span>
+                      </div>
+                      {hasVariants && (
+                        <div className="absolute bottom-2 left-2 bg-violet-600/90 backdrop-blur-sm border border-violet-500/30 px-2 py-0.5 rounded-full">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[10px]">layers</span>
+                            {groupedProduct.variants.length} Variantes
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="flex flex-col flex-1 gap-1">
-                  <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
-                    {hasVariants ? 'MÚLTIPLES SKUS' : `SKU: ${groupedProduct.variants[0]?.sku || 'N/A'}`}
-                  </p>
-                  <p className="font-bold text-white leading-snug group-hover:text-violet-400 transition-colors line-clamp-2 text-sm">{groupedProduct.nombre}</p>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-auto">
-                  <p className="text-sm font-black text-violet-400 tracking-tight">{groupedProduct.priceRange}</p>
-                  <span className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 group-hover:bg-violet-500 group-hover:text-white transition-all flex items-center justify-center material-symbols-outlined text-lg shadow-lg">
-                    {hasVariants ? 'layers' : 'add'}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                    <div className="p-4 flex flex-col flex-1 gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
+                          {hasVariants ? 'MÚLTIPLES SKUS' : `SKU: ${groupedProduct.variants[0]?.sku || 'N/A'}`}
+                        </p>
+                        <p className="font-bold text-zinc-100 leading-snug group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors line-clamp-2 text-sm h-10">{groupedProduct.nombre}</p>
+                      </div>
+                      <div className="flex items-center justify-between mt-auto pt-2 border-t border-zinc-100 dark:border-white/5">
+                        <p className="text-sm font-extrabold text-violet-600 dark:text-violet-400 tracking-tight">{groupedProduct.priceRange}</p>
+                        {hasVariants && (
+                          <span className="material-symbols-outlined text-sm text-zinc-400 dark:text-zinc-500">layers</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-      {/* Cart / Checkout Sidebar */}
-      <div className="w-full lg:w-[420px] h-[calc(100vh-120px)] bg-[#171717]/90 backdrop-blur-2xl border border-white/10 rounded-3xl flex flex-col overflow-hidden shadow-2xl">
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-900/30">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-violet-400">shopping_cart</span>
-            <h2 className="font-black text-white uppercase tracking-widest text-sm">Carrito</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="bg-violet-500/20 text-violet-300 text-[10px] font-black px-3 py-1.5 rounded-full border border-violet-500/30 tracking-widest uppercase">
-              {cart.reduce((acc, item) => acc + item.quantity, 0)} unidades
-            </span>
-            {cart.length > 0 && (
-              <button 
-                onClick={clearCart}
-                className="text-zinc-500 hover:text-red-400 p-2 rounded-xl hover:bg-white/5 transition-all duration-200"
-                title="Limpiar carrito"
-              >
-                <span className="material-symbols-outlined text-lg">delete_sweep</span>
-              </button>
-            )}
-          </div>
-        </div>
+          {/* Backdrop for mobile drawer */}
+          {isMobileCartOpen && (
+            <div 
+              className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden animate-fade-in"
+              onClick={() => setIsMobileCartOpen(false)}
+            />
+          )}
+
+          {/* Cart / Checkout Sidebar */}
+          <div className={`
+            fixed inset-y-0 right-0 z-40 w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-white/5 shadow-2xl flex flex-col transition-all duration-300 ease-in-out
+            lg:static lg:h-full lg:w-[420px] lg:border lg:rounded-2xl lg:shadow-sm lg:translate-x-0
+            ${isMobileCartOpen ? 'translate-x-0' : 'translate-x-full'}
+          `}>
+            <div className="p-5 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/30">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-violet-600 dark:text-violet-400">shopping_cart</span>
+                <h2 className="font-black text-zinc-100 uppercase tracking-widest text-sm">Carrito</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 text-[10px] font-black px-3 py-1.5 rounded-full border border-violet-200 dark:border-violet-500/30 tracking-widest uppercase">
+                  {cart.reduce((acc, item) => acc + item.quantity, 0)} u.
+                </span>
+                {cart.length > 0 && (
+                  <button 
+                    onClick={clearCart}
+                    className="text-zinc-400 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 transition-all duration-200"
+                    title="Limpiar carrito"
+                  >
+                    <span className="material-symbols-outlined text-lg">delete_sweep</span>
+                  </button>
+                )}
+                <button 
+                  onClick={() => setIsMobileCartOpen(false)}
+                  className="lg:hidden text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-white p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 transition-all duration-200 flex items-center justify-center"
+                  title="Cerrar carrito"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            </div>
 
         {/* Cliente Selector */}
-        <div className="px-6 py-4 border-b border-white/5 bg-zinc-900/20 customer-dropdown-container">
+        <div className="px-5 py-4 border-b border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-zinc-950/20 customer-dropdown-container">
           <div className="relative">
-            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Cliente</label>
+            <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-widest mb-1.5">Cliente</label>
             <div className="relative">
               <input
                 type="text"
@@ -752,14 +799,14 @@ export default function POSPage() {
                 }}
                 onFocus={() => setShowCustomerDropdown(true)}
                 placeholder="Buscar cliente..."
-                className="w-full bg-zinc-950/60 border border-white/5 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
               />
-              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600">person_search</span>
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-650">person_search</span>
             </div>
             
             {/* Dropdown resultados */}
             {showCustomerDropdown && customerSearch && (
-              <div className="absolute left-0 right-0 top-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto backdrop-blur-xl">
+              <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                 {customers
                   .filter(c => {
                     const searchPattern = customerSearch.toLowerCase();
@@ -776,16 +823,16 @@ export default function POSPage() {
                         setCustomerSearch('');
                         setShowCustomerDropdown(false);
                       }}
-                      className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 flex items-center gap-3"
+                      className="w-full px-4 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors border-b border-zinc-150 dark:border-white/5 last:border-0 flex items-center gap-3"
                     >
-                      <div className="w-8 h-8 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-[10px] font-black uppercase">
+                      <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 flex items-center justify-center text-[10px] font-black uppercase">
                         {(customer.nombre?.[0] || customer.first_name?.[0] || 'C')}
                       </div>
                       <div>
-                        <p className="text-white text-sm font-bold leading-tight">
+                        <p className="text-zinc-100 text-sm font-bold leading-tight">
                           {customer.nombre || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || customer.email}
                         </p>
-                        <p className="text-zinc-500 text-[10px] mt-0.5">{customer.document_number || customer.dni_cuit || customer.email}</p>
+                        <p className="text-zinc-450 dark:text-zinc-500 text-[10px] mt-0.5">{customer.document_number || customer.dni_cuit || customer.email}</p>
                       </div>
                     </button>
                   ))}
@@ -794,16 +841,16 @@ export default function POSPage() {
                   const fullName = (c.nombre || '').toLowerCase();
                   return fullName.includes(searchPattern) || c.email?.toLowerCase()?.includes(searchPattern) || c.document_number?.toLowerCase()?.includes(searchPattern);
                 }).length === 0 && (
-                  <div className="px-4 py-3 text-zinc-500 text-xs">No se encontraron clientes</div>
+                  <div className="px-4 py-3 text-zinc-450 dark:text-zinc-500 text-xs">No se encontraron clientes</div>
                 )}
               </div>
             )}
             
             {/* Cliente seleccionado info */}
             {selectedCustomer && (
-              <div className="mt-2.5 flex items-center justify-between bg-violet-500/5 p-2 rounded-xl border border-violet-500/10">
+              <div className="mt-2.5 flex items-center justify-between bg-violet-50 dark:bg-violet-500/5 p-2 rounded-lg border border-violet-100 dark:border-violet-500/10">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
                     {(selectedCustomer.document_number || selectedCustomer.dni_cuit) && `DOC: ${selectedCustomer.document_number || selectedCustomer.dni_cuit}`}
                   </span>
                 </div>
@@ -812,7 +859,7 @@ export default function POSPage() {
                     setSelectedCustomer(null);
                     setCustomerSearch('');
                   }}
-                  className="text-[10px] text-red-400 hover:text-red-300 font-black uppercase tracking-widest"
+                  className="text-[10px] text-red-500 hover:text-red-650 dark:text-red-400 dark:hover:text-red-300 font-black uppercase tracking-widest"
                 >
                   Cambiar
                 </button>
@@ -820,11 +867,11 @@ export default function POSPage() {
             )}
             {!selectedCustomer && !customerSearch && (
               <div className="mt-2 space-y-1">
-                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                <p className="text-[10px] text-zinc-450 dark:text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                   Consumidor Final (por defecto)
                 </p>
-                <p className="text-[10px] text-amber-500/70 font-medium flex items-center gap-1.5 leading-relaxed">
+                <p className="text-[10px] text-amber-600 dark:text-amber-500/70 font-medium flex items-center gap-1.5 leading-relaxed">
                   <span className="material-symbols-outlined text-[13px]">info</span>
                   Seleccioná un cliente para ventas a crédito
                 </p>
@@ -833,92 +880,93 @@ export default function POSPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-zinc-950/20">
+        <div className="flex-1 overflow-y-auto px-5 py-3 divide-y divide-zinc-150 dark:divide-white/5 custom-scrollbar">
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-4 opacity-50 select-none">
-              <span className="material-symbols-outlined text-6xl">shopping_basket</span>
+            <div className="h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-650 gap-4 opacity-60 select-none py-20">
+              <span className="material-symbols-outlined text-5xl">shopping_basket</span>
               <p className="text-[10px] font-black uppercase tracking-widest">El carrito está vacío</p>
             </div>
           ) : cart.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 bg-zinc-900/40 p-3.5 rounded-2xl border border-white/5 hover:border-white/10 hover:bg-zinc-900/60 transition-all duration-300 relative group overflow-hidden">
-              <div className="w-12 h-12 rounded-xl bg-zinc-950 flex items-center justify-center shrink-0 border border-white/5 overflow-hidden">
+            <div key={item.id} className="flex items-center gap-3 py-3 transition-all duration-300 relative group">
+              <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-950 flex items-center justify-center shrink-0 border border-zinc-200 dark:border-white/5 overflow-hidden">
                 {item.img ? (
-                  <img src={item.img} alt={item.nombre} className="w-full h-full object-cover opacity-80" />
+                  <img src={item.img} alt={item.nombre} className="w-full h-full object-cover opacity-90" />
                 ) : (
-                  <span className="material-symbols-outlined text-zinc-700 text-lg">image</span>
+                  <span className="material-symbols-outlined text-zinc-400 dark:text-zinc-700 text-lg">image</span>
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-white truncate leading-tight">{item.nombre}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <p className="font-semibold text-sm text-zinc-100 truncate leading-tight">{item.nombre}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] font-bold text-zinc-450 dark:text-zinc-500 uppercase tracking-widest">
                     $ {item.precio.toLocaleString('es-AR')} c/u
                   </span>
                 </div>
               </div>
               
               {/* Quantity Controls */}
-              <div className="flex items-center gap-1 bg-black/40 rounded-xl p-1 border border-white/5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button 
                   onClick={() => updateQuantity(item.id, -1)}
-                  className="w-6 h-6 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+                  className="w-6 h-6 rounded-full border border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-zinc-500 flex items-center justify-center text-zinc-400 dark:text-zinc-400 dark:hover:text-white transition-colors"
                 >
-                  <span className="material-symbols-outlined text-sm font-bold">remove</span>
+                  <span className="material-symbols-outlined text-[10px] font-bold">remove</span>
                 </button>
-                <span className="w-7 text-center font-black text-white text-sm font-data-tabular">{item.quantity}</span>
+                <span className="w-6 text-center font-bold text-zinc-100 text-xs font-data-tabular">{item.quantity}</span>
                 <button 
                   onClick={() => updateQuantity(item.id, 1)}
-                  className="w-6 h-6 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+                  className="w-6 h-6 rounded-full border border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-zinc-500 flex items-center justify-center text-zinc-400 dark:text-zinc-400 dark:hover:text-white transition-colors"
                 >
-                  <span className="material-symbols-outlined text-sm font-bold">add</span>
+                  <span className="material-symbols-outlined text-[10px] font-bold">add</span>
                 </button>
               </div>
 
-              <div className="text-right min-w-[70px]">
-                <p className="font-black text-white text-sm font-data-tabular">$ {(item.precio * item.quantity).toLocaleString('es-AR')}</p>
+              <div className="text-right min-w-[80px] shrink-0">
+                <p className="font-extrabold text-zinc-100 text-sm font-data-tabular">$ {(item.precio * item.quantity).toLocaleString('es-AR')}</p>
                 <button 
                   onClick={() => removeFromCart(item.id)} 
-                  className="text-zinc-600 hover:text-red-400 transition-colors mt-1 hover:bg-red-500/10 p-1 rounded-lg inline-flex items-center justify-center"
+                  className="text-zinc-400 hover:text-red-500 dark:text-zinc-650 dark:hover:text-red-400 transition-colors mt-0.5 hover:bg-zinc-100 dark:hover:bg-red-500/10 p-1 rounded-md inline-flex items-center justify-center"
                 >
-                  <span className="material-symbols-outlined text-lg">delete</span>
+                  <span className="material-symbols-outlined text-base">delete</span>
                 </button>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="p-4 bg-zinc-900/60 border-t border-white/10 backdrop-blur-xl space-y-3 shrink-0">
+        <div className="p-5 bg-zinc-50 dark:bg-zinc-900/60 border-t border-zinc-200 dark:border-white/10 space-y-4 shrink-0">
           {/* Totals */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-[11px] tracking-wider font-medium text-zinc-400 uppercase">
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[11px] tracking-wider font-semibold text-zinc-500 dark:text-zinc-400 uppercase">
               <span>Subtotal + IVA</span>
-              <span className="text-white font-black font-data-tabular">$ {(subtotal + iva).toLocaleString('es-AR')}</span>
+              <span className="text-zinc-100 font-black font-data-tabular">$ {(subtotal + iva).toLocaleString('es-AR')}</span>
             </div>
             {discount > 0 && (
-              <div className="flex justify-between text-[11px] tracking-wider font-bold uppercase text-emerald-400">
+              <div className="flex justify-between text-[11px] tracking-wider font-bold uppercase text-emerald-600 dark:text-emerald-400">
                 <span>Descuento ({discount}%)</span>
                 <span className="font-black font-data-tabular">- $ {discountAmount.toLocaleString('es-AR')}</span>
               </div>
             )}
-            <div className="flex justify-between items-center pt-1.5 border-t border-white/5 mt-1">
-              <span className="text-violet-400 font-black uppercase tracking-[0.2em] text-xs">Total</span>
-              <span className="text-2xl font-black text-white tracking-tight font-data-tabular">$ {finalTotal.toLocaleString('es-AR')}</span>
+            <div className="flex justify-between items-center pt-2 border-t border-zinc-200 dark:border-white/5 mt-1.5">
+              <span className="text-violet-600 dark:text-violet-400 font-extrabold uppercase tracking-[0.2em] text-xs">Total</span>
+              <span className="text-2xl font-black text-zinc-100 tracking-tight font-data-tabular">$ {finalTotal.toLocaleString('es-AR')}</span>
             </div>
           </div>
 
           {/* Discount & Venta a Crédito combined in a grid */}
           <div className="grid grid-cols-2 gap-3">
             {/* Discount */}
-            <div className="flex items-center gap-2 bg-zinc-950/60 p-1 rounded-xl border border-white/5">
-              <span className="material-symbols-outlined text-zinc-500 ml-1.5 text-base">percent</span>
+            <div className={`flex items-center gap-2 bg-white dark:bg-zinc-950 p-1.5 rounded-lg border border-zinc-200 dark:border-white/5 ${permissions?.sales_discount === false ? 'opacity-40 cursor-not-allowed' : ''}`}>
+              <span className="material-symbols-outlined text-zinc-400 dark:text-zinc-505 ml-1 text-base">percent</span>
               <input
                 type="number"
                 min="0"
                 max="100"
+                disabled={permissions?.sales_discount === false}
                 value={discount || ''}
                 onChange={(e) => setDiscount(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                placeholder="Dcto %"
-                className="w-full bg-transparent border-0 rounded-lg py-1 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-0 font-bold"
+                placeholder={permissions?.sales_discount === false ? "Sin Permiso" : "Dcto %"}
+                className="w-full bg-transparent border-0 rounded-lg py-0.5 text-xs text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-650 focus:outline-none focus:ring-0 font-bold disabled:cursor-not-allowed"
               />
             </div>
 
@@ -936,14 +984,14 @@ export default function POSPage() {
                   setCashReceived('');
                 }
               }}
-              className={`flex items-center justify-between px-3 py-1.5 rounded-xl border cursor-pointer transition-all duration-300 ${
+              className={`flex items-center justify-between px-3 py-1.5 rounded-lg border cursor-pointer transition-all duration-300 ${
                 isCreditSale 
                   ? 'bg-amber-500/10 border-amber-500/40' 
-                  : 'bg-zinc-950/40 border-white/5 hover:border-white/10'
+                  : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10'
               } ${(!selectedCustomer || selectedCustomer.id === DEFAULT_CUSTOMER_ID) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <span className={`text-[10px] font-black uppercase tracking-wider ${isCreditSale ? 'text-amber-400' : 'text-zinc-400'}`}>Crédito</span>
-              <div className={`w-8 h-4.5 rounded-full p-0.5 transition-all duration-300 flex items-center ${isCreditSale ? 'bg-amber-500' : 'bg-zinc-700'}`}>
+              <span className={`text-[10px] font-black uppercase tracking-wider ${isCreditSale ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-500 dark:text-zinc-400'}`}>Crédito</span>
+              <div className={`w-8 h-4.5 rounded-full p-0.5 transition-all duration-300 flex items-center ${isCreditSale ? 'bg-amber-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-300 ${isCreditSale ? 'translate-x-3.5' : 'translate-x-0'}`} />
               </div>
             </div>
@@ -960,10 +1008,10 @@ export default function POSPage() {
                 <button 
                   key={method.id}
                   onClick={() => setPaymentMethod(method.id as PaymentMethod)}
-                  className={`flex flex-col items-center gap-0.5 py-1.5 rounded-xl border transition-all duration-300 ${
+                  className={`flex flex-col items-center gap-0.5 py-2 rounded-lg border transition-all duration-300 ${
                     paymentMethod === method.id 
-                      ? 'bg-violet-500/20 border-violet-500/40 text-violet-300' 
-                      : 'bg-zinc-950/60 border-white/5 text-zinc-500 hover:text-white hover:border-white/10 hover:bg-zinc-900/60'
+                      ? 'bg-violet-50 dark:bg-violet-500/20 border-violet-500/40 text-violet-600 dark:text-violet-300 font-bold' 
+                      : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-white/5 text-zinc-400 dark:text-zinc-500 hover:text-zinc-100 hover:border-zinc-300 dark:hover:border-white/10 hover:bg-zinc-50 dark:hover:bg-zinc-900/60'
                   }`}
                 >
                   <span className={`material-symbols-outlined text-base transition-transform ${paymentMethod === method.id ? 'scale-110' : ''}`}>{method.icon}</span>
@@ -975,22 +1023,22 @@ export default function POSPage() {
 
           {/* Cash Payment - Change Calculation inline and compact */}
           {paymentMethod === 'efectivo' && (
-            <div className="flex flex-col gap-1.5 p-2 bg-zinc-950/60 rounded-xl border border-white/5 shadow-inner">
+            <div className="flex flex-col gap-1.5 p-2 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-white/5 shadow-inner">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Monto Recibido</label>
+                <label className="text-[9px] text-zinc-450 dark:text-zinc-400 font-bold uppercase tracking-widest">Monto Recibido</label>
                 <input
                   type="number"
                   min={finalTotal}
                   value={cashReceived}
                   onChange={(e) => { setCashReceived(e.target.value); prevAutoCashRef.current = null; }}
                   placeholder={`Min $ ${finalTotal.toLocaleString('es-AR')}`}
-                  className="w-32 bg-zinc-900 border border-white/5 rounded-lg px-2 py-1 text-white text-sm font-black text-right focus:outline-none focus:ring-1 focus:ring-violet-500 appearance-none"
+                  className="w-32 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 rounded px-2 py-1 text-zinc-100 text-sm font-black text-right focus:outline-none focus:ring-1 focus:ring-violet-500 appearance-none"
                 />
               </div>
               {change > 0 && (
-                <div className="flex justify-between items-center pt-1 border-t border-white/5 animate-fade-in">
-                  <span className="text-emerald-400 font-black uppercase tracking-widest text-[9px]">Cambio</span>
-                  <span className="text-sm font-black text-emerald-300 font-data-tabular">$ {change.toLocaleString('es-AR')}</span>
+                <div className="flex justify-between items-center pt-1 border-t border-zinc-150 dark:border-white/5 animate-fade-in">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-widest text-[9px]">Cambio</span>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-300 font-data-tabular">$ {change.toLocaleString('es-AR')}</span>
                 </div>
               )}
             </div>
@@ -1000,10 +1048,10 @@ export default function POSPage() {
           <button 
             onClick={completeSale}
             disabled={cart.length === 0 || (!isCreditSale && !paymentMethod) || processingSale}
-            className={`w-full h-12 text-xs font-black uppercase tracking-[0.2em] rounded-xl flex items-center justify-center gap-2 shadow-2xl hover:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none active:scale-95 flex items-center justify-center gap-2 ${
+            className={`w-full h-11 text-xs font-black uppercase tracking-[0.2em] rounded-lg flex items-center justify-center gap-2 shadow-sm hover:scale-[0.99] transition-all duration-300 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none active:scale-[0.98] ${
               isCreditSale 
                 ? 'bg-amber-500 hover:bg-amber-600 text-black font-black' 
-                : 'bg-violet-600 hover:bg-violet-500 text-white'
+                : 'bg-violet-600 hover:bg-violet-500 text-white shadow-violet-500/20'
             }`}
           >
             {processingSale ? (
@@ -1156,7 +1204,7 @@ export default function POSPage() {
                     className="w-full h-full object-cover" 
                   />
                 ) : (
-                  <span className="material-symbols-outlined text-5xl text-zinc-800">image</span>
+                  <span className="material-symbols-outlined text-5xl text-zinc-100">image</span>
                 )}
               </div>
               <h3 className="font-black text-white text-lg text-center mt-4 leading-snug">{selectedParentProduct.nombre}</h3>
@@ -1291,6 +1339,23 @@ export default function POSPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating Mobile Cart Trigger */}
+      {cart.length > 0 && !isMobileCartOpen && (
+        <button
+          onClick={() => setIsMobileCartOpen(true)}
+          className="fixed bottom-[96px] left-4 w-[calc(100%-6.5rem)] z-40 bg-violet-600 hover:bg-violet-500 text-white font-black py-3.5 px-4 rounded-xl flex items-center justify-between shadow-[0_8px_30px_rgba(109,40,217,0.4)] active:scale-[0.98] transition-all lg:hidden"
+        >
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-base">shopping_cart</span>
+            <span className="text-xs uppercase tracking-widest">Ver Carrito</span>
+            <span className="bg-violet-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-violet-400/30">
+              {cart.reduce((acc, item) => acc + item.quantity, 0)}
+            </span>
+          </div>
+          <span className="text-sm font-black font-data-tabular">$ {finalTotal.toLocaleString('es-AR')}</span>
+        </button>
       )}
       </div>
     </div>

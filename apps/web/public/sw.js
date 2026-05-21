@@ -39,13 +39,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   
-  // Skip caching for non-GET, API, Next.js internal, and external services like Supabase
+  // Skip caching for non-GET, API, Next.js internal, external services, and Next.js App Router navigation headers
   if (
     request.method !== 'GET' || 
     request.url.includes('/api/') || 
     request.url.includes('/_next/') || 
     request.url.includes('supabase.co') ||
-    request.url.includes('cloudinary.com')
+    request.url.includes('cloudinary.com') ||
+    request.headers.get('RSC') ||
+    request.headers.get('Next-Router-State-Tree') ||
+    request.headers.get('Next-Router-Prefetch')
   ) {
     return;
   }

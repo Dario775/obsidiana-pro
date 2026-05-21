@@ -270,47 +270,27 @@ export default function BillingPage() {
         </div>
 
         {/* Resources Usage Bento */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-           <div className="bg-[#121212] border border-white/5 rounded-[2.5rem] p-8 flex-1 relative overflow-hidden group">
-              <div className="flex items-center justify-between mb-8">
-                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Límite de Catálogo</span>
-                    <h3 className="text-xl font-black text-white uppercase">Productos</h3>
+        <div className="lg:col-span-4">
+           <div className="bg-[#121212] border border-white/5 rounded-[2.5rem] p-8 h-full relative overflow-hidden group flex flex-col justify-between">
+              <div>
+                 <div className="flex items-center justify-between mb-8">
+                    <div className="flex flex-col">
+                       <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Límite de Catálogo</span>
+                       <h3 className="text-xl font-black text-white uppercase">Productos</h3>
+                    </div>
+                    <span className="material-symbols-outlined text-primary/50 text-3xl">inventory_2</span>
                  </div>
-                 <span className="material-symbols-outlined text-primary/50 text-3xl">inventory_2</span>
-              </div>
-              <div className="flex flex-col gap-3">
-                 <div className="flex justify-between items-baseline font-black">
-                    <span className="text-3xl text-white tracking-tighter">{productCount} <span className="text-sm text-zinc-600 font-bold">/ {currentPlan?.max_products || 50}</span></span>
-                    <span className="text-xs text-primary">{Math.round((productCount / (currentPlan?.max_products || 50)) * 100)}%</span>
-                 </div>
-                 <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden p-[2px] border border-white/5">
-                    <div 
-                       className="h-full bg-primary rounded-full transition-all duration-1000" 
-                       style={{ width: `${(productCount / (currentPlan?.max_products || 50)) * 100}%` }}
-                    ></div>
-                 </div>
-              </div>
-           </div>
-
-           <div className="bg-[#121212] border border-white/5 rounded-[2.5rem] p-8 flex-1 relative overflow-hidden group">
-              <div className="flex items-center justify-between mb-8">
-                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Infraestructura</span>
-                    <h3 className="text-xl font-black text-white uppercase">Sucursales</h3>
-                 </div>
-                 <span className="material-symbols-outlined text-secondary/50 text-3xl">hub</span>
-              </div>
-              <div className="flex flex-col gap-3">
-                 <div className="flex justify-between items-baseline font-black">
-                    <span className="text-3xl text-white tracking-tighter">1 <span className="text-sm text-zinc-600 font-bold">/ {currentPlan?.max_branches || 1}</span></span>
-                    <span className="text-xs text-secondary">{Math.round((1 / (currentPlan?.max_branches || 1)) * 100)}%</span>
-                 </div>
-                 <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden p-[2px] border border-white/5">
-                    <div 
-                       className="h-full bg-secondary rounded-full transition-all duration-1000" 
-                       style={{ width: `${(1 / (currentPlan?.max_branches || 1)) * 100}%` }}
-                    ></div>
+                 <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-baseline font-black">
+                       <span className="text-3xl text-white tracking-tighter">{productCount} <span className="text-sm text-zinc-600 font-bold">/ {currentPlan?.max_products || 50}</span></span>
+                       <span className="text-xs text-primary">{Math.round((productCount / (currentPlan?.max_products || 50)) * 100)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden p-[2px] border border-white/5">
+                       <div 
+                          className="h-full bg-primary rounded-full transition-all duration-1000" 
+                          style={{ width: `${(productCount / (currentPlan?.max_products || 50)) * 100}%` }}
+                       ></div>
+                    </div>
                  </div>
               </div>
            </div>
@@ -370,12 +350,6 @@ export default function BillingPage() {
                                  <span className="material-symbols-outlined text-[14px] text-zinc-500">inventory_2</span>
                               </div>
                               <span className="text-xs font-bold text-zinc-400">Hasta {p.max_products} productos</span>
-                           </div>
-                           <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-zinc-800 border border-white/5 flex items-center justify-center">
-                                 <span className="material-symbols-outlined text-[14px] text-zinc-500">store</span>
-                              </div>
-                              <span className="text-xs font-bold text-zinc-400">{p.max_branches} Sucursales permitidas</span>
                            </div>
                         </div>
                      </div>

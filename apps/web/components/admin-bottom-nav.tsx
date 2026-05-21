@@ -21,7 +21,7 @@ export function AdminBottomNav() {
         <Link 
           href="/dashboard" 
           className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all btn-native-active ${
-            isActive('/dashboard') ? 'text-violet-500 scale-105' : 'text-zinc-500'
+            isActive('/dashboard') ? 'text-secondary scale-105' : 'text-zinc-500'
           }`}
         >
           <span 
@@ -37,7 +37,7 @@ export function AdminBottomNav() {
         <Link 
           href="/pos" 
           className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all btn-native-active ${
-            isActive('/pos') ? 'text-violet-500 scale-105' : 'text-zinc-500'
+            isActive('/pos') ? 'text-secondary scale-105' : 'text-zinc-500'
           }`}
         >
           <span 
@@ -53,7 +53,7 @@ export function AdminBottomNav() {
         <Link 
           href="/inventory" 
           className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all btn-native-active ${
-            isActive('/inventory') ? 'text-violet-500 scale-105' : 'text-zinc-500'
+            isActive('/inventory') ? 'text-secondary scale-105' : 'text-zinc-500'
           }`}
         >
           <span 
@@ -69,7 +69,7 @@ export function AdminBottomNav() {
         <Link 
           href="/customers" 
           className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all btn-native-active ${
-            isActive('/customers') ? 'text-violet-500 scale-105' : 'text-zinc-500'
+            isActive('/customers') ? 'text-secondary scale-105' : 'text-zinc-500'
           }`}
         >
           <span 
@@ -85,7 +85,7 @@ export function AdminBottomNav() {
         <button 
           onClick={() => setIsMenuOpen(true)}
           className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all btn-native-active ${
-            isMenuOpen ? 'text-violet-500 scale-105' : 'text-zinc-500'
+            isMenuOpen ? 'text-secondary scale-105' : 'text-zinc-500'
           }`}
         >
           <span className="material-symbols-outlined text-[24px]">menu</span>

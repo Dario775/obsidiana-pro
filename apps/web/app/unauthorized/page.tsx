@@ -1,10 +1,10 @@
 'use client';
 
-import { useAuth } from '../../components/auth-provider';
+import { AuthProvider, useAuth } from '../../components/auth-provider';
 import Link from 'next/link';
 import Image from 'next/image';
 
-export default function UnauthorizedPage() {
+function UnauthorizedContent() {
   const { user, signOut } = useAuth();
   const isSuperAdmin = user?.email === 'admin@admin.com';
 
@@ -79,8 +79,8 @@ export default function UnauthorizedPage() {
             )}
 
             <button
-              onClick={() => {
-                signOut();
+              onClick={async () => {
+                await signOut();
                 window.location.href = '/login';
               }}
               className="flex-1 bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 hover:text-white font-semibold text-[14px] py-3.5 px-6 rounded-xl border border-white/5 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
@@ -97,5 +97,13 @@ export default function UnauthorizedPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function UnauthorizedPage() {
+  return (
+    <AuthProvider>
+      <UnauthorizedContent />
+    </AuthProvider>
   );
 }

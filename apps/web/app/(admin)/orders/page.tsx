@@ -20,6 +20,9 @@ interface Order {
   customer_email: string;
   customer_phone: string;
   customer_address: string;
+  customer_city?: string;
+  customer_province?: string;
+  customer_postal_code?: string;
   notes: string;
   payment_method: string;
   subtotal_ars: number;
@@ -30,6 +33,7 @@ interface Order {
   financial_status: string;
   fulfillment_status: string;
   channel: string;
+  shipping_method?: string;
   created_at: string;
 }
 
@@ -128,22 +132,140 @@ export default function OrdersPage() {
       .replace(/'/g, '&#039;');
   }
 
+  // Genera un código de barras Code 39 en formato SVG
+  function generateBarcodeSVG(value: string | number): string {
+    // Code 39 full character set: 9 elements per char (5 bars + 4 spaces), 3 wide + 6 narrow
+    const code39: Record<string, number[]> = {
+      '0': [1,1,1,3,3,1,3,1,1], '1': [3,1,1,3,1,1,1,1,3], '2': [1,1,3,3,1,1,1,1,3],
+      '3': [3,1,3,3,1,1,1,1,1], '4': [1,1,1,3,3,1,1,1,3], '5': [3,1,1,3,3,1,1,1,1],
+      '6': [1,1,3,3,3,1,1,1,1], '7': [1,1,1,3,1,1,3,1,3], '8': [3,1,1,3,1,1,3,1,1],
+      '9': [1,1,3,3,1,1,3,1,1],
+      'A': [3,1,1,1,1,3,1,1,3], 'B': [1,1,3,1,1,3,1,1,3], 'C': [3,1,3,1,1,3,1,1,1],
+      'D': [1,1,1,1,3,3,1,1,3], 'E': [3,1,1,1,3,3,1,1,1], 'F': [1,1,3,1,3,3,1,1,1],
+      'G': [1,1,1,1,1,3,3,1,3], 'H': [3,1,1,1,1,3,3,1,1], 'I': [1,1,3,1,1,3,3,1,1],
+      'J': [1,1,1,1,3,3,3,1,1], 'K': [3,1,1,1,1,1,1,3,3], 'L': [1,1,3,1,1,1,1,3,3],
+      'M': [3,1,3,1,1,1,1,3,1], 'N': [1,1,1,1,3,1,1,3,3], 'O': [3,1,1,1,3,1,1,3,1],
+      'P': [1,1,3,1,3,1,1,3,1], 'Q': [1,1,1,1,1,1,3,3,3], 'R': [3,1,1,1,1,1,3,3,1],
+      'S': [1,1,3,1,1,1,3,3,1], 'T': [1,1,1,1,3,1,3,3,1], 'U': [3,3,1,1,1,1,1,1,3],
+      'V': [1,3,3,1,1,1,1,1,3], 'W': [3,3,3,1,1,1,1,1,1], 'X': [1,3,1,1,3,1,1,1,3],
+      'Y': [3,3,1,1,3,1,1,1,1], 'Z': [1,3,3,1,3,1,1,1,1],
+      '-': [1,3,1,1,1,1,3,1,3], '.': [3,3,1,1,1,1,3,1,1], ' ': [1,3,3,1,1,1,3,1,1],
+      '$': [1,3,1,3,1,3,1,1,1], '/': [1,3,1,3,1,1,1,3,1], '+': [1,3,1,1,1,3,1,3,1],
+      '%': [1,1,1,3,1,3,1,3,1],
+      '*': [1,3,1,1,3,1,3,1,1]
+    };
+
+    const cleanVal = String(value).toUpperCase().replace(/[^0-9A-Z\-.$/+% ]/g, '');
+    const str = '*' + (cleanVal || '0') + '*';
+    let svgPaths = '';
+    let currentX = 0;
+    const height = 45;
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (!char) continue;
+      const pattern = code39[char];
+      if (!pattern) continue;
+      
+      for (let j = 0; j < pattern.length; j++) {
+        const val = pattern[j] as number;
+        const width = val * 2.2;
+        const isBar = (j % 2 === 0);
+        
+        if (isBar) {
+          svgPaths += `<rect x="${currentX}" y="0" width="${width}" height="${height}" fill="black" />`;
+        }
+        currentX += width;
+      }
+      
+      // Separación entre caracteres (gap)
+      if (i < str.length - 1) {
+        currentX += 2.2;
+      }
+    }
+
+    return `
+      <svg width="${currentX}" height="${height + 22}" viewBox="0 0 ${currentX} ${height + 22}" xmlns="http://www.w3.org/2000/svg" style="display: block; margin: 0 auto;">
+        ${svgPaths}
+        <text x="${currentX / 2}" y="${height + 16}" font-family="'Courier New', monospace" font-size="12" font-weight="bold" text-anchor="middle" fill="black">${cleanVal}</text>
+      </svg>
+    `;
+  }
+
   function printLabel() {
     if (!selectedOrder) return;
     
     // Sanitize all user-provided data
     const customerName = escapeHtml(selectedOrder.customer_name) || 'CLIENTE';
-    const customerAddress = escapeHtml(selectedOrder.customer_address) || 'SIN DIRECCIÓN';
+    
+    // Construir dirección completa
+    let fullAddress = '';
+    if (selectedOrder.customer_address) {
+      const addrLower = selectedOrder.customer_address.toLowerCase();
+      if (addrLower.includes('retiro') || selectedOrder.shipping_method?.toLowerCase()?.includes('retiro')) {
+        fullAddress = 'RETIRO EN TIENDA 🏪';
+      } else {
+        const parts = [
+          selectedOrder.customer_address,
+          selectedOrder.customer_city,
+          selectedOrder.customer_province,
+          selectedOrder.customer_postal_code ? `(CP: ${selectedOrder.customer_postal_code})` : ''
+        ].filter(Boolean);
+        fullAddress = parts.join(', ');
+      }
+    }
+    const customerAddress = escapeHtml(fullAddress) || 'SIN DIRECCIÓN';
     const customerPhone = escapeHtml(selectedOrder.customer_phone) || 'SIN TEL';
     const customerEmail = escapeHtml(selectedOrder.customer_email);
-    const orderNotes = escapeHtml(selectedOrder.notes);
+    
+    // Extraer método de envío de las notas
+    let shippingMethodStr = '';
+    if (selectedOrder.notes) {
+      const methodMatch = selectedOrder.notes.match(/\[Método:\s*([^\]]+)\]/i);
+      if (methodMatch && methodMatch[1]) {
+        shippingMethodStr = methodMatch[1];
+      }
+    }
+    
+    // Fallback al campo nativo
+    if (!shippingMethodStr && selectedOrder.shipping_method) {
+      shippingMethodStr = selectedOrder.shipping_method;
+    }
+
+    // Limpiar notas eliminando comprobantes y método interno
+    let cleanNotes = '';
+    if (selectedOrder.notes) {
+      cleanNotes = selectedOrder.notes
+        .replace(/\[Comprobante de Pago\]:\s*(https?:\/\/[^\s|]+)/gi, '')
+        .replace(/\[Método:\s*[^\]]+\]/gi, '')
+        .split('|')
+        .map(part => part.trim())
+        .filter(part => part.length > 0)
+        .join(' | ');
+    }
+    const orderNotes = escapeHtml(cleanNotes);
     const storeName = escapeHtml(tenant?.nombre) || 'Tienda';
     const itemsList = orderItems.map(i => `${escapeHtml(i.title_snapshot)} (x${i.quantity})`).join(', ');
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    
-    printWindow.document.write(`
+    // Usar iframe oculto en lugar de window.open para evitar bloqueo de popups en móviles/PWA
+    const existingFrame = document.getElementById('print-label-frame') as HTMLIFrameElement;
+    if (existingFrame) existingFrame.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'print-label-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(`
 <!DOCTYPE html>
 <html>
 <head>
@@ -201,6 +323,9 @@ export default function OrdersPage() {
       font-size: 16px;
       font-weight: bold;
       line-height: 1.3;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
     
     .to-label {
@@ -226,13 +351,8 @@ export default function OrdersPage() {
     
     .barcode {
       margin-top: 15px;
-      padding: 10px;
-      background: #f5f5f5;
+      padding: 5px;
       text-align: center;
-      font-family: 'Courier New', monospace;
-      font-size: 24px;
-      font-weight: bold;
-      letter-spacing: 5px;
     }
     
     .items-list {
@@ -241,6 +361,9 @@ export default function OrdersPage() {
       background: #f9f9f9;
       font-size: 11px;
       color: #666;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
     
     @media print {
@@ -254,6 +377,10 @@ export default function OrdersPage() {
     <div class="header">
       <h1>${storeName}</h1>
       <div class="order-num">#${selectedOrder.number}</div>
+      ${shippingMethodStr ? `
+      <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.5px; color: #444;">
+        ${shippingMethodStr.toLowerCase().includes('retiro') ? '🏪' : '🚚'} ${shippingMethodStr.toUpperCase()}
+      </div>` : ''}
     </div>
     
     <div class="to-label">
@@ -283,7 +410,7 @@ export default function OrdersPage() {
     ${orderNotes ? `
     <div class="section">
       <div class="section-title">NOTAS:</div>
-      <div class="section-content" style="font-weight: normal; font-size: 12px;">
+      <div class="section-content" style="font-weight: normal; font-size: 12px; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; white-space: pre-wrap;">
         ${orderNotes}
       </div>
     </div>
@@ -294,18 +421,35 @@ export default function OrdersPage() {
     </div>
     
     <div class="barcode">
-      ██ ${selectedOrder.number} ██
+      ${generateBarcodeSVG(selectedOrder.number)}
     </div>
     
     <div class="from" style="margin-top: 15px; text-align: center; font-size: 10px;">
       ${storeName} - ${new Date(selectedOrder.created_at).toLocaleDateString('es-AR')}
     </div>
   </div>
-  <script>window.print();</script>
 </body>
 </html>
     `);
-    printWindow.document.close();
+    doc.close();
+
+    // Esperar a que el iframe cargue y luego imprimir
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        // Fallback: si el iframe no puede imprimir, abrir en nueva ventana
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(doc.documentElement.outerHTML);
+          printWindow.document.close();
+          printWindow.onload = () => printWindow.print();
+        }
+      }
+      // Limpiar el iframe después de un breve delay
+      setTimeout(() => iframe.remove(), 3000);
+    };
   }
 
   const filteredOrders = orders.filter(order => {

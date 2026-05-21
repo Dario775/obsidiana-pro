@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { useTenant } from '../hooks/use-tenant';
 import { useAuth } from './auth-provider';
+import { ThemeToggle } from './theme-toggle';
 
 interface Tab {
   label: string;
@@ -314,7 +315,7 @@ export function Topbar({ isSidebarCollapsed = false, onToggleSidebar }: TopbarPr
               >
                 {tab.label}
                 {isActive && (
-                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-secondary shadow-[0_0_15px_rgba(0,162,230,0.6)]" />
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-secondary shadow-[0_0_15px_rgba(var(--secondary),0.6)]" />
                 )}
                 {!isActive && (
                   <div className="absolute bottom-0 left-4 right-4 h-[2px] bg-white/0 group-hover:bg-white/10 transition-all" />
@@ -365,6 +366,9 @@ export function Topbar({ isSidebarCollapsed = false, onToggleSidebar }: TopbarPr
           <span className="material-symbols-outlined text-[18px]">download</span>
           <span>Instalar app</span>
         </button>
+
+        {/* Theme Toggle (Light/Dark Mode) */}
+        <ThemeToggle />
 
         <div className="flex items-center gap-2 text-violet-500 relative">
           <button 

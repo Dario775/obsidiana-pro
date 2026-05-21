@@ -351,26 +351,34 @@ export default function StoreSettingsPage() {
           </div>
           <button
             onClick={handleToggleActive}
-            className={`w-12 h-6 rounded-full transition-colors ${form.store_active ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+            className={`w-12 h-6 rounded-full transition-colors ${form.store_active ? 'bg-secondary' : 'bg-zinc-700'}`}
           >
             <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${form.store_active ? 'translate-x-6' : 'translate-x-0.5'}`} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex gap-6 border-b border-zinc-200 dark:border-white/5 bg-transparent px-4">
+          {tabs.map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative flex items-center gap-2 outline-none ${
+                  isActive 
+                    ? 'text-secondary font-black' 
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                {tab.label}
+                {isActive && (
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-secondary shadow-[0_0_15px_rgba(var(--secondary),0.6)] animate-in fade-in duration-200" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
 {/* Tab Content */}
@@ -385,7 +393,7 @@ export default function StoreSettingsPage() {
                   type="text"
                   value={form.store_name}
                   onChange={(e) => setForm(f => ({ ...f, store_name: e.target.value }))}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                   placeholder="Mi Tienda"
                 />
               </div>
@@ -399,7 +407,7 @@ export default function StoreSettingsPage() {
                     type="text"
                     value={form.store_domain}
                     onChange={(e) => setForm(f => ({ ...f, store_domain: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') }))}
-                    className="flex-1 bg-zinc-950 border border-white/10 rounded-r-xl px-4 py-3 text-white"
+                    className="flex-1 bg-zinc-950 border border-white/10 rounded-r-xl px-4 py-3 text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                     placeholder="mitienda"
                   />
                 </div>
@@ -412,7 +420,7 @@ export default function StoreSettingsPage() {
                   type="text"
                   value={form.store_tagline}
                   onChange={(e) => setForm(f => ({ ...f, store_tagline: e.target.value }))}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                   placeholder="Los mejores productos de la ciudad"
                 />
               </div>
@@ -423,7 +431,7 @@ export default function StoreSettingsPage() {
                 <textarea
                   value={form.store_description}
                   onChange={(e) => setForm(f => ({ ...f, store_description: e.target.value }))}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                   rows={3}
                   placeholder="Contá brevemente sobre tu negocio..."
                 />
@@ -534,10 +542,10 @@ export default function StoreSettingsPage() {
                     <button
                       key={tpl.id}
                       onClick={() => setAppearance(a => ({ ...a, template: tpl.id as Appearance['template'] }))}
-                      className={`p-4 rounded-xl border-2 transition-all ${
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
                         appearance.template === tpl.id 
-                          ? 'border-white bg-zinc-800' 
-                          : 'border-white/10 hover:border-white/30'
+                          ? 'border-secondary bg-secondary/5 ring-1 ring-secondary/35 text-secondary' 
+                          : 'border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20'
                       }`}
                     >
                       <span className="material-symbols-outlined text-2xl text-zinc-400 mb-1 block">{tpl.icon}</span>
@@ -574,8 +582,8 @@ export default function StoreSettingsPage() {
                       onClick={() => setAppearance(a => ({ ...a, font_family: font.id as Appearance['font_family'] }))}
                       className={`flex-1 p-3 rounded-xl border-2 transition-all ${
                         appearance.font_family === font.id 
-                          ? 'border-white bg-zinc-800' 
-                          : 'border-white/10 hover:border-white/30'
+                          ? 'border-secondary bg-secondary/5 ring-1 ring-secondary/35 text-secondary' 
+                          : 'border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20'
                       }`}
                       style={{ fontFamily: font.id === 'sans' ? 'system-ui' : font.id === 'serif' ? '"Outfit"' : '"Inter"' }}
                     >
@@ -597,7 +605,7 @@ export default function StoreSettingsPage() {
                 </div>
                 <button
                   onClick={() => setAppearance(a => ({ ...a, dark_mode: !a.dark_mode }))}
-                  className={`w-12 h-6 rounded-full transition-colors ${appearance.dark_mode ? 'bg-violet-600' : 'bg-zinc-700'}`}
+                  className={`w-12 h-6 rounded-full transition-colors ${appearance.dark_mode ? 'bg-secondary' : 'bg-zinc-700'}`}
                 >
                   <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${appearance.dark_mode ? 'translate-x-6' : 'translate-x-0.5'}`} />
                 </button>
@@ -649,7 +657,7 @@ export default function StoreSettingsPage() {
                 </div>
                 <button
                   onClick={() => setForm(f => ({ ...f, store_shipping_enabled: !f.store_shipping_enabled }))}
-                  className={`w-12 h-6 rounded-full transition-colors ${form.store_shipping_enabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                  className={`w-12 h-6 rounded-full transition-colors ${form.store_shipping_enabled ? 'bg-secondary' : 'bg-zinc-700'}`}
                 >
                   <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${form.store_shipping_enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
                 </button>
@@ -664,7 +672,7 @@ export default function StoreSettingsPage() {
                         type="number"
                         value={form.store_shipping_cost}
                         onChange={(e) => setForm(f => ({ ...f, store_shipping_cost: parseInt(e.target.value) || 0 }))}
-                        className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
+                        className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                         placeholder="0"
                       />
                       <p className="text-[10px] text-zinc-500 mt-1">Costo genérico si no coincide ninguna zona local.</p>
@@ -675,7 +683,7 @@ export default function StoreSettingsPage() {
                         type="number"
                         value={form.store_shipping_free_threshold}
                         onChange={(e) => setForm(f => ({ ...f, store_shipping_free_threshold: parseInt(e.target.value) || 0 }))}
-                        className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
+                        className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                         placeholder="Sin umbral"
                       />
                       <p className="text-[10px] text-zinc-500 mt-1">Monto de compra para envío gratis (0 = desactivado).</p>
@@ -688,7 +696,7 @@ export default function StoreSettingsPage() {
                       type="number"
                       value={form.store_min_order_amount}
                       onChange={(e) => setForm(f => ({ ...f, store_min_order_amount: parseInt(e.target.value) || 0 }))}
-                      className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm"
+                      className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       placeholder="0"
                     />
                     <p className="text-[10px] text-zinc-500 mt-1">Monto mínimo en el carrito para poder finalizar la compra.</p>
@@ -698,7 +706,7 @@ export default function StoreSettingsPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-purple-400 text-sm">map</span>
+                          <span className="material-symbols-outlined text-secondary text-sm">map</span>
                           Zonas de Envío Locales
                         </h4>
                         <p className="text-xs text-zinc-500">Delimitá las zonas donde hacés entregas y sus costos</p>
@@ -734,7 +742,7 @@ export default function StoreSettingsPage() {
                               type="text"
                               value={newZoneName}
                               onChange={e => setNewZoneName(e.target.value)}
-                              className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                              className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                               placeholder="Ej: Salta Capital"
                             />
                           </div>
@@ -744,7 +752,7 @@ export default function StoreSettingsPage() {
                               type="number"
                               value={newZoneCost}
                               onChange={e => setNewZoneCost(parseInt(e.target.value) || 0)}
-                              className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                              className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                               placeholder="0"
                             />
                           </div>
@@ -754,7 +762,7 @@ export default function StoreSettingsPage() {
                           <textarea
                             value={newZoneCodes}
                             onChange={e => setNewZoneCodes(e.target.value)}
-                            className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                            className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                             rows={2}
                             placeholder="Ej: 4400, 4403, 4405"
                           />
@@ -835,12 +843,12 @@ export default function StoreSettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">WhatsApp</label>
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-emerald-400">chat</span>
+                  <span className="material-symbols-outlined text-secondary">chat</span>
                   <input
                     type="text"
                     value={form.store_social_whatsapp}
                     onChange={(e) => setForm(f => ({ ...f, store_social_whatsapp: e.target.value }))}
-                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
+                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                     placeholder="5491112345678"
                   />
                 </div>
@@ -848,12 +856,12 @@ export default function StoreSettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">Instagram</label>
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-pink-400">camera_alt</span>
+                  <span className="material-symbols-outlined text-secondary">camera_alt</span>
                   <input
                     type="text"
                     value={form.store_social_instagram}
                     onChange={(e) => setForm(f => ({ ...f, store_social_instagram: e.target.value }))}
-                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
+                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                     placeholder="@mitienda"
                   />
                 </div>
@@ -861,12 +869,12 @@ export default function StoreSettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">Facebook</label>
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-blue-400">thumb_up</span>
+                  <span className="material-symbols-outlined text-secondary">thumb_up</span>
                   <input
                     type="text"
                     value={form.store_social_facebook}
                     onChange={(e) => setForm(f => ({ ...f, store_social_facebook: e.target.value }))}
-                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white"
+                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                     placeholder="https://facebook.com/mitienda"
                   />
                 </div>
@@ -881,7 +889,7 @@ export default function StoreSettingsPage() {
               <div className="p-6 bg-zinc-950 border border-white/5 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-blue-400 text-2xl">account_balance</span>
+                    <span className="material-symbols-outlined text-secondary text-2xl">account_balance</span>
                     <div>
                       <h4 className="font-bold text-white text-sm">Transferencia Bancaria</h4>
                       <p className="text-xs text-zinc-500">Recibí transferencias directas mostrando tus datos en el checkout</p>
@@ -890,7 +898,7 @@ export default function StoreSettingsPage() {
                   <button
                     type="button"
                     onClick={() => setTransferEnabled(!transferEnabled)}
-                    className={`w-12 h-6 rounded-full transition-colors ${transferEnabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                    className={`w-12 h-6 rounded-full transition-colors ${transferEnabled ? 'bg-secondary' : 'bg-zinc-700'}`}
                   >
                     <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${transferEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
                   </button>
@@ -905,7 +913,7 @@ export default function StoreSettingsPage() {
                         value={transferBank}
                         onChange={(e) => setTransferBank(e.target.value)}
                         placeholder="Ej: Banco Galicia / Mercado Pago"
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       />
                     </div>
                     <div>
@@ -915,7 +923,7 @@ export default function StoreSettingsPage() {
                         value={transferHolder}
                         onChange={(e) => setTransferHolder(e.target.value)}
                         placeholder="Ej: Juan Pérez"
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       />
                     </div>
                     <div>
@@ -925,7 +933,7 @@ export default function StoreSettingsPage() {
                         value={transferCbu}
                         onChange={(e) => setTransferCbu(e.target.value)}
                         placeholder="22 dígitos numéricos"
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       />
                     </div>
                     <div>
@@ -935,7 +943,7 @@ export default function StoreSettingsPage() {
                         value={transferAlias}
                         onChange={(e) => setTransferAlias(e.target.value)}
                         placeholder="Ej: JUAN.PEREZ.ALIAS"
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -945,7 +953,7 @@ export default function StoreSettingsPage() {
                         value={transferAccount}
                         onChange={(e) => setTransferAccount(e.target.value)}
                         placeholder="Ej: CA 4005-12345/6"
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       />
                     </div>
                   </div>
@@ -955,7 +963,7 @@ export default function StoreSettingsPage() {
               {/* Mercado Pago */}
               <div className="p-6 bg-zinc-950 border border-white/5 rounded-2xl space-y-4">
                 <div className="flex items-center gap-2.5">
-                  <span className="material-symbols-outlined text-violet-400 text-2xl">payment</span>
+                  <span className="material-symbols-outlined text-secondary text-2xl">payment</span>
                   <div>
                     <h4 className="font-bold text-white text-sm">Mercado Pago</h4>
                     <p className="text-xs text-zinc-500">Cobros automáticos con tarjetas de crédito, débito o saldo en cuenta</p>
@@ -963,7 +971,7 @@ export default function StoreSettingsPage() {
                 </div>
 
                 <div className="p-4 bg-zinc-900 border border-white/5 rounded-xl flex gap-3 text-xs text-zinc-400 leading-relaxed">
-                  <span className="material-symbols-outlined text-violet-400">info</span>
+                  <span className="material-symbols-outlined text-secondary">info</span>
                   <p>
                     Configurá tus credenciales de <strong>Mercado Pago</strong> para recibir pagos automáticos. 
                     Podés encontrarlas en el panel de desarrolladores de Mercado Pago.
@@ -977,7 +985,7 @@ export default function StoreSettingsPage() {
                       type="text"
                       value={form.store_mp_public_key}
                       onChange={(e) => setForm(f => ({ ...f, store_mp_public_key: e.target.value }))}
-                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       placeholder="APP_USR-..."
                     />
                   </div>
@@ -988,7 +996,7 @@ export default function StoreSettingsPage() {
                       type="password"
                       value={form.store_mp_access_token}
                       onChange={(e) => setForm(f => ({ ...f, store_mp_access_token: e.target.value }))}
-                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono"
+                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
                       placeholder="APP_USR-..."
                     />
                     <p className="text-[10px] text-zinc-600 mt-1">Este token es secreto y se usa para generar los cobros de forma segura.</p>
@@ -1005,7 +1013,7 @@ export default function StoreSettingsPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full py-4 bg-white text-zinc-900 rounded-xl font-bold hover:bg-zinc-100 disabled:opacity-50"
+          className="w-full py-4 bg-secondary text-zinc-950 rounded-xl font-bold hover:brightness-110 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(var(--secondary),0.15)] hover:shadow-[0_0_25px_rgba(var(--secondary),0.25)]"
         >
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>

@@ -83,11 +83,18 @@ export default function CustomerDetailPage() {
   const [paymentNote, setPaymentNote] = useState('');
   const [processingPayment, setProcessingPayment] = useState(false);
   const [lastPaymentReceipt, setLastPaymentReceipt] = useState<{
+    receiptId: string;
     orderNumber: number;
     amount: number;
     method: string;
     date: string;
     customerName: string;
+    customerDni: string;
+    customerPhone: string;
+    customerEmail: string;
+    previousBalance: number;
+    newBalance: number;
+    notes?: string;
   } | null>(null);
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [previewReceipt, setPreviewReceipt] = useState<typeof lastPaymentReceipt>(null);
@@ -108,19 +115,23 @@ export default function CustomerDetailPage() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Recibo de Pago</title>
+        <title>Recibo de Pago #${data.receiptId}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Geist', Arial, sans-serif; padding: 20px; font-size: 12px; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .header h1 { font-size: 18px; font-weight: 900; margin-bottom: 5px; }
-          .header p { font-size: 10px; color: #666; }
-          .divider { border-bottom: 1px dashed #ccc; margin: 15px 0; }
-          .row { display: flex; justify-content: space-between; margin: 8px 0; }
-          .row .label { color: #666; }
-          .row .value { font-weight: 600; }
-          .total { font-size: 16px; font-weight: 900; margin-top: 15px; }
-          .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #999; }
+          body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; color: #111; line-height: 1.4; }
+          .header { text-align: center; margin-bottom: 12px; }
+          .header h1 { font-size: 15px; font-weight: bold; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+          .header p { font-size: 9px; color: #555; }
+          .receipt-id { font-size: 10px; font-weight: bold; color: #333; margin-top: 4px; }
+          .divider { border-bottom: 1px dashed #aaa; margin: 12px 0; }
+          .section-title { font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 6px; }
+          .row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .row .label { color: #555; }
+          .row .value { font-weight: bold; text-align: right; }
+          .balance-box { background: #fdfdfd; padding: 8px; border-radius: 4px; border: 1px solid #ddd; margin-top: 8px; }
+          .total { font-size: 13px; font-weight: bold; }
+          .footer { text-align: center; margin-top: 20px; font-size: 9px; color: #666; border-top: 1px dashed #bbb; padding-top: 12px; }
+          .footer p { margin-bottom: 2px; }
           @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
         </style>
       </head>
@@ -128,33 +139,75 @@ export default function CustomerDetailPage() {
         <div class="header">
           <h1>🏦 RECIBO DE PAGO</h1>
           <p>Obsidiana - Sistema de Gestión</p>
+          <div class="receipt-id">Nº ${data.receiptId}</div>
         </div>
+        
         <div class="divider"></div>
+        
+        <div class="section-title">Detalles del Comprobante</div>
         <div class="row">
-          <span class="label">Fecha:</span>
+          <span class="label">Fecha y Hora:</span>
           <span class="value">${data.date}</span>
         </div>
         <div class="row">
-          <span class="label">Cliente:</span>
-          <span class="value">${data.customerName}</span>
-        </div>
-        <div class="row">
-          <span class="label">Orden Nº:</span>
+          <span class="label">Orden vinculada:</span>
           <span class="value">#${data.orderNumber}</span>
         </div>
         <div class="row">
-          <span class="label">Método:</span>
+          <span class="label">Método de pago:</span>
           <span class="value" style="text-transform: capitalize;">${data.method}</span>
         </div>
+        ${data.notes ? `
+        <div class="row">
+          <span class="label">Observaciones:</span>
+          <span class="value">${data.notes}</span>
+        </div>` : ''}
+
         <div class="divider"></div>
-        <div class="row total">
-          <span class="label">Monto Pagado:</span>
-          <span class="value">$ ${data.amount.toLocaleString('es-AR')}</span>
+
+        <div class="section-title">Datos del Cliente</div>
+        <div class="row">
+          <span class="label">Nombre:</span>
+          <span class="value">${data.customerName}</span>
         </div>
+        <div class="row">
+          <span class="label">DNI / CUIT:</span>
+          <span class="value">${data.customerDni}</span>
+        </div>
+        <div class="row">
+          <span class="label">Teléfono:</span>
+          <span class="value">${data.customerPhone}</span>
+        </div>
+        <div class="row">
+          <span class="label">Email:</span>
+          <span class="value">${data.customerEmail}</span>
+        </div>
+
         <div class="divider"></div>
+
+        <div class="section-title">Resumen de Cuenta</div>
+        <div class="row">
+          <span class="label">Saldo anterior:</span>
+          <span class="value">$ ${(data?.previousBalance ?? 0).toLocaleString('es-AR')}</span>
+        </div>
+        <div class="row total">
+          <span class="label">Monto abonado:</span>
+          <span class="value">$ ${(data?.amount ?? 0).toLocaleString('es-AR')}</span>
+        </div>
+        
+        <div class="balance-box">
+          <div class="row" style="margin: 0; font-weight: bold;">
+            <span class="label" style="color: #111;">${(data?.newBalance ?? 0) > 0 ? 'Saldo pendiente restante:' : 'Saldo a favor restante:'}</span>
+            <span class="value" style="font-size: 12px; color: ${(data?.newBalance ?? 0) > 0 ? '#b91c1c' : '#15803d'};">
+              $ ${Math.abs(data?.newBalance ?? 0).toLocaleString('es-AR')}
+            </span>
+          </div>
+        </div>
+
         <div class="footer">
-          <p>Gracias por su pago</p>
-          <p>Documento válido sin firma</p>
+          <p>¡Muchas gracias por su pago!</p>
+          <p>Documento de control interno no válido como factura fiscal</p>
+          <p>Obsidiana Cloud POS</p>
         </div>
         <script>window.onload = () => { window.print(); }</script>
       </body>
@@ -200,15 +253,19 @@ export default function CustomerDetailPage() {
        // Fetch orders for this customer
        const { data: ordersData, error: ordersError } = await supabase
          .from('orders')
-         .select('id, number, total_ars, subtotal_ars, tax_ars, status, financial_status, fulfillment_status, channel, placed_at')
+         .select('id, number, total_ars, subtotal_ars, tax_ars, status, financial_status, channel, placed_at')
          .eq('customer_id', id)
          .order('placed_at', { ascending: false });
 
        if (ordersError) {
          console.error('Error fetching orders:', ordersError);
        } else {
-
-         setOrders(ordersData || []);
+         // Map fulfillment_status in memory since it's not a database column
+         const mappedOrders = (ordersData || []).map(order => ({
+           ...order,
+           fulfillment_status: order.channel === 'pos' || order.status === 'delivered' ? 'fulfilled' : 'unfulfilled'
+         })) as any[];
+         setOrders(mappedOrders);
        }
 
       // Fetch payments for this customer's orders
@@ -299,16 +356,22 @@ export default function CustomerDetailPage() {
       };
       const gateway = gatewayMap[paymentMethod] || 'cash';
       
-      const { error: paymentError } = await supabase
+      const { data: insertedPayment, error: paymentError } = await supabase
         .from('payments')
         .insert({
           tenant_id: tenantId,
           order_id: selectedOrderForPayment.id,
           status: 'paid',
           amount: Math.round(amount),
+          amount_ars: Math.round(amount),
           method: paymentMethod,
-          created_at: new Date().toISOString()
-        });
+          gateway: gateway,
+          processed_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          metadata: { type: 'credit_repayment' }
+        })
+        .select('id')
+        .single();
 
       if (paymentError) throw paymentError;
 
@@ -337,6 +400,9 @@ export default function CustomerDetailPage() {
 
       if (updateError) throw updateError;
 
+      // Guardar saldo antes de recargar
+      const prevBal = pendingAmount;
+
       // 4. Cerrar modal y recargar datos
       setShowPaymentModal(false);
       setSelectedOrderForPayment(null);
@@ -348,14 +414,21 @@ export default function CustomerDetailPage() {
       
       // Mostrar recibo
       setLastPaymentReceipt({
+        receiptId: insertedPayment?.id ? insertedPayment.id.substring(0, 8).toUpperCase() : 'REC-' + Math.floor(Math.random()*100000),
         orderNumber: selectedOrderForPayment.number,
         amount: Math.round(amount),
         method: paymentMethod,
         date: new Date().toLocaleString('es-AR'),
-        customerName: customer ? (customer.nombre || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()) : 'Cliente'
+        customerName: customer ? (customer.nombre || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()) : 'Cliente',
+        customerDni: customer?.dni_cuit || 'No registrado',
+        customerPhone: customer?.phone || 'No registrado',
+        customerEmail: customer?.email || 'No registrado',
+        previousBalance: prevBal,
+        newBalance: prevBal - amount,
+        notes: paymentNote || undefined
       });
       
-      alert(`Pago de $ ${amount.toLocaleString('es-AR')} registrado. Imprimiendo recibo...`);
+      alert(`Pago de $ ${(amount || 0).toLocaleString('es-AR')} registrado. Imprimiendo recibo...`);
 
     } catch (error: any) {
       console.error('Error al registrar pago:', error);
@@ -555,7 +628,7 @@ export default function CustomerDetailPage() {
             <span className="material-symbols-outlined text-7xl" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
           </div>
           <span className="font-black text-[10px] text-zinc-500 uppercase tracking-[0.2em] relative z-10">Total Gastado</span>
-          <span className="font-data-tabular text-2xl font-black text-white relative z-10">$ {totalSpent.toLocaleString('es-AR')}</span>
+          <span className="font-data-tabular text-2xl font-black text-white relative z-10">$ {(totalSpent || 0).toLocaleString('es-AR')}</span>
           <span className="font-body-sm text-emerald-400 font-black text-[10px] flex items-center gap-1.5 mt-2 relative z-10 uppercase tracking-widest">
             <span className="material-symbols-outlined text-[14px]">shopping_cart</span> 
             {orders.length} órdenes
@@ -583,9 +656,9 @@ export default function CustomerDetailPage() {
             pendingAmount > 0 ? 'text-red-500' : pendingAmount < 0 ? 'text-emerald-400' : 'text-white'
           }`}>
             {pendingAmount > 0 
-              ? `$ ${pendingAmount.toLocaleString('es-AR')}` 
+              ? `$ ${(pendingAmount || 0).toLocaleString('es-AR')}` 
               : pendingAmount < 0 
-                ? `$ ${Math.abs(pendingAmount).toLocaleString('es-AR')} a favor` 
+                ? `$ ${Math.abs(pendingAmount || 0).toLocaleString('es-AR')} a favor` 
                 : '$ 0'}
           </span>
           <span className={`font-body-sm font-black text-[10px] flex items-center gap-1.5 mt-2 relative z-10 uppercase tracking-widest ${
@@ -629,7 +702,7 @@ export default function CustomerDetailPage() {
           <span className={`font-data-tabular text-2xl font-black relative z-10 ${
             isOverLimit ? 'text-red-500' : creditUsagePercent > 80 ? 'text-amber-400' : 'text-white'
           }`}>
-            {creditLimit > 0 ? `$ ${availableCredit?.toLocaleString('es-AR')}` : '∞'}
+            {creditLimit > 0 ? `$ ${(availableCredit ?? 0).toLocaleString('es-AR')}` : '∞'}
           </span>
           {creditLimit > 0 && (
             <span className={`font-body-sm font-black text-[10px] flex items-center gap-1.5 mt-2 relative z-10 uppercase tracking-widest ${
@@ -776,7 +849,7 @@ export default function CustomerDetailPage() {
                                         <p className="text-[10px] text-zinc-600 font-black uppercase tracking-widest">SKU: {item.sku_snapshot || 'N/A'}</p>
                                       </div>
                                       <div className="text-right">
-                                        <p className="text-zinc-400 text-xs">{item.quantity} x $ {item.unit_price_ars?.toLocaleString('es-AR')}</p>
+                                        <p className="text-zinc-400 text-xs">{item.quantity} x $ {(item.unit_price_ars ?? 0).toLocaleString('es-AR')}</p>
                                         <p className="text-white font-black">$ {((item.unit_price_ars || 0) * item.quantity).toLocaleString('es-AR')}</p>
                                       </div>
                                     </div>
@@ -915,16 +988,16 @@ export default function CustomerDetailPage() {
                             )}
                           </td>
                           <td className="py-5 px-8 text-right font-black text-red-400">
-                            {transaction.type === 'charge' ? `$ ${transaction.amount.toLocaleString('es-AR')}` : '-'}
+                            {transaction.type === 'charge' ? `$ ${(transaction.amount || 0).toLocaleString('es-AR')}` : '-'}
                           </td>
                           <td className="py-5 px-8 text-right font-black text-emerald-400">
-                            {transaction.type === 'payment' || transaction.type === 'credit_note' ? `$ ${transaction.amount.toLocaleString('es-AR')}` : '-'}
+                            {transaction.type === 'payment' || transaction.type === 'credit_note' ? `$ ${(transaction.amount || 0).toLocaleString('es-AR')}` : '-'}
                           </td>
                           <td className={`py-5 px-8 text-right font-black text-lg ${runningBalance > 0 ? 'text-red-400' : runningBalance < 0 ? 'text-emerald-400' : 'text-white'}`}>
                             {runningBalance > 0 
-                              ? `$ ${runningBalance.toLocaleString('es-AR')}` 
+                              ? `$ ${(runningBalance || 0).toLocaleString('es-AR')}` 
                               : runningBalance < 0 
-                                ? `$ ${Math.abs(runningBalance).toLocaleString('es-AR')} a favor` 
+                                ? `$ ${Math.abs(runningBalance || 0).toLocaleString('es-AR')} a favor` 
                                 : '$ 0'}
                           </td>
                           <td className="py-5 px-8 text-center">
@@ -933,11 +1006,18 @@ export default function CustomerDetailPage() {
                                 onClick={() => {
                                   const order = orders.find(o => o.id === payment?.order_id);
                                   showReceiptPreviewModal({
+                                    receiptId: payment?.id ? payment.id.substring(0, 8).toUpperCase() : 'REC-' + Math.floor(Math.random()*100000),
                                     orderNumber: order?.number || 0,
                                     amount: transaction.amount,
                                     method: transaction.method || 'efectivo',
                                     date: new Date(transaction.date).toLocaleString('es-AR'),
-                                    customerName: customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : 'Cliente'
+                                    customerName: customer ? (customer.nombre || `${customer.first_name || ''} ${customer.last_name || ''}`.trim()) : 'Cliente',
+                                    customerDni: customer?.dni_cuit || 'No registrado',
+                                    customerPhone: customer?.phone || 'No registrado',
+                                    customerEmail: customer?.email || 'No registrado',
+                                    previousBalance: runningBalance + transaction.amount,
+                                    newBalance: runningBalance,
+                                    notes: (payment as any)?.note || undefined
                                   });
                                 }}
                                 className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-1 mx-auto"
@@ -970,9 +1050,9 @@ export default function CustomerDetailPage() {
                         const totalPayments = payments.filter(p => p.status === 'paid').reduce((acc, p) => acc + (p.amount_ars || 0), 0);
                         const diff = totalCharges - totalPayments;
                         return diff > 0 
-                          ? `$ ${diff.toLocaleString('es-AR')}` 
+                          ? `$ ${(diff || 0).toLocaleString('es-AR')}` 
                           : diff < 0 
-                            ? `$ ${Math.abs(diff).toLocaleString('es-AR')} a favor` 
+                            ? `$ ${Math.abs(diff || 0).toLocaleString('es-AR')} a favor` 
                             : '$ 0';
                       })()}
                     </td>
@@ -1074,15 +1154,15 @@ export default function CustomerDetailPage() {
               <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/5">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-zinc-400">Total Orden:</span>
-                  <span className="text-white font-black">$ {(selectedOrderForPayment.total_ars || 0).toLocaleString('es-AR')}</span>
+                  <span className="text-white font-black">$ {((selectedOrderForPayment?.total_ars || 0)).toLocaleString('es-AR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-400">Saldo Pendiente:</span>
                   <span className="text-amber-400 font-black">
                     $ {(() => {
-                      const orderPayments = payments.filter(p => p.order_id === selectedOrderForPayment.id && p.status === 'paid');
+                      const orderPayments = payments.filter(p => p.order_id === selectedOrderForPayment?.id && p.status === 'paid');
                       const totalPaid = orderPayments.reduce((acc, p) => acc + (p.amount_ars || 0), 0);
-                      return (selectedOrderForPayment.total_ars - totalPaid).toLocaleString('es-AR');
+                      return ((selectedOrderForPayment?.total_ars || 0) - totalPaid).toLocaleString('es-AR');
                     })()}
                   </span>
                 </div>
@@ -1193,44 +1273,104 @@ export default function CustomerDetailPage() {
             </div>
 
             <div className="p-6">
-              <div className="bg-white text-black rounded-lg p-6 max-w-xs mx-auto">
-                <div className="text-center mb-4 border-b border-gray-200 pb-4">
-                  <h1 className="text-lg font-black">RECIBO DE PAGO</h1>
-                  <p className="text-xs text-gray-500 mt-1">Obsidiana - Sistema de Gestión</p>
+              {/* Ticket Container */}
+              <div className="bg-white text-zinc-900 rounded-2xl p-6 max-w-sm mx-auto shadow-inner border border-gray-100 font-sans relative overflow-hidden">
+                {/* Decorative top bar */}
+                <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
+                
+                <div className="text-center mb-5 pb-4 border-b border-gray-100">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-violet-100 text-violet-600 mb-2">
+                    <span className="material-symbols-outlined text-xl">receipt_long</span>
+                  </div>
+                  <h1 className="text-base font-black uppercase tracking-wider text-zinc-950">RECIBO DE PAGO</h1>
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">Obsidiana POS</p>
+                  <p className="text-[11px] font-black text-violet-600 mt-1 bg-violet-50 px-2.5 py-0.5 rounded-full inline-block">Nº {previewReceipt.receiptId}</p>
                 </div>
                 
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Fecha:</span>
-                    <span className="font-semibold">{previewReceipt.date}</span>
+                <div className="space-y-4 text-xs">
+                  {/* Detalle del Pago */}
+                  <div>
+                    <h3 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 border-b border-gray-50 pb-0.5">Detalles del Comprobante</h3>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Fecha y Hora:</span>
+                        <span className="font-semibold text-zinc-800">{previewReceipt.date}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Orden vinculada:</span>
+                        <span className="font-semibold text-zinc-800">#{previewReceipt.orderNumber}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Método de pago:</span>
+                        <span className="font-semibold text-zinc-800 capitalize">{previewReceipt.method}</span>
+                      </div>
+                      {previewReceipt.notes && (
+                        <div className="flex justify-between">
+                          <span className="text-zinc-500">Observaciones:</span>
+                          <span className="font-semibold text-zinc-800 italic">{previewReceipt.notes}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Cliente:</span>
-                    <span className="font-semibold">{previewReceipt.customerName}</span>
+
+                  {/* Datos del Cliente */}
+                  <div>
+                    <h3 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 border-b border-gray-50 pb-0.5">Datos del Cliente</h3>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Nombre:</span>
+                        <span className="font-semibold text-zinc-800">{previewReceipt.customerName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">DNI / CUIT:</span>
+                        <span className="font-semibold text-zinc-800">{previewReceipt.customerDni}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Teléfono:</span>
+                        <span className="font-semibold text-zinc-800">{previewReceipt.customerPhone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Email:</span>
+                        <span className="font-semibold text-zinc-800 truncate max-w-[180px]">{previewReceipt.customerEmail}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Orden Nº:</span>
-                    <span className="font-semibold">#{previewReceipt.orderNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Método:</span>
-                    <span className="font-semibold capitalize">{previewReceipt.method}</span>
+
+                  {/* Estado de Cuenta */}
+                  <div>
+                    <h3 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 border-b border-gray-50 pb-0.5">Resumen de Cuenta</h3>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Saldo anterior:</span>
+                        <span className="font-semibold text-zinc-700">$ {(previewReceipt?.previousBalance ?? 0).toLocaleString('es-AR')}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-zinc-900 border-t border-dashed border-gray-100 pt-1.5">
+                        <span>Monto abonado:</span>
+                        <span>$ {(previewReceipt?.amount ?? 0).toLocaleString('es-AR')}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="border-t border-gray-200 mt-4 pt-4">
-                  <div className="flex justify-between text-base font-black">
-                    <span>Monto Pagado:</span>
-                    <span>$ {previewReceipt.amount.toLocaleString('es-AR')}</span>
-                  </div>
+
+                <div className={`mt-4 p-3 rounded-xl border text-center ${
+                  (previewReceipt?.newBalance ?? 0) > 0 
+                    ? 'bg-red-50 border-red-100 text-red-700' 
+                    : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                }`}>
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-85">
+                    {(previewReceipt?.newBalance ?? 0) > 0 ? 'Saldo Pendiente Restante' : 'Saldo a Favor Restante'}
+                  </p>
+                  <p className="text-lg font-black mt-0.5">
+                    $ {Math.abs(previewReceipt?.newBalance ?? 0).toLocaleString('es-AR')}
+                  </p>
                 </div>
                 
-                <div className="text-center mt-6 text-xs text-gray-400">
-                  <p>Gracias por su pago</p>
-                  <p>Documento válido sin firma</p>
+                <div className="text-center mt-5 pt-3 border-t border-dashed border-gray-100 text-[9px] text-zinc-400 font-medium">
+                  <p>Documento de control interno no válido como factura fiscal</p>
                 </div>
               </div>
 
+              {/* Action Buttons */}
               <div className="flex gap-3 mt-6">
                 <button
                   type="button"

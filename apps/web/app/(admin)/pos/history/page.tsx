@@ -368,6 +368,12 @@ export default function CashHistoryPage() {
                   <span>Efectivo Ventas:</span>
                   <span>$ {parseFloat(String(selectedSession.sales_breakdown?.efectivo || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                 </div>
+                {(selectedSession.sales_breakdown?.repayment_efectivo || 0) > 0 && (
+                  <div className="flex justify-between text-zinc-400 pl-2">
+                    <span>└ Cobros Cta Cte:</span>
+                    <span>$ {parseFloat(String(selectedSession.sales_breakdown?.repayment_efectivo || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-white">
                   <span>Efectivo Esperado:</span>
                   <span>$ {parseFloat(String(selectedSession.expected_amount || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
@@ -387,14 +393,32 @@ export default function CashHistoryPage() {
                   <span>Ventas Tarjeta:</span>
                   <span>$ {parseFloat(String(selectedSession.sales_breakdown?.tarjeta || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                 </div>
+                {(selectedSession.sales_breakdown?.repayment_tarjeta || 0) > 0 && (
+                  <div className="flex justify-between text-zinc-400 pl-2">
+                    <span>└ Cobros Cta Tarjeta:</span>
+                    <span>$ {parseFloat(String(selectedSession.sales_breakdown?.repayment_tarjeta || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Ventas Mercado Pago:</span>
                   <span>$ {parseFloat(String(selectedSession.sales_breakdown?.mercadopago || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                 </div>
+                {(selectedSession.sales_breakdown?.repayment_mercadopago || 0) > 0 && (
+                  <div className="flex justify-between text-zinc-400 pl-2">
+                    <span>└ Cobros Cta MP:</span>
+                    <span>$ {parseFloat(String(selectedSession.sales_breakdown?.repayment_mercadopago || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Transferencias:</span>
                   <span>$ {parseFloat(String(selectedSession.sales_breakdown?.transferencia || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                 </div>
+                {(selectedSession.sales_breakdown?.repayment_transferencia || 0) > 0 && (
+                  <div className="flex justify-between text-zinc-400 pl-2">
+                    <span>└ Cobros Cta Transf:</span>
+                    <span>$ {parseFloat(String(selectedSession.sales_breakdown?.repayment_transferencia || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-white pt-1">
                   <span>Total Facturado:</span>
                   <span>$ {parseFloat(String(selectedSession.total_sales || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>

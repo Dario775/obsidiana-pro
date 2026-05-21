@@ -56,7 +56,7 @@ export default function ZClosurePage() {
         // Fetch payments since opened_at
         const { data: paymentsData, error: paymentsError } = await supabase
           .from('payments')
-          .select('id, amount_ars, method, processed_at')
+          .select('id, amount_ars, method, processed_at, metadata, order_id, orders(placed_at, total_ars)')
           .eq('tenant_id', tenant!.id)
           .gte('processed_at', session.opened_at);
 
@@ -92,21 +92,45 @@ export default function ZClosurePage() {
     let cardSales = 0;
     let transferSales = 0;
 
+    // Group credit repayments by method
+    let repaymentCash = 0;
+    let repaymentMp = 0;
+    let repaymentCard = 0;
+    let repaymentTransfer = 0;
+
     payments.forEach((p: any) => {
       const amt = parseFloat(p.amount_ars) || 0;
       const method = (p.method || '').toLowerCase();
-      if (method === 'efectivo') {
-        cashSales += amt;
-      } else if (method === 'mercadopago' || method === 'mp') {
-        mpSales += amt;
-      } else if (method === 'tarjeta') {
-        cardSales += amt;
+
+      // Determine if this is a credit repayment
+      const isRepayment = p.metadata?.type === 'credit_repayment' || (
+        p.orders && new Date(p.processed_at || p.created_at).getTime() - new Date(p.orders.placed_at).getTime() > 10000
+      );
+
+      if (isRepayment) {
+        if (method === 'efectivo') {
+          repaymentCash += amt;
+        } else if (method === 'mercadopago' || method === 'mp') {
+          repaymentMp += amt;
+        } else if (method === 'tarjeta') {
+          repaymentCard += amt;
+        } else {
+          repaymentTransfer += amt;
+        }
       } else {
-        transferSales += amt;
+        if (method === 'efectivo') {
+          cashSales += amt;
+        } else if (method === 'mercadopago' || method === 'mp') {
+          mpSales += amt;
+        } else if (method === 'tarjeta') {
+          cardSales += amt;
+        } else {
+          transferSales += amt;
+        }
       }
     });
 
-    const expectedCash = initialCash + cashSales;
+    const expectedCash = initialCash + cashSales + repaymentCash;
     const totalFacturado = orders.reduce((sum: number, o: any) => sum + (parseFloat(o.total_ars) || 0), 0);
     const operationsCount = orders.length;
     const ticketPromedio = operationsCount > 0 ? totalFacturado / operationsCount : 0;
@@ -114,6 +138,8 @@ export default function ZClosurePage() {
     // Actual cash input value
     const actualCash = parseFloat(actualAmountInput) || 0;
     const difference = actualCash - expectedCash;
+    
+    const repaymentTotal = repaymentCash + repaymentMp + repaymentCard + repaymentTransfer;
 
     return {
       initialCash,
@@ -121,6 +147,11 @@ export default function ZClosurePage() {
       mpSales,
       cardSales,
       transferSales,
+      repaymentCash,
+      repaymentMp,
+      repaymentCard,
+      repaymentTransfer,
+      repaymentTotal,
       expectedCash,
       totalFacturado,
       operationsCount,
@@ -152,7 +183,12 @@ export default function ZClosurePage() {
             mercadopago: stats.mpSales,
             tarjeta: stats.cardSales,
             transferencia: stats.transferSales,
-            monto_inicial: stats.initialCash
+            monto_inicial: stats.initialCash,
+            repayment_efectivo: stats.repaymentCash,
+            repayment_mercadopago: stats.repaymentMp,
+            repayment_tarjeta: stats.repaymentCard,
+            repayment_transferencia: stats.repaymentTransfer,
+            repayment_total: stats.repaymentTotal
           },
           arca_status: hasArca ? 'approved' : 'none',
           arca_report_id: zReportId,
@@ -274,6 +310,12 @@ export default function ZClosurePage() {
               <span>Efectivo Ventas:</span>
               <span>$ {parseFloat(closedSession.sales_breakdown?.efectivo || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
             </div>
+            {(closedSession.sales_breakdown?.repayment_efectivo || 0) > 0 && (
+              <div className="flex justify-between text-zinc-400 print:text-zinc-600 pl-2">
+                <span>└ Cobros Cta Cte:</span>
+                <span>$ {parseFloat(closedSession.sales_breakdown?.repayment_efectivo || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-white print:text-black">
               <span>Efectivo Esperado:</span>
               <span>$ {parseFloat(closedSession.expected_amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
@@ -293,10 +335,28 @@ export default function ZClosurePage() {
               <span>Ventas Tarjeta:</span>
               <span>$ {parseFloat(closedSession.sales_breakdown?.tarjeta || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
             </div>
+            {(closedSession.sales_breakdown?.repayment_tarjeta || 0) > 0 && (
+              <div className="flex justify-between text-zinc-400 print:text-zinc-600 pl-2">
+                <span>└ Cobros Cta Tarjeta:</span>
+                <span>$ {parseFloat(closedSession.sales_breakdown?.repayment_tarjeta || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span>Ventas Mercado Pago:</span>
               <span>$ {parseFloat(closedSession.sales_breakdown?.mercadopago || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
             </div>
+            {(closedSession.sales_breakdown?.repayment_mercadopago || 0) > 0 && (
+              <div className="flex justify-between text-zinc-400 print:text-zinc-600 pl-2">
+                <span>└ Cobros Cta MP:</span>
+                <span>$ {parseFloat(closedSession.sales_breakdown?.repayment_mercadopago || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {(closedSession.sales_breakdown?.repayment_transferencia || 0) > 0 && (
+              <div className="flex justify-between text-zinc-400 print:text-zinc-600 pl-2">
+                <span>Cobros Cta Transf:</span>
+                <span>$ {parseFloat(closedSession.sales_breakdown?.repayment_transferencia || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-white print:text-black pt-1">
               <span>Total Facturado:</span>
               <span>$ {parseFloat(closedSession.total_sales).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
@@ -503,6 +563,61 @@ export default function ZClosurePage() {
                 </span>
               </div>
             </div>
+
+            {stats && stats.repaymentTotal > 0 && (
+              <>
+                <h3 className="text-xs font-black text-white mt-8 mb-4 uppercase tracking-[0.2em] flex items-center gap-3 text-zinc-400 border-t border-white/5 pt-6">
+                  <span className="material-symbols-outlined text-zinc-500 text-sm">group</span>
+                  Cobros Cuenta Corriente / Créditos
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {stats.repaymentCash > 0 && (
+                    <div className="bg-zinc-900/30 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-emerald-400">payments</span>
+                        <span className="font-bold text-xs text-zinc-500">Cobrado en Efectivo</span>
+                      </div>
+                      <span className="font-data-tabular font-black text-emerald-400">
+                        $ {stats.repaymentCash.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+                  {stats.repaymentMp > 0 && (
+                    <div className="bg-zinc-900/30 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-blue-400">qr_code_scanner</span>
+                        <span className="font-bold text-xs text-zinc-500">Cobrado Mercado Pago</span>
+                      </div>
+                      <span className="font-data-tabular font-black text-emerald-400">
+                        $ {stats.repaymentMp.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+                  {stats.repaymentCard > 0 && (
+                    <div className="bg-zinc-900/30 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-orange-400">credit_card</span>
+                        <span className="font-bold text-xs text-zinc-500">Cobrado con Tarjeta</span>
+                      </div>
+                      <span className="font-data-tabular font-black text-emerald-400">
+                        $ {stats.repaymentCard.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+                  {stats.repaymentTransfer > 0 && (
+                    <div className="bg-zinc-900/30 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-purple-400">account_balance</span>
+                        <span className="font-bold text-xs text-zinc-500">Cobrado Transferencia</span>
+                      </div>
+                      <span className="font-data-tabular font-black text-emerald-400">
+                        $ {stats.repaymentTransfer.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

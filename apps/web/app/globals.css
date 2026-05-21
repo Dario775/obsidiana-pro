@@ -14,38 +14,232 @@
 
 @layer base {
   :root {
-    --background: 19 19 19;
-    --on-background: 229 226 225;
-    --primary: 139 92 246;
+    /* Brand Logo Colors: Violet (#8f00ff / 143 0 255) and Fuchsia (#d946ef / 217 70 239) */
+    --background: 248 250 252; /* balanced premium light-gray background (#F8FAFC) */
+    --on-background: 24 24 27; /* zinc-900 */
+    
+    --primary: 143 0 255; /* vivid brand violet */
     --on-primary: 255 255 255;
-    --primary-container: 124 58 237;
-    --on-primary-container: 255 255 255;
-    --secondary: 217 70 239;
+    --primary-container: 243 235 255;
+    --on-primary-container: 109 40 217;
+    
+    --secondary: 139 92 246; /* purple/violet (#8b5cf6) */
     --on-secondary: 255 255 255;
-    --secondary-container: 217 70 239;
-    --on-secondary-container: 255 255 255;
-    --surface: 10 10 10;
-    --on-surface: 229 226 225;
-    --surface-variant: 24 24 24;
-    --on-surface-variant: 160 160 160;
-    --surface-container: 15 15 15;
-    --surface-container-low: 18 18 18;
-    --surface-container-lowest: 10 10 10;
-    --surface-container-high: 26 26 26;
-    --surface-container-highest: 30 30 30;
-    --surface-dim: 5 5 5;
-    --outline: 255 255 255;
-    --outline-variant: 30 30 30;
+    --secondary-container: 243 235 255;
+    --on-secondary-container: 109 40 217;
+    
+    --surface: 255 255 255;
+    --on-surface: 24 24 27;
+    --surface-variant: 244 245 246;
+    --on-surface-variant: 113 113 122;
+    
+    --surface-container-lowest: 255 255 255;
+    --surface-container-low: 252 252 253;
+    --surface-container: 248 249 250;
+    --surface-container-high: 243 244 246;
+    --surface-container-highest: 228 228 231;
+    --surface-dim: 220 220 225;
+    
+    --outline: 148 148 164; /* cool slate gray outline */
+    --outline-variant: 228 228 231;
     --error: 239 68 68;
     --on-error: 255 255 255;
-    --error-container: 239 68 68;
-    --on-error-container: 255 255 255;
+    --error-container: 254 226 226;
+    --on-error-container: 153 27 27;
+
+    /* Dynamic Zinc Scale - Sophisticated Inversion */
+    --zinc-50: 24 24 27;       /* text is zinc-900 */
+    --zinc-100: 39 39 42;      /* headings / zinc-800 */
+    --zinc-200: 63 63 70;      /* body / zinc-700 */
+    --zinc-300: 82 82 91;      /* zinc-600 */
+    --zinc-400: 113 113 122;    /* subtle / zinc-500 */
+    --zinc-500: 161 161 170;    /* borders / zinc-400 */
+    --zinc-600: 212 212 216;    /* zinc-300 */
+    --zinc-700: 228 228 231;    /* zinc-200 */
+    --zinc-800: 244 244 245;    /* zinc-100 */
+    --zinc-900: 255 255 255;    /* card bg is pure white */
+    --zinc-950: 248 250 252;    /* page bg is balanced light-gray */
+
+    /* Dynamic White/Black */
+    --text-white-val: 39 39 42;   /* text-white becomes soft charcoal */
+    --border-white-val: 148 148 164; /* borders are soft cool-slate gray */
+
+    /* Dynamic Hex Codes Overrides */
+    --bg-1a1a1a: 255 255 255;      /* cards are clean white */
+    --bg-1e1e1e: 248 249 250;      /* sub-containers blend smoothly */
+    --bg-0d0d0e: 246 247 249;      /* modal/side backgrounds */
+    --bg-121214: 255 255 255;      /* inputs remain clean white */
+    --bg-16161a: 248 249 250;      /* dropdowns match surfaces */
+    --bg-hover-6d28d9: 109 40 217;
+
     --font-inter: 'Inter', sans-serif;
     --font-headline: 'Inter', sans-serif;
     --font-body: 'Inter', sans-serif;
     --font-label: 'Inter', sans-serif;
     --font-data: 'Inter', sans-serif;
   }
+
+  .dark {
+    --background: 14 13 18; /* Deep obsidian black */
+    --on-background: 229 226 232;
+    
+    --primary: 167 139 250; /* violet-400 */
+    --on-primary: 0 0 0;
+    --primary-container: 109 40 217;
+    --on-primary-container: 238 222 255;
+    
+    --secondary: 139 92 246; /* violet-500 (#8b5cf6) */
+    --on-secondary: 255 255 255;
+    --secondary-container: 109 40 217; /* violet-700 (#6d28d9) */
+    --on-secondary-container: 238 222 255;
+    
+    --surface: 14 13 17;
+    --on-surface: 229 226 232;
+    --surface-variant: 27 25 34;
+    --on-surface-variant: 156 163 175;
+    
+    --surface-container-lowest: 8 7 10;
+    --surface-container-low: 17 16 21;
+    --surface-container: 22 21 28;
+    --surface-container-high: 32 31 39;
+    --surface-container-highest: 43 42 51;
+    --surface-dim: 11 10 14;
+    
+    --outline: 255 255 255;
+    --outline-variant: 43 42 51;
+    --error: 248 113 113;
+    --on-error: 0 0 0;
+    --error-container: 153 27 27;
+    --on-error-container: 254 226 226;
+
+    /* Dynamic Zinc Scale - Normal for Dark Mode */
+    --zinc-50: 250 250 250;
+    --zinc-100: 244 244 245;
+    --zinc-200: 228 228 231;
+    --zinc-300: 212 212 216;
+    --zinc-400: 161 161 170;
+    --zinc-500: 113 113 122;
+    --zinc-600: 82 82 91;
+    --zinc-700: 63 63 70;
+    --zinc-800: 39 39 42;
+    --zinc-900: 24 24 27;
+    --zinc-950: 9 9 11;
+
+    /* Dynamic White/Black */
+    --text-white-val: 255 255 255;
+    --border-white-val: 255 255 255;
+
+    /* Dynamic Hex Codes Overrides */
+    --bg-1a1a1a: 26 26 26;
+    --bg-1e1e1e: 30 30 30;
+    --bg-0d0d0e: 13 13 14;
+    --bg-121214: 18 18 20;
+    --bg-16161a: 22 22 26;
+    --bg-hover-6d28d9: 109 40 217;
+  }
+}
+
+/* Dynamic overrides for arbitrary hex backgrounds */
+.bg-\[\#1A1A1A\], .bg-\[\#1a1a1a\] {
+  background-color: rgb(var(--bg-1a1a1a)) !important;
+}
+.bg-\[\#1E1E1E\], .bg-\[\#1e1e1e\] {
+  background-color: rgb(var(--bg-1e1e1e)) !important;
+}
+.bg-\[\#0D0D0E\], .bg-\[\#0d0d0e\] {
+  background-color: rgb(var(--bg-0d0d0e)) !important;
+}
+.bg-\[\#121214\] {
+  background-color: rgb(var(--bg-121214)) !important;
+}
+.bg-\[\#16161a\], .bg-\[\#16161A\] {
+  background-color: rgb(var(--bg-16161a)) !important;
+}
+.hover\:bg-\[\#6D28D9\]:hover, .hover\:bg-\[\#6d28d9\]:hover {
+  background-color: rgb(var(--bg-hover-6d28d9)) !important;
+}
+
+/* Dynamic overrides for text-white and white borders */
+.text-white {
+  color: rgb(var(--text-white-val)) !important;
+}
+.border-white\/5 {
+  border-color: rgb(var(--border-white-val) / 0.05) !important;
+}
+.border-white\/10 {
+  border-color: rgb(var(--border-white-val) / 0.1) !important;
+}
+.border-white\/20 {
+  border-color: rgb(var(--border-white-val) / 0.2) !important;
+}
+.bg-white\/5 {
+  background-color: rgb(var(--border-white-val) / 0.05) !important;
+}
+.bg-white\/10 {
+  background-color: rgb(var(--border-white-val) / 0.1) !important;
+}
+.bg-white\/20 {
+  background-color: rgb(var(--border-white-val) / 0.2) !important;
+}
+
+/* Exception rules to keep button text white on solid colored backgrounds */
+button.text-white,
+a.text-white,
+.bg-primary-container .text-white,
+.bg-primary-container.text-white,
+.bg-primary .text-white,
+.bg-primary.text-white,
+.bg-secondary-container .text-white,
+.bg-secondary-container.text-white,
+.bg-secondary .text-white,
+.bg-secondary.text-white,
+.bg-violet-600 .text-white,
+.bg-violet-600.text-white,
+.bg-violet-500 .text-white,
+.bg-violet-500.text-white,
+.bg-emerald-600 .text-white,
+.bg-emerald-600.text-white,
+.bg-emerald-500 .text-white,
+.bg-emerald-500.text-white,
+.bg-red-500 .text-white,
+.bg-red-500.text-white,
+.bg-red-600 .text-white,
+.bg-red-600.text-white,
+.bg-green-600 .text-white,
+.bg-green-600.text-white,
+.bg-blue-600 .text-white,
+.bg-blue-600.text-white,
+.bg-blue-500 .text-white,
+.bg-blue-500.text-white {
+  color: #ffffff !important;
+}
+
+/* Soften bold weights in Light Mode to match premium SaaS typography */
+html:not(.dark) .font-black {
+  font-weight: 800 !important;
+}
+html:not(.dark) .font-extrabold {
+  font-weight: 700 !important;
+}
+html:not(.dark) .font-bold {
+  font-weight: 600 !important;
+}
+html:not(.dark) .font-semibold {
+  font-weight: 500 !important;
+}
+html:not(.dark) .font-medium {
+  font-weight: 500 !important;
+}
+
+/* Color de botones al presionarlos en tema oscuro (Violeta con letras blancas) */
+.dark button:active,
+.dark .bg-secondary:active,
+.dark .bg-primary:active,
+.dark a.bg-secondary:active,
+.dark a.bg-primary:active,
+.dark [role="button"]:active {
+  background-color: rgb(139 92 246) !important;
+  color: #ffffff !important;
 }
 
 /* PWA Native optimizations */

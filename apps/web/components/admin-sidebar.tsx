@@ -13,7 +13,7 @@ interface SidebarProps {
 
 export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, signOut, role, permissions } = useAuth();
   const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading, tenant } = useTenant();
   const isSuperAdmin = user?.email === 'admin@admin.com';
   const isPlatformAdmin = isSuperAdmin || tenant?.is_platform_admin === true;
@@ -27,20 +27,20 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
     const active = isActive(path);
     return `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-inter text-[13px] font-semibold ${
       active 
-        ? 'bg-violet-500/10 text-violet-400 border-r-2 border-violet-500' 
+        ? 'bg-secondary/10 text-secondary border-r-2 border-secondary' 
         : 'text-zinc-500 hover:text-white hover:bg-white/5'
     }`;
   };
 
   return (
-    <nav className={`hidden lg:flex flex-col h-full py-6 bg-zinc-900 border-r border-white/5 w-64 fixed top-0 left-0 z-40 transition-all duration-300 ease-in-out ${
+    <nav className={`hidden lg:flex flex-col h-screen overflow-y-auto py-6 bg-zinc-900 border-r border-white/5 w-64 fixed top-0 left-0 z-40 transition-all duration-300 ease-in-out ${
       isCollapsed ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0'
     }`}>
       <div className="px-6 mb-8 flex flex-col gap-2 relative">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src="/logo.svg" alt="Obsidiana" className="w-6 h-6 object-contain brightness-110" />
-            <h1 className="text-lg font-black text-white leading-none tracking-tight">Obsidiana</h1>
+            <h1 className="text-lg font-black text-white dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-r dark:from-violet-400 dark:to-fuchsia-400 leading-none tracking-tight">Obsidiana</h1>
           </div>
           {onToggle && (
             <button 
@@ -75,7 +75,7 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
               Super Admin
             </Link>
           ) : (
-            <Link href="/pos/terminal" className="w-full bg-primary-container text-white rounded-lg py-2 font-label-md uppercase tracking-wider hover:bg-opacity-90 transition-colors text-xs font-bold active:scale-95 transition-all text-center">
+            <Link href="/pos/terminal" className="w-full bg-secondary dark:bg-gradient-to-r dark:from-violet-600 dark:to-fuchsia-600 dark:hover:from-violet-500 dark:hover:to-fuchsia-500 text-white rounded-lg py-2 font-label-md uppercase tracking-wider hover:brightness-110 transition-all text-xs font-bold active:scale-95 text-center shadow-md dark:shadow-violet-500/10">
               Venta Rápida
             </Link>
           )}
@@ -99,18 +99,22 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
                 Terminal POS
               </Link>
             </li>
-            <li>
-              <Link href="/pos/closure" className={navItemClasses('/pos/closure')}>
-                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/pos/closure') ? "'FILL' 1" : "" }}>lock</span>
-                Cierre de Caja (Z)
-              </Link>
-            </li>
-            <li>
-              <Link href="/pos/history" className={navItemClasses('/pos/history')}>
-                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/pos/history') ? "'FILL' 1" : "" }}>history</span>
-                Historial de Caja
-              </Link>
-            </li>
+            {permissions.cash_close !== false && (
+              <>
+                <li>
+                  <Link href="/pos/closure" className={navItemClasses('/pos/closure')}>
+                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/pos/closure') ? "'FILL' 1" : "" }}>lock</span>
+                    Cierre de Caja (Z)
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/pos/history" className={navItemClasses('/pos/history')}>
+                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/pos/history') ? "'FILL' 1" : "" }}>history</span>
+                    Historial de Caja
+                  </Link>
+                </li>
+              </>
+            )}
             <li>
               <Link href="/inventory" className={navItemClasses('/inventory')}>
                 <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/inventory') ? "'FILL' 1" : "" }}>inventory_2</span>
@@ -127,7 +131,7 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
         </div>
 
         {/* Online Store Module */}
-        <div className={`rounded-2xl p-2 border ${isOnlineStoreEnabled ? 'bg-violet-500/5 border-violet-500/20' : 'bg-zinc-900/50 border-white/5'}`}>
+        <div className={`rounded-2xl p-2 border ${isOnlineStoreEnabled ? 'bg-secondary/5 border-secondary/20' : 'bg-zinc-900/50 border-white/5'}`}>
           <div className="flex items-center justify-between px-3 py-2 mb-2">
             <h2 className="text-[10px] font-medium text-secondary uppercase tracking-wider">Tienda Online</h2>
             {tenantLoading ? (
@@ -180,10 +184,12 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
 
         {/* Global Settings */}
         <div className="mt-auto pt-4 border-t border-white/5 space-y-1">
-          <Link href="/settings" className={navItemClasses('/settings')}>
-            <span className="material-symbols-outlined text-[18px]">settings</span>
-            Ajustes Globales
-          </Link>
+          {(role === 'owner' || role === 'admin') && (
+            <Link href="/settings" className={navItemClasses('/settings')}>
+              <span className="material-symbols-outlined text-[18px]">settings</span>
+              Ajustes Globales
+            </Link>
+          )}
           <button
             onClick={signOut}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-inter text-[13px] font-semibold text-zinc-500 hover:text-red-400 hover:bg-red-500/10 w-full"
