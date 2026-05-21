@@ -5,8 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 function UnauthorizedContent() {
-  const { user, signOut } = useAuth();
-  const { user, isSuperAdmin } = useAuth();
+  const { user, signOut, isSuperAdmin } = useAuth();
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 relative overflow-hidden font-inter selection:bg-violet-500/30 selection:text-white">

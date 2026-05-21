@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
 
 export default function BillingPage() {
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
   const [plans, setPlans] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,24 +21,32 @@ export default function BillingPage() {
   const [informPaymentStep, setInformPaymentStep] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!tenantLoading) {
+      fetchData();
+    }
+  }, [tenant, tenantLoading]);
 
   async function fetchData() {
+    if (!tenant?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [plansRes, paymentsRes, platformRes, productsRes] = await Promise.all([
         supabase.from('plans').select('*').order('monthly_price', { ascending: true }),
-        tenant ? supabase.from('subscription_payments').select('*').eq('tenant_id', tenant.id).order('paid_at', { ascending: false }) : Promise.resolve({ data: [] }),
+        supabase.from('subscription_payments').select('*').eq('tenant_id', tenant.id).order('paid_at', { ascending: false }),
         supabase.from('platform_config').select('*').eq('key', 'payment_config').limit(1).maybeSingle(),
-        tenant ? supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenant.id) : Promise.resolve({ count: 0 })
+        supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenant.id)
       ]);
-      if (plansRes.data) setPlans(plansRes.data);
-      if (paymentsRes.data) setPayments(paymentsRes.data);
+      setPlans(plansRes.data || []);
+      setPayments(paymentsRes.data || []);
       if (platformRes.data) setPlatformConfig(platformRes.data.value);
-      if (productsRes.count !== null) setProductCount(productsRes.count);
+      setProductCount(productsRes.count || 0);
     } catch (err) {
       console.error(err);
+      setPlans([]);
+      setPayments([]);
     } finally {
       setLoading(false);
     }
@@ -175,11 +183,20 @@ export default function BillingPage() {
     multi_user: 'Múltiples Accesos Staff'
   };
 
-  if (loading) {
+  if (tenantLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[600px] gap-4">
         <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
         <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">Sincronizando Facturación...</span>
+      </div>
+    );
+  }
+
+  if (!tenant) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[600px] gap-4">
+        <span className="material-symbols-outlined text-4xl text-red-500">warning</span>
+        <p className="text-zinc-500 font-black text-xs uppercase tracking-widest">No se pudo cargar tu tenant</p>
       </div>
     );
   }

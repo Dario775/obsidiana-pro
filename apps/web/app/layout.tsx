@@ -42,23 +42,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function() {
-            try {
-              var theme = localStorage.getItem('theme');
-              var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-              if (theme === 'dark' || (!theme && supportDarkMode)) {
-                document.documentElement.classList.add('dark');
-              } else {
-                document.documentElement.classList.remove('dark');
-              }
-            } catch (e) {}
-          })();
-        `}} />
-      </head>
+    <html lang="es" className="dark" suppressHydrationWarning>
       <body className={`${geist.variable} antialiased bg-background text-on-background font-body-sm min-h-screen`}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('theme');
+                  if (theme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <PWARegistry />
         <ThemeProvider>
           {children}
