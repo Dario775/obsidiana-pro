@@ -6,13 +6,22 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
   
   // 1. Lógica de Subdominios (Multi-tenancy)
-  const rootDomains = ['obsidiana.com.ar', 'localhost:3000', 'obsidiana-pro.vercel.app'];
-  const currentHost = hostname
-    .replace(':3000', '')
-    .replace('.obsidiana.com.ar', '')
-    .replace('.obsidiana-pro.vercel.app', '');
-
-  const isRootDomain = rootDomains.some(domain => hostname === domain) || currentHost === 'www' || currentHost === '';
+  // Detect root domains dynamically - supports any vercel/production domain
+  const isLocalhost = hostname.includes('localhost');
+  const isVercel = hostname.includes('vercel.app');
+  const isCustomDomain = hostname.includes('obsidiana.com.ar');
+  
+  // Extract subdomain if present
+  let currentHost = hostname;
+  if (isLocalhost) {
+    currentHost = hostname.replace(':3000', '');
+  } else if (isVercel) {
+    currentHost = hostname.replace('.vercel.app', '').split('.')[0] || hostname;
+  } else if (isCustomDomain) {
+    currentHost = hostname.replace('.obsidiana.com.ar', '');
+  }
+  
+  const isRootDomain = isLocalhost || isVercel || isCustomDomain || currentHost === 'www' || currentHost === hostname;
 
   // Si es un subdominio de tienda (ej: tienda1.obsidiana.com.ar)
   if (!isRootDomain) {
