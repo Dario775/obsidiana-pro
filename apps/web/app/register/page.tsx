@@ -62,13 +62,11 @@ export default function RegisterPage() {
   async function signInWithGoogle() {
     try {
       setGoogleLoading(true);
-      const state = storeName ? encodeURIComponent(storeName) : '';
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: { access_type: 'offline', prompt: 'consent' },
-          state: state || undefined,
         },
       });
     } catch (err: any) {
