@@ -1,7 +1,7 @@
 # Obsidiana - Sistema Checkpoint
 
-> Fecha: 2026-05-19
-> Estado: Sistema de Caja Operativo + ARCA Premium Gating + Chatbot Práctico + Branding Unificado ✅
+> Fecha: 2026-05-21
+> Estado: ✅ Auth Flow Hardened + Password Recovery + Subdomain Routing + plan_id UUID Fix + DB Audit Passed
 
 ---
 
@@ -138,9 +138,9 @@ Chatbot flotante integrado en el layout admin con respuestas predefinidas por ke
 ### Tablas Principales
 | Tabla | Descripción |
 |---|---|
-| `tenants` | Comercios (multi-tenancy). Incluye config de tienda online, plan, ML tokens |
-| `plans` | Planes de suscripción con features JSONB |
-| `products` | Catálogo de productos (campo `nombre` — NO `title`) |
+| `tenants` | Comercios (multi-tenancy). `plan_id` ahora referencia UUID a `plans.id` |
+| `plans` | Planes de suscripción con features JSONB. 3 planes: Free, Business, Pro (UUIDs fijos) |
+| `products` | Catálogo de productos (campo `nombre`) |
 | `product_variants` | Variantes (talle, color) con SKU y barcode |
 | `inventory_levels` | Stock por ubicación |
 | `orders` | Ventas (POS y online) |
@@ -148,7 +148,20 @@ Chatbot flotante integrado en el layout admin con respuestas predefinidas por ke
 | `payments` | Pagos registrados |
 | `customers` | Base de clientes con crédito |
 | `cash_sessions` | Turnos de caja |
-| `tenant_members` | Relación usuario↔tenant |
+| `tenant_members` | Relación usuario↔tenant con unique constraint `(user_id, tenant_id)` |
+| `locations` | Sucursales del tenant (creada, con RLS) |
+
+### RLS Policies Corregidas
+- `plans`: pública lectura (`plans_read_public`)
+- `tenant_members`: tenant-scoped SELECT, INSERT permitido
+- `locations`: tenant-scoped SELECT, service_role ALL
+
+### UUIDs de Planes
+| Plan | UUID |
+|---|---|
+| Free | `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1` |
+| Business | `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2` |
+| Pro | `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3` |
 
 ### Función PL/pgSQL `complete_pos_checkout`
 Función atómica que: registra orden, calcula IVA, agrega items con snapshots, descuenta stock, registra pago.
@@ -191,9 +204,11 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 ## 8. Tienda Online (Storefront)
 
 - Ruta dinámica: `app/(store)/tienda/[slug]/page.tsx`
-- Subdominios: `{slug}.obsidiana.com.ar` → reescrito por middleware a `/tienda/{slug}`
+- Subdominios: `{slug}.obsidiana.com.ar` en producción → reescrito por middleware; `/tienda/{slug}` en localhost
+- Helper: `lib/store-url.ts` genera URLs con subdominio o path según entorno
 - Carrito deslizante boutique con micro-stepper de 3 pasos
 - Checkout por WhatsApp
+- Productos de Mercado Libre importados con `available_online: true` aparecen automáticamente
 - Tipografías: Inter, Outfit
 - Temas: claro/oscuro
 - Páginas legales: Términos y Privacidad
@@ -203,7 +218,11 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 ## 9. Seguridad
 
 - **Anti-XSS**: Validador `validateImageFile` bloquea SVG/HTML, doble extensión, límite 2MB
-- **Middleware**: Autenticación Supabase SSR, redirección de rutas protegidas, multi-tenancy por subdominio
+- **Middleware**: Autenticación Supabase SSR, redirección de rutas protegidas, multi-tenancy por subdominio, prevención de open redirect
+- **Auth Flow**: Callback unificado `/auth/callback` maneja OAuth, recovery, signup. Crea tenant automático para Google users si falta
+- **OAuth State**: `storeName` pasado como `state` param en Google OAuth para creación de tenant
+- **Debounce**: `onAuthStateChange` con debounce para evitar multi-render en auth-provider
+- **Plan ID**: Validación de existencia del plan antes de crear tenant. Fallback a Free plan UUID
 - **CORS**: Rutas API protegidas
 
 ---
@@ -247,6 +266,12 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 - [x] Optimizaciones CSS de interacción nativa (overscroll-behavior-y, user-select: none, tap-highlight-color, transiciones activas)
 - [x] Barra de navegación dinámica inferior que resalta rutas activas y menú deslizable (Bottom Sheet Drawer) para secciones secundarias
 - [x] Banner flotante PWA de instalación premium con soporte para Android/Chrome y tutorial guiado interactivo para iOS Safari
+- [x] **Auth Flow Hardening**: OAuth redirect, error handling, automatic tenant creation for Google users, debounced auth state
+- [x] **Password Recovery**: Páginas `/forgot-password` y `/reset-password`, callback type=recovery/signup
+- [x] **Subdomain Store URLs**: Implementación con middleware + helper `lib/store-url.ts`, fix localhost detection
+- [x] **plan_id UUID Fix**: Migración de `text` a `uuid`, eliminación de planes duplicados con IDs de texto
+- [x] **Database Schema**: Tabla `locations` creada, RLS policies para plans/tenant_members/locations, unique constraint tenant_members
+- [x] **DB Audit**: 0 errores, 0 warnings. 3 planes, 2 tenants, 2 members, 2 locations, 5 auth users, todo consistente
 
 ## 12. Pendientes / Roadmap
 
@@ -255,6 +280,9 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 3. **Onboarding visual**: Wizard de personalización de banner al registrar un nuevo tenant
 4. **Notificaciones push**: Alertas de stock crítico y nuevos pedidos
 5. **Reportes avanzados**: Gráficos de rendimiento mensual y comparativos
+6. **Convertir `plan_id` a `uuid` nativo en DB**: Migración DDL pendiente (datos ya son UUIDs válidos)
+7. **Wildcard DNS `*.obsidiana.com.ar`**: Configurar en Vercel + proveedor DNS para subdominios
+8. **Probar importación ML end-to-end**: Verificar que productos importados aparecen en tienda online
 
 ---
 
