@@ -344,7 +344,11 @@ export default function CustomerDetailPage() {
 
     setProcessingPayment(true);
     try {
-      const tenantId = tenant?.id || '11111111-1111-1111-1111-111111111111';
+      if (!tenant?.id) {
+        alert('Error: No se pudo identificar el tenant. Recargá la página.');
+        return;
+      }
+      const tenantId = tenant.id;
 
       // 1. Registrar el pago
       // Convertir método de pago a gateway válido

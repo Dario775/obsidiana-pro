@@ -481,7 +481,11 @@ export default function POSPage() {
 
     setProcessingSale(true);
     try {
-      const tenantId = tenant?.id || '11111111-1111-1111-1111-111111111111';
+      if (!tenant?.id) {
+        alert('Error: No se pudo identificar el tenant. Recargá la página.');
+        return;
+      }
+      const tenantId = tenant.id;
 
       const checkoutPayload = buildPosCheckoutPayload({
         tenantId,

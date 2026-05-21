@@ -13,9 +13,8 @@ interface SidebarProps {
 
 export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const { user, signOut, role, permissions } = useAuth();
+  const { user, signOut, role, permissions, isSuperAdmin } = useAuth();
   const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading, tenant } = useTenant();
-  const isSuperAdmin = user?.email === 'admin@admin.com';
   const isPlatformAdmin = isSuperAdmin || tenant?.is_platform_admin === true;
 
   const isActive = (path: string) => {

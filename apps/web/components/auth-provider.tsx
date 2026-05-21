@@ -18,6 +18,7 @@ interface AuthContextType {
   loading: boolean;
   role: string;
   permissions: UserPermissions;
+  isSuperAdmin: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -33,12 +34,14 @@ const AuthContext = createContext<AuthContextType>({
     cash_drawer: false,
     cash_close: false,
   },
+  isSuperAdmin: false,
   signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string>('owner');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [permissions, setPermissions] = useState<UserPermissions>({
     sales_invoice: true,
     sales_cancel: true,
@@ -52,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchRoleAndPermissions = async (currentUser: User | null) => {
     if (!currentUser) {
       setRole('member');
+      setIsSuperAdmin(false);
       setPermissions({
         sales_invoice: false,
         sales_cancel: false,
@@ -65,7 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const tenantId = currentUser.user_metadata?.tenant_id;
-      let dbRole = 'owner'; // Fallback for owner registration
+      let dbRole = 'owner';
+      let isPlatformAdmin = false;
       
       if (tenantId) {
         const { data: memberData } = await supabase
@@ -79,9 +84,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (memberData) {
           dbRole = memberData.role;
         }
+
+        const { data: tenantData } = await supabase
+          .from('tenants')
+          .select('is_platform_admin')
+          .eq('id', tenantId)
+          .maybeSingle();
+
+        if (tenantData?.is_platform_admin === true) {
+          isPlatformAdmin = true;
+        }
       }
 
       setRole(dbRole);
+      setIsSuperAdmin(isPlatformAdmin);
 
       if (dbRole === 'owner') {
         setPermissions({
@@ -142,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, role, permissions, signOut }}>
+    <AuthContext.Provider value={{ user, loading, role, permissions, isSuperAdmin, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -155,13 +171,13 @@ export const useAuth = () => useContext(AuthContext);
  * Redirects to /login if user is not authenticated.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, role, permissions } = useAuth();
+  const { user, loading, role, permissions, isSuperAdmin } = useAuth();
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
         window.location.href = '/login';
-      } else if (user.email === 'admin@admin.com') {
+      } else if (isSuperAdmin) {
         const path = window.location.pathname;
         const isPlatformPath = 
           path.startsWith('/overview') ||
@@ -223,7 +239,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Si es Super Admin e intenta renderizar una ruta de tienda, no renderizar nada mientras se procesa la redirección
-  if (user.email === 'admin@admin.com') {
+  if (isSuperAdmin) {
     const path = typeof window !== 'undefined' ? window.location.pathname : '';
     const isPlatformPath = 
       path.startsWith('/overview') ||
@@ -239,7 +255,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Prevención de renderizado para usuarios sin autorización antes del redirect
-  if (user.email !== 'admin@admin.com') {
+  if (!isSuperAdmin) {
     const path = typeof window !== 'undefined' ? window.location.pathname : '';
     if (path.startsWith('/settings')) {
       if ((path.startsWith('/settings/permissions') || path.startsWith('/settings/billing')) && role !== 'owner') {
@@ -265,37 +281,23 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
  * Redirects to /unauthorized if the user is not a super admin.
  */
 export function PlatformGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isSuperAdmin } = useAuth();
   const [checking, setChecking] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    async function checkAdmin() {
-      if (loading) return;
-      if (!user) {
-        window.location.href = '/login';
-        return;
-      }
-
-      try {
-        // El Super Admin es único y se identifica por su email admin@admin.com
-        if (user.email === 'admin@admin.com') {
-          setIsAdmin(true);
-        } else {
-          // Cualquier otro usuario tiene prohibido el acceso al panel global
-          window.location.href = '/unauthorized';
-        }
-      } catch {
-        window.location.href = '/unauthorized';
-      } finally {
-        setChecking(false);
-      }
+    if (loading) return;
+    if (!user) {
+      window.location.href = '/login';
+      return;
     }
 
-    checkAdmin();
-  }, [user, loading]);
+    if (!isSuperAdmin) {
+      window.location.href = '/unauthorized';
+    }
+    setChecking(false);
+  }, [user, loading, isSuperAdmin]);
 
-  if (loading || checking || !isAdmin) {
+  if (loading || checking || !isSuperAdmin) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 gap-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-500"></div>
