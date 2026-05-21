@@ -20,8 +20,17 @@ export async function middleware(request: NextRequest) {
     currentHost = hostname.replace('.obsidiana.com.ar', '');
   }
   
-  // Root domain = no subdomain (www, empty, or same as hostname)
-  const isRootDomain = currentHost === 'www' || currentHost === '' || currentHost === hostname;
+  // Root domain detection
+  let isRootDomain = false;
+  if (isLocalhost) {
+    isRootDomain = true; // localhost is always root
+  } else if (isVercel) {
+    isRootDomain = true; // Vercel preview URLs are always root
+  } else if (isCustomDomain) {
+    isRootDomain = currentHost === '' || currentHost === 'www'; // Only www or bare domain
+  } else {
+    isRootDomain = currentHost === 'www' || currentHost === '' || currentHost === hostname;
+  }
 
   // Si es un subdominio de tienda (ej: kiosko24hs.obsidiana.com.ar)
   if (!isRootDomain) {
