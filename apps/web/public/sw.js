@@ -39,8 +39,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   
-  // Skip caching for non-GET, API, Next.js internal, external services, and Next.js App Router navigation headers
+  // Skip non-http(s) schemes (chrome-extension, etc), non-GET, API, Next.js internal, external services
   if (
+    !request.url.startsWith('http://') && !request.url.startsWith('https://') ||
     request.method !== 'GET' || 
     request.url.includes('/api/') || 
     request.url.includes('/_next/') || 

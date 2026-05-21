@@ -126,10 +126,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      await fetchRoleAndPermissions(user);
-      setLoading(false);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+        await fetchRoleAndPermissions(user);
+      } catch (err) {
+        console.error('Error getting user:', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getUser();
