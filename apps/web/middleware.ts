@@ -6,7 +6,6 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
   
   // 1. Lógica de Subdominios (Multi-tenancy)
-  // Detect root domains dynamically - supports any vercel/production domain
   const isLocalhost = hostname.includes('localhost');
   const isVercel = hostname.includes('vercel.app');
   const isCustomDomain = hostname.includes('obsidiana.com.ar');
@@ -21,12 +20,13 @@ export async function middleware(request: NextRequest) {
     currentHost = hostname.replace('.obsidiana.com.ar', '');
   }
   
-  const isRootDomain = isLocalhost || isVercel || isCustomDomain || currentHost === 'www' || currentHost === hostname;
+  // Root domain = no subdomain (www, empty, or same as hostname)
+  const isRootDomain = currentHost === 'www' || currentHost === '' || currentHost === hostname;
 
-  // Si es un subdominio de tienda (ej: tienda1.obsidiana.com.ar)
+  // Si es un subdominio de tienda (ej: kiosko24hs.obsidiana.com.ar)
   if (!isRootDomain) {
     // Evitar bucles y proteger rutas internas
-    if (url.pathname.startsWith('/tienda') || url.pathname.startsWith('/_next') || url.pathname.startsWith('/api') || url.pathname.includes('.')) {
+    if (url.pathname.startsWith('/_next') || url.pathname.startsWith('/api') || url.pathname.includes('.')) {
       return NextResponse.next();
     }
     // Reescribir subdominio a la ruta de la tienda

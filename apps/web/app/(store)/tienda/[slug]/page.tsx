@@ -775,7 +775,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
       <header className="sticky top-0 z-50 backdrop-blur-xl shadow-sm border-b" style={{ backgroundColor: appearance.dark_mode ? 'rgba(9, 9, 11, 0.9)' : 'rgba(255, 255, 255, 0.98)', borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.1)' : '#e5e5e5' }}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16 gap-4">
-            <a href={`/tienda/${slug}`} className="flex items-center gap-3 shrink-0 group">
+            <a href="/" className="flex items-center gap-3 shrink-0 group">
               {tenant.store_logo_url && (
                 <img 
                   src={`${tenant.store_logo_url}${tenant.store_logo_url.includes('?') ? '&' : '?'}_t=${tenant.updated_at ? new Date(tenant.updated_at).getTime() : Date.now()}`} 
@@ -2078,8 +2078,8 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
           {/* Sub Links Row */}
           <div className="flex flex-wrap items-center justify-center gap-6 mb-4 text-[10px] tracking-widest uppercase opacity-55">
-            <a href={`/tienda/${slug}/terminos`} className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Términos de Uso</a>
-            <a href={`/tienda/${slug}/privacidad`} className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</a>
+            <a href="/terminos" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Términos de Uso</a>
+            <a href="/privacidad" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</a>
             <a 
               href="https://www.argentina.gob.ar/produccion/defensa-del-consumidor/formulario" 
               target="_blank" 

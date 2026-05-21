@@ -113,7 +113,7 @@ export default function TerminosPage({ params }: { params: Promise<{ slug: strin
       }}>
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link 
-            href={`/tienda/${slug}`}
+            href="/"
             className="flex items-center gap-2 group text-xs font-black uppercase tracking-wider transition-all"
             style={{ color: textColor }}
           >
@@ -273,7 +273,7 @@ export default function TerminosPage({ params }: { params: Promise<{ slug: strin
           <div className="flex flex-col items-center justify-center gap-6 md:gap-8 mb-8">
             <nav className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-xs font-semibold tracking-[0.2em] uppercase">
               <Link 
-                href={`/tienda/${slug}`}
+                href="/"
                 className="transition-colors"
                 style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)' }}
               >
@@ -304,7 +304,7 @@ export default function TerminosPage({ params }: { params: Promise<{ slug: strin
           {/* Sub Links Row */}
           <div className="flex flex-wrap items-center justify-center gap-6 mb-4 text-[10px] tracking-widest uppercase opacity-55">
             <span className="cursor-default font-black" style={{ color: currentTheme.primary }}>Términos de Uso</span>
-            <Link href={`/tienda/${slug}/privacidad`} className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</Link>
+            <Link href="/privacidad" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</Link>
             <span className="cursor-default opacity-40" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Defensa al Consumidor</span>
           </div>
 

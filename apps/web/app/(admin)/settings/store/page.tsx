@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
 import { FeatureGate } from '@/components/feature-gate';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
+import { getStoreUrl } from '@/lib/store-url';
 
 const THEME_COLORS = [
   { id: 'violet', name: 'Violeta', color: '#8b5cf6', text: '#fff' },
@@ -300,8 +301,8 @@ export default function StoreSettingsPage() {
   }
 
   const previewItem = form.store_domain 
-    ? `/tienda/${form.store_domain}` 
-    : (tenant?.slug ? `/tienda/${tenant.slug}` : '');
+    ? getStoreUrl(form.store_domain, tenant?.custom_domain)
+    : (tenant?.slug ? getStoreUrl(tenant.slug, tenant?.custom_domain) : '');
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'general', label: 'General', icon: 'settings' },
