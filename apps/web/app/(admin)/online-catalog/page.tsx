@@ -250,8 +250,8 @@ export default function OnlineCatalogPage() {
   });
 
   const publishedCount = items.filter(i => i.product.available_online).length;
-  const totalStock = items.reduce((acc, i) => acc + (i.available || 0), 0);
-  const totalOnlineReserved = items.reduce((acc, i) => acc + (i.product.online_reserved || 0), 0);
+  const totalStock = items.reduce((acc, i) => acc + (i.product.external_url ? 0 : (i.available || 0)), 0);
+  const totalOnlineReserved = items.reduce((acc, i) => acc + (i.product.external_url ? 0 : (i.product.online_reserved || 0)), 0);
 
   // Extract ML item ID from various URL formats
   function extractMlItemId(url: string): string | null {
@@ -571,33 +571,52 @@ export default function OnlineCatalogPage() {
                       item.variant.sku
                     )}
                   </td>
-                  <td className="py-4 px-6 text-right">
-                    <div className="flex flex-col items-end">
-                      <span className={`font-black text-lg ${item.available > 10 ? 'text-emerald-400' : item.available > 0 ? 'text-amber-400' : 'text-red-400'}`}>
-                        {item.available}
-                      </span>
-                      {item.product.online_reserved > 0 && (
-                        <span className="text-[10px] text-amber-400">
-                          ({item.product.online_reserved} web)
+                   <td className="py-4 px-6 text-right">
+                    {item.product.external_url ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="bg-[#FFE600] text-black font-black text-[9px] px-2.5 py-1 rounded-xl uppercase tracking-wider inline-flex items-center gap-1 shadow-[0_0_15px_rgba(255,230,0,0.15)] select-none">
+                          <span className="material-symbols-outlined text-[12px] font-black">link</span>
+                          Enlace ML
                         </span>
-                      )}
-                    </div>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase">Sin stock físico</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-end">
+                        <span className={`font-black text-lg ${item.available > 10 ? 'text-emerald-400' : item.available > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {item.available}
+                        </span>
+                        {item.product.online_reserved > 0 && (
+                          <span className="text-[10px] text-amber-400">
+                            ({item.product.online_reserved} web)
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="py-4 px-6 text-right">
-                    <input
-                      type="number"
-                      min="0"
-                      max={item.available}
-                      value={item.product.online_reserved || 0}
-                      onChange={(e) => updateOnlineReserved(item, parseInt(e.target.value) || 0)}
-                      disabled={saving}
-                      className="w-20 bg-zinc-900 border border-white/10 rounded-lg px-2 py-1 text-right text-white text-sm font-bold disabled:opacity-50"
-                    />
-                    <span className="block text-[10px] text-zinc-500 mt-1">
-                      {item.product.available_online 
-                        ? `${Math.max(0, item.available - (item.product.online_reserved || 0))} para POS`
-                        : 'No publicado'}
-                    </span>
+                    {item.product.external_url ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-zinc-500 text-xs font-bold uppercase tracking-wider">No aplica</span>
+                        <span className="text-[9px] text-zinc-600 font-bold mt-1">Venta externa</span>
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          type="number"
+                          min="0"
+                          max={item.available}
+                          value={item.product.online_reserved || 0}
+                          onChange={(e) => updateOnlineReserved(item, parseInt(e.target.value) || 0)}
+                          disabled={saving}
+                          className="w-20 bg-zinc-900 border border-white/10 rounded-lg px-2 py-1 text-right text-white text-sm font-bold disabled:opacity-50"
+                        />
+                        <span className="block text-[10px] text-zinc-500 mt-1">
+                          {item.product.available_online 
+                            ? `${Math.max(0, item.available - (item.product.online_reserved || 0))} para POS`
+                            : 'No publicado'}
+                        </span>
+                      </>
+                    )}
                   </td>
                   <td className="py-4 px-6 text-right text-white font-bold">
                     {item.allVariants && item.allVariants.length > 1 ? (() => {

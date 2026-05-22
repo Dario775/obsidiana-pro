@@ -1,7 +1,7 @@
 # Obsidiana - Sistema Checkpoint
 
 > Fecha: 2026-05-21
-> Estado: ✅ Auth Flow Hardened + Password Recovery + Subdomain Routing + plan_id UUID Fix + DB Audit Passed
+> Estado: ✅ Auth Flow Hardened + Password Recovery + Subdomain Routing + plan_id UUID Fix + DB Audit Passed + Mercado Libre Stock Decoupling
 
 ---
 
@@ -272,6 +272,7 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 - [x] **plan_id UUID Fix**: Migración de `text` a `uuid`, eliminación de planes duplicados con IDs de texto
 - [x] **Database Schema**: Tabla `locations` creada, RLS policies para plans/tenant_members/locations, unique constraint tenant_members
 - [x] **DB Audit**: 0 errores, 0 warnings. 3 planes, 2 tenants, 2 members, 2 locations, 5 auth users, todo consistente
+- [x] **Mercado Libre Stock Decoupling**: Se desacopló completamente el stock de productos importados de Mercado Libre del inventario físico. Las métricas del catálogo web excluyen estos productos, la tabla administrativa muestra un badge premium de "Enlace ML" en stock e indica "No aplica" en la reserva, y las nuevas importaciones se registran con stock `0`.
 
 ## 12. Pendientes / Roadmap
 
@@ -304,4 +305,4 @@ git commit -m "feat: implement premium PWA support and mobile native optimizatio
 git push
 ```
 
-*Última actualización: 2026-05-19 19:50 — Obsidiana Team*
+*Última actualización: 2026-05-21 23:05 — Obsidiana Team*

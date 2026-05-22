@@ -82,7 +82,7 @@ export async function POST(req: Request) {
         .insert({
           tenant_id: tenantId,
           variant_id: variant.id,
-          on_hand: 999
+          on_hand: 0
         });
 
       if (iError) throw iError;

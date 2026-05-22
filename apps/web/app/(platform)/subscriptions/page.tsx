@@ -272,6 +272,11 @@ export default function SubscriptionsPage() {
   const handleOpenPlanModal = (p: any = null) => {
     if (p) {
       setSelectedPlan(p);
+      
+      const parsedFeatures = (p.features && typeof p.features === 'object' && !Array.isArray(p.features)) 
+        ? p.features 
+        : {};
+
       setPlanFormData({
         id: p.id,
         name: p.name || p.nombre || '',
@@ -279,9 +284,9 @@ export default function SubscriptionsPage() {
         yearly_price: String(p.yearly_price || 0),
         max_products: String(p.max_products || 50),
         max_branches: String(p.max_branches || 1),
-        online_store: !!(p.online_store || p.features?.online_store),
-        pos: !!(p.pos || p.features?.pos),
-        features: p.features || {},
+        online_store: !!(p.online_store || parsedFeatures.online_store),
+        pos: !!(p.pos || parsedFeatures.pos),
+        features: parsedFeatures,
         description: p.description || ''
       });
     } else {
