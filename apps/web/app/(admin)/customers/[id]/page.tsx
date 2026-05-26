@@ -235,7 +235,7 @@ export default function CustomerDetailPage() {
   async function fetchCustomerData() {
     setLoading(true);
     try {
-      // Fetch customer
+      // 1. Fetch customer details
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .select('*')
@@ -250,46 +250,72 @@ export default function CustomerDetailPage() {
 
       setCustomer(customerData);
 
-       // Fetch orders for this customer
-       const { data: ordersData, error: ordersError } = await supabase
-         .from('orders')
-         .select('id, number, total_ars, subtotal_ars, tax_ars, status, financial_status, channel, placed_at')
-         .eq('customer_id', id)
-         .order('placed_at', { ascending: false });
+      // 2. Fetch orders and their associated payments in a single optimized query
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select(`
+          id, 
+          number, 
+          total_ars, 
+          subtotal_ars, 
+          tax_ars, 
+          status, 
+          financial_status, 
+          channel, 
+          placed_at,
+          payments (
+            id, 
+            amount, 
+            status, 
+            method, 
+            created_at
+          )
+        `)
+        .eq('customer_id', id)
+        .order('placed_at', { ascending: false });
 
-       if (ordersError) {
-         console.error('Error fetching orders:', ordersError);
-       } else {
-         // Map fulfillment_status in memory since it's not a database column
-         const mappedOrders = (ordersData || []).map(order => ({
-           ...order,
-           fulfillment_status: order.channel === 'pos' || order.status === 'delivered' ? 'fulfilled' : 'unfulfilled'
-         })) as any[];
-         setOrders(mappedOrders);
-       }
-
-      // Fetch payments for this customer's orders
-      if (ordersData && ordersData.length > 0) {
-        const orderIds = ordersData.map(o => o.id);
-        const { data: paymentsData, error: paymentsError } = await supabase
-          .from('payments')
-          .select('id, order_id, amount, status, method, created_at')
-          .in('order_id', orderIds)
-          .order('created_at', { ascending: false });
-
-        if (paymentsError) {
-          console.error('Error fetching payments:', paymentsError);
-        } else {
-          // Adaptar 'amount' a 'amount_ars' y 'created_at' a 'processed_at' para el estado local
-          const adaptedPayments = (paymentsData || []).map(p => ({
-            ...p,
-            amount_ars: (p as any).amount,
-            processed_at: p.created_at
-          }));
-          setPayments(adaptedPayments);
-        }
-      } else {
+      if (ordersError) {
+        console.error('Error fetching orders:', ordersError);
+        setOrders([]);
         setPayments([]);
+      } else {
+        // Map fulfillment_status in memory since it's not a database column
+        const mappedOrders = (ordersData || []).map((order: any) => ({
+          id: order.id,
+          number: order.number,
+          total_ars: order.total_ars,
+          subtotal_ars: order.subtotal_ars,
+          tax_ars: order.tax_ars,
+          status: order.status,
+          financial_status: order.financial_status,
+          channel: order.channel,
+          placed_at: order.placed_at,
+          fulfillment_status: order.channel === 'pos' || order.status === 'delivered' ? 'fulfilled' : 'unfulfilled'
+        })) as any[];
+        setOrders(mappedOrders);
+
+        // Extract and adapt payments from the nested order structure
+        const extractedPayments: any[] = [];
+        (ordersData || []).forEach((order: any) => {
+          if (order.payments && Array.isArray(order.payments)) {
+            order.payments.forEach((p: any) => {
+              extractedPayments.push({
+                id: p.id,
+                order_id: order.id,
+                amount: p.amount,
+                amount_ars: p.amount,
+                status: p.status,
+                method: p.method,
+                created_at: p.created_at,
+                processed_at: p.created_at
+              });
+            });
+          }
+        });
+
+        // Sort payments by processed_at in descending order
+        extractedPayments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setPayments(extractedPayments);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -346,9 +372,29 @@ export default function CustomerDetailPage() {
     try {
       if (!tenant?.id) {
         alert('Error: No se pudo identificar el tenant. Recargá la página.');
+        setProcessingPayment(false);
         return;
       }
       const tenantId = tenant.id;
+
+      // 0. Verificar si hay sesión de caja abierta
+      const { data: activeSession, error: sessionError } = await supabase
+        .from('cash_sessions')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (sessionError) throw sessionError;
+
+      // Si el método es efectivo o tarjeta y la caja está cerrada, bloquear
+      if ((paymentMethod === 'efectivo' || paymentMethod === 'tarjeta') && !activeSession) {
+        alert('No se puede registrar un cobro en efectivo o tarjeta con la caja cerrada. Por favor, realiza la apertura de caja en la terminal del POS primero.');
+        setProcessingPayment(false);
+        return;
+      }
 
       // 1. Registrar el pago
       // Convertir método de pago a gateway válido
@@ -372,7 +418,8 @@ export default function CustomerDetailPage() {
           gateway: gateway,
           processed_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
-          metadata: { type: 'credit_repayment' }
+          metadata: { type: 'credit_repayment' },
+          cash_session_id: activeSession?.id || null
         })
         .select('id')
         .single();

@@ -202,6 +202,7 @@ export default function POSPage() {
     if (!tenant?.id) return;
     setLoading(true);
     try {
+      // 1. Fetch variants, products, and their associated stock levels in a single query
       const { data: variants, error: variantsError } = await supabase
         .from('product_variants')
         .select(`
@@ -216,6 +217,10 @@ export default function POSPage() {
             title,
             images,
             tenant_id
+          ),
+          inventory_levels (
+            on_hand,
+            committed
           )
         `)
         .eq('products.tenant_id', tenant.id);
@@ -226,25 +231,10 @@ export default function POSPage() {
         return;
       }
 
-      const variantIds = variants?.map(v => v.id) || [];
-      const { data: inventory, error: inventoryError } = await supabase
-        .from('inventory_levels')
-        .select('variant_id, on_hand, committed')
-        .eq('tenant_id', tenant.id)
-        .in('variant_id', variantIds);
-
-      if (inventoryError) {
-        console.error('Error fetching inventory:', inventoryError);
-      }
-
-      const inventoryMap = new Map();
-      inventory?.forEach((inv: any) => {
-        inventoryMap.set(inv.variant_id, inv);
-      });
-
-       const formattedProducts = (variants || []).filter((v: any) => !(v.sku || '').startsWith('ML-')).map((variant: any) => {
+      const formattedProducts = (variants || []).filter((v: any) => !(v.sku || '').startsWith('ML-')).map((variant: any) => {
         const product = variant.products;
-        const inv = inventoryMap.get(variant.id);
+        // Since inventory_levels is a child relation, it comes as an array
+        const inv = variant.inventory_levels?.[0];
         
         return {
           id: variant.id,
@@ -252,7 +242,7 @@ export default function POSPage() {
           precio: variant.price_ars || 0,
           sku: variant.sku || 'N/A',
           barcode: '', // Temporarily empty since column is missing
-          available: (inv?.on_hand || 0) - (inv?.committed || 0),
+          available: inv ? (inv.on_hand || 0) - (inv.committed || 0) : 0,
           img: product?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&h=400&auto=format&fit=crop',
           product_id: variant.product_id,
           variant_options: variant.variant_options || {}

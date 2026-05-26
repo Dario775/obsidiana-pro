@@ -220,16 +220,22 @@ export default function CashHistoryPage() {
                   const timeStr = isClosed && row.closed_at
                     ? new Date(row.closed_at).toLocaleTimeString()
                     : 'Activa (Abierta)';
-                  
-                  const isDiffNegative = Number(row.difference) < 0;
+                               const isDiffNegative = Number(row.difference) < 0;
                   const isDiffZero = Number(row.difference) === 0;
+
+                  const efectivo = Number(row.sales_breakdown?.efectivo || 0);
+                  const tarjeta = Number(row.sales_breakdown?.tarjeta || 0);
+                  const mercadopago = Number(row.sales_breakdown?.mercadopago || 0);
+                  const transferencia = Number(row.sales_breakdown?.transferencia || 0);
+                  const directSales = efectivo + tarjeta + mercadopago + transferencia;
+                  const creditSales = Math.max(0, Number(row.total_sales || 0) - directSales);
 
                   return (
                     <tr key={row.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="py-5 px-8">
                         <div className="flex flex-col">
                           <span className="font-bold text-white">{dateStr}</span>
-                          <span className="text-zinc-600 text-[11px] font-black tracking-widest">{timeStr}</span>
+                          <span className="text-zinc-650 text-[11px] font-black tracking-widest">{timeStr}</span>
                         </div>
                       </td>
                       <td className="py-5 px-8">
@@ -246,8 +252,21 @@ export default function CashHistoryPage() {
                           <span className="font-medium text-zinc-300">Operador POS</span>
                         </div>
                       </td>
-                      <td className="py-5 px-8 text-right font-black text-white">
-                        $ {(Number(row.total_sales) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      <td className="py-5 px-8 text-right">
+                        <div className="flex flex-col text-right font-data-tabular">
+                          <span className="font-black text-white">$ {(Number(row.total_sales) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-[10px] text-zinc-500 font-bold flex items-center justify-end gap-1.5 mt-0.5 uppercase tracking-tighter">
+                            {creditSales > 0 ? (
+                              <>
+                                <span className="text-emerald-400">Contado: ${(directSales).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
+                                <span className="text-zinc-600">|</span>
+                                <span className="text-amber-400">Crédito: ${(creditSales).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
+                              </>
+                            ) : (
+                              <span className="text-zinc-500">100% Contado</span>
+                            )}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-5 px-8 text-right">
                         {!isClosed ? (
@@ -306,8 +325,16 @@ export default function CashHistoryPage() {
       </div>
 
       {/* Detail Ticket Modal Overlay */}
-      {selectedSession && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      {selectedSession && (() => {
+        const modalEfectivo = Number(selectedSession.sales_breakdown?.efectivo || 0);
+        const modalTarjeta = Number(selectedSession.sales_breakdown?.tarjeta || 0);
+        const modalMercadopago = Number(selectedSession.sales_breakdown?.mercadopago || 0);
+        const modalTransferencia = Number(selectedSession.sales_breakdown?.transferencia || 0);
+        const modalDirectSales = modalEfectivo + modalTarjeta + modalMercadopago + modalTransferencia;
+        const modalCreditSales = Math.max(0, Number(selectedSession.total_sales || 0) - modalDirectSales);
+
+        return (
+          <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1A1A1A] border border-white/10 rounded-3xl p-6 shadow-2xl max-w-md w-full flex flex-col gap-6 relative max-h-[90vh] overflow-y-auto">
             
             {/* Close Button */}
@@ -419,7 +446,15 @@ export default function CashHistoryPage() {
                     <span>$ {parseFloat(String(selectedSession.sales_breakdown?.repayment_transferencia || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-white pt-1">
+                <div className="flex justify-between text-zinc-400 text-[11px] pl-2 border-t border-white/5 pt-2">
+                  <span>└ Ventas Contado:</span>
+                  <span>$ {parseFloat(String(modalDirectSales || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between text-zinc-400 text-[11px] pl-2">
+                  <span>└ Ventas a Crédito:</span>
+                  <span className={modalCreditSales > 0 ? "text-amber-400 font-bold" : ""}>$ {parseFloat(String(modalCreditSales || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between font-bold text-white pt-1.5 border-t border-white/10">
                   <span>Total Facturado:</span>
                   <span>$ {parseFloat(String(selectedSession.total_sales || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                 </div>
@@ -447,7 +482,8 @@ export default function CashHistoryPage() {
             </button>
           </div>
         </div>
-      )}
-    </div>
-  );
+      );
+    })()}
+  </div>
+);
 }

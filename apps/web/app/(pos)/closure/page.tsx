@@ -52,12 +52,12 @@ export default function ClosurePage() {
         if (ordersError) throw ordersError;
         setOrders(ordersData || []);
 
-        // Fetch payments since opened_at
+        // Fetch payments since opened_at or explicitly linked to this cash session
         const { data: paymentsData, error: paymentsError } = await supabase
           .from('payments')
           .select('id, amount_ars, method, processed_at, metadata, order_id, orders(placed_at, total_ars)')
           .eq('tenant_id', tenant!.id)
-          .gte('processed_at', session.opened_at);
+          .or(`cash_session_id.eq.${session.id},and(cash_session_id.is.null,processed_at.gte.${session.opened_at})`);
 
         if (paymentsError) throw paymentsError;
         setPayments(paymentsData || []);
