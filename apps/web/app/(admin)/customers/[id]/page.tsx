@@ -75,6 +75,49 @@ export default function CustomerDetailPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   
+  // Custom Alert Modal State
+  const [alertModal, setAlertModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    type: 'error' | 'warning' | 'success' | 'info';
+    onConfirm?: () => void;
+    confirmLabel?: string;
+    showActionBtn?: boolean;
+    actionLabel?: string;
+    onAction?: () => void;
+  }>({
+    show: false,
+    title: '',
+    message: '',
+    type: 'info'
+  });
+
+  const showAlert = (
+    title: string,
+    message: string,
+    type: 'error' | 'warning' | 'success' | 'info' = 'info',
+    options?: {
+      onConfirm?: () => void;
+      confirmLabel?: string;
+      showActionBtn?: boolean;
+      actionLabel?: string;
+      onAction?: () => void;
+    }
+  ) => {
+    setAlertModal({
+      show: true,
+      title,
+      message,
+      type,
+      onConfirm: options?.onConfirm,
+      confirmLabel: options?.confirmLabel || 'Entendido',
+      showActionBtn: options?.showActionBtn || false,
+      actionLabel: options?.actionLabel,
+      onAction: options?.onAction
+    });
+  };
+  
   // Estados para registro de pagos
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
@@ -364,14 +407,14 @@ export default function CustomerDetailPage() {
 
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
-      alert('Ingresá un monto válido');
+      showAlert('Monto Inválido', 'Por favor, ingresá un monto de pago válido mayor a cero.', 'warning');
       return;
     }
 
     setProcessingPayment(true);
     try {
       if (!tenant?.id) {
-        alert('Error: No se pudo identificar el tenant. Recargá la página.');
+        showAlert('Error de Tenant', 'No se pudo identificar tu cuenta. Por favor, recargá la página.', 'error');
         setProcessingPayment(false);
         return;
       }
@@ -389,10 +432,22 @@ export default function CustomerDetailPage() {
 
       if (sessionError) throw sessionError;
 
-      // Si el método es efectivo o tarjeta y la caja está cerrada, bloquear
+      // Si el método es efectivo o tarjeta y la caja está cerrada, bloquear con modal de doble opción
       if ((paymentMethod === 'efectivo' || paymentMethod === 'tarjeta') && !activeSession) {
-        alert('No se puede registrar un cobro en efectivo o tarjeta con la caja cerrada. Por favor, realiza la apertura de caja en la terminal del POS primero.');
         setProcessingPayment(false);
+        showAlert(
+          '🔒 Caja Cerrada',
+          'No se puede registrar un cobro en efectivo o tarjeta con la caja cerrada. Por favor, realiza la apertura de caja en la terminal del POS primero para habilitar estos medios de pago.',
+          'warning',
+          {
+            showActionBtn: true,
+            actionLabel: 'Ir a abrir caja',
+            onAction: () => {
+              window.location.href = '/pos';
+            },
+            confirmLabel: 'Aceptar'
+          }
+        );
         return;
       }
 
@@ -479,11 +534,15 @@ export default function CustomerDetailPage() {
         notes: paymentNote || undefined
       });
       
-      alert(`Pago de $ ${(amount || 0).toLocaleString('es-AR')} registrado. Imprimiendo recibo...`);
+      showAlert(
+        '🎉 Pago Registrado',
+        `Se registró exitosamente el cobro de $ ${(amount || 0).toLocaleString('es-AR')} para la orden #${selectedOrderForPayment.number}. Preparando recibo de pago...`,
+        'success'
+      );
 
     } catch (error: any) {
       console.error('Error al registrar pago:', error);
-      alert('Error al registrar pago: ' + error.message);
+      showAlert('Error de Registro', 'Ocurrió un error inesperado al registrar el pago: ' + error.message, 'error');
     } finally {
       setProcessingPayment(false);
     }
@@ -1441,6 +1500,61 @@ export default function CustomerDetailPage() {
                   <span className="material-symbols-outlined">print</span>
                   Imprimir
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Custom Alert/Warning Modal */}
+      {alertModal.show && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1A1A1A] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 font-inter">
+            <div className="p-6 flex flex-col items-center text-center gap-4">
+              {/* Icon depending on type */}
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center border ${
+                alertModal.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                alertModal.type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                alertModal.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                'bg-blue-500/10 border-blue-500/20 text-blue-400'
+              }`}>
+                <span className="material-symbols-outlined text-[28px]">
+                  {alertModal.type === 'error' ? 'cancel' :
+                   alertModal.type === 'warning' ? 'warning' :
+                   alertModal.type === 'success' ? 'check_circle' :
+                   'info'}
+                </span>
+              </div>
+
+              <div>
+                <h3 className="text-base font-black text-white uppercase tracking-wider">{alertModal.title}</h3>
+                <p className="text-zinc-400 text-xs mt-2 leading-relaxed font-medium">{alertModal.message}</p>
+              </div>
+
+              <div className="flex gap-2.5 w-full mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlertModal(prev => ({ ...prev, show: false }));
+                    if (alertModal.onConfirm) alertModal.onConfirm();
+                  }}
+                  className="flex-1 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider"
+                >
+                  {alertModal.confirmLabel || 'Entendido'}
+                </button>
+
+                {alertModal.showActionBtn && alertModal.onAction && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlertModal(prev => ({ ...prev, show: false }));
+                      if (alertModal.onAction) alertModal.onAction();
+                    }}
+                    className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.2)] active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">point_of_sale</span>
+                    {alertModal.actionLabel || 'Ir a Caja'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
