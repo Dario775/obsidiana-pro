@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './auth-provider';
+import { CURRENT_VERSION } from '../lib/version';
 
 export function Sidebar() {
   const { signOut } = useAuth();
@@ -60,6 +61,10 @@ export function Sidebar() {
               <span className="text-xs font-bold text-white leading-none">Súper Usuario</span>
               <span className="text-[9px] text-zinc-500 font-black uppercase mt-1">Raíz Global</span>
             </div>
+          </div>
+          <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-zinc-950/40 border border-white/5 w-full mt-2">
+            <span className="text-[10px] text-zinc-500 font-mono">Infraestructura</span>
+            <span className="text-[10px] text-zinc-400 font-mono font-medium">v{CURRENT_VERSION}</span>
           </div>
           <button
             onClick={signOut}

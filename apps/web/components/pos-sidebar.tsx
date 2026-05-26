@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from './auth-provider';
+import { CURRENT_VERSION } from '../lib/version';
 
 export function Sidebar() {
   const { signOut, role } = useAuth();
@@ -51,6 +52,10 @@ export function Sidebar() {
       </div>
 
       <div className="px-4 mt-auto flex flex-col gap-2 pt-4 border-t border-white/5">
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-zinc-950/20 border border-white/5 w-full">
+          <span className="text-[10px] text-zinc-500 font-mono">Sistema POS</span>
+          <span className="text-[10px] text-zinc-400 font-mono font-medium">v{CURRENT_VERSION}</span>
+        </div>
         <button
           onClick={signOut}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-inter text-[13px] font-semibold text-zinc-500 hover:text-red-400 hover:bg-red-500/10 w-full"
