@@ -287,9 +287,9 @@ export default function LandingPage() {
               <p className="text-[#cfc2d6] text-lg">Próximamente nuevos planes</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {plans.map((plan, index) => {
-                const isPopular = plan.monthly_price > 0 && plan.monthly_price < 20000;
+                const isPopular = plan.name?.toLowerCase() === 'pro' || plan.nombre?.toLowerCase() === 'pro' || plan.id === 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3';
                 const features = plan.features && typeof plan.features === 'object' 
                   ? Object.entries(plan.features).filter(([_, enabled]) => enabled === true)
                   : [];
