@@ -15,6 +15,17 @@ const AVAILABLE_FEATURES = [
   { key: 'multi_user', label: 'Multiusuario' },
 ];
 
+const generateUUID = () => {
+  try {
+    return window.crypto.randomUUID();
+  } catch (e) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+};
+
 export default function SubscriptionsPage() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
@@ -292,7 +303,7 @@ export default function SubscriptionsPage() {
     } else {
       setSelectedPlan(null);
       setPlanFormData({
-        id: '',
+        id: generateUUID(),
         name: '',
         monthly_price: '',
         yearly_price: '',
@@ -312,7 +323,7 @@ export default function SubscriptionsPage() {
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!planFormData.name || !planFormData.monthly_price || (!selectedPlan && !planFormData.id)) {
-      alert('Por favor completa los campos requeridos (ID, Nombre, Precio).');
+      alert('Por favor completa los campos requeridos (Nombre, Precio).');
       return;
     }
     setSaving(true);
@@ -342,7 +353,7 @@ export default function SubscriptionsPage() {
         // Create
         const { error } = await supabase.from('plans')
           .insert({
-            id: planFormData.id.toLowerCase().replace(/\s+/g, '-'),
+            id: planFormData.id || generateUUID(),
             ...planData
           });
 
@@ -822,14 +833,12 @@ export default function SubscriptionsPage() {
             <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
               {!selectedPlan && (
                 <div>
-                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">ID del Plan (Único) *</label>
+                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">ID del Plan (Auto-generado)</label>
                   <input
                     type="text"
-                    required
+                    readOnly
                     value={planFormData.id}
-                    onChange={(e) => setPlanFormData({ ...planFormData, id: e.target.value })}
-                    placeholder="Ej: gold-plan"
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-xs font-mono"
+                    className="w-full bg-zinc-900 border border-white/5 rounded-xl px-4 py-3 text-zinc-500 focus:outline-none text-xs font-mono select-all cursor-default"
                   />
                 </div>
               )}
