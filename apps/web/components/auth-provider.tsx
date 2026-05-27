@@ -214,7 +214,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           path.startsWith('/settings/payments');
 
         if (!isPlatformPath) {
-          window.location.href = '/unauthorized';
+          window.location.href = '/overview';
         }
       } else {
         const path = window.location.pathname;
