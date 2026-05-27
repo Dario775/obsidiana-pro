@@ -68,7 +68,13 @@ export default function LoginPage() {
 
   async function handlePostLogin(user: any) {
     try {
-      const tenantId = user.user_metadata?.tenant_id;
+      let tenantId = user.user_metadata?.tenant_id;
+      
+      // Force platform admin tenant for global administrators
+      if (user.email === 'dary775@gmail.com' || user.email === 'admin@admin.com' || user.email === 'admin@obsidiana.com') {
+        tenantId = '51605ab9-958d-4e81-8360-8007fe842c85';
+      }
+
       if (tenantId) {
         const { data: tenantData, error: tenantError } = await supabase
           .from('tenants')

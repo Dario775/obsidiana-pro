@@ -100,6 +100,11 @@ async function fetchTenantData(): Promise<{ tenant: Tenant | null; plan: Plan | 
     }
 
     let tenantId = user.user_metadata?.tenant_id;
+
+    // Force platform admin tenant for global administrators
+    if (user.email === 'dary775@gmail.com' || user.email === 'admin@admin.com' || user.email === 'admin@obsidiana.com') {
+      tenantId = '51605ab9-958d-4e81-8360-8007fe842c85';
+    }
  
     if (!tenantId) {
       const { data: memberData } = await supabase
