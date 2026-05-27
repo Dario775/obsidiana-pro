@@ -44,16 +44,17 @@ export default function InventoryAnalyticsPage() {
           sku,
           price_ars,
           variant_options,
-          products (
+          products!inner (
             id,
             nombre,
-            images
+            images,
+            tenant_id
           ),
           inventory_levels (
             on_hand
           )
         `)
-        .eq('tenant_id', tenant.id);
+        .eq('products.tenant_id', tenant.id);
 
       if (variantsError) throw variantsError;
 
