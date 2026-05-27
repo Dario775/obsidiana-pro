@@ -86,7 +86,7 @@ export function PWAInstallPrompt() {
       <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96 z-[90] p-4 bg-zinc-900/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex flex-col gap-3 transition-all duration-300 animate-slide-in">
         <div className="flex gap-3 items-start">
           <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shadow-lg flex-shrink-0">
-            <img src="/logo.svg" alt="Obsidiana" className="w-6 h-6 object-contain brightness-110" />
+            <img src="/logo.png" alt="Obsidiana" className="w-6 h-6 object-contain brightness-110" />
           </div>
           <div className="flex-1">
             <h4 className="text-[13px] font-black text-white leading-tight">Instalar Obsidiana App</h4>

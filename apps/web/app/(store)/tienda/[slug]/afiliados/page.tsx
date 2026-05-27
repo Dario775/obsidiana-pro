@@ -27,7 +27,7 @@ const FONT_MAP = {
   mono: '"Inter", sans-serif',
 };
 
-export default function PrivacidadPage({ params }: { params: Promise<{ slug: string }> }) {
+export default function AfiliadosPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
   const slug = resolvedParams.slug;
   const [loading, setLoading] = useState(true);
@@ -74,7 +74,7 @@ export default function PrivacidadPage({ params }: { params: Promise<{ slug: str
           setTenant(tenantData);
         }
       } catch (error) {
-        console.error('Error loading tenant for privacy:', error);
+        console.error('Error loading tenant for affiliates page:', error);
       } finally {
         setLoading(false);
       }
@@ -122,7 +122,7 @@ export default function PrivacidadPage({ params }: { params: Promise<{ slug: str
           </Link>
           
           <span className="text-xs font-black uppercase tracking-widest" style={primaryText}>
-            Privacidad
+            Compra y Transparencia
           </span>
         </div>
       </header>
@@ -131,7 +131,7 @@ export default function PrivacidadPage({ params }: { params: Promise<{ slug: str
       <main className="max-w-4xl mx-auto px-6 py-16 flex-1 w-full">
         <div className="text-center mb-16">
           <h1 className="text-3xl sm:text-4xl font-sans font-black tracking-tight uppercase mb-4" style={{ color: textColor }}>
-            Política de Privacidad
+            Guía de Compra y Transparencia
           </h1>
           <p className="text-xs uppercase tracking-[0.2em] font-bold" style={{ color: mutedColor }}>
             Última actualización: {new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -140,91 +140,72 @@ export default function PrivacidadPage({ params }: { params: Promise<{ slug: str
 
         <div className="space-y-12 text-sm leading-relaxed" style={{ color: appearance.dark_mode ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.8)' }}>
           
-          {/* Section 1 */}
+          {/* Introduction */}
           <section className="space-y-4">
-            <h2 className="text-lg font-black uppercase tracking-wider" style={primaryText}>
-              1. Compromiso de Privacidad e Infraestructura SaaS
-            </h2>
             <p>
-              En <strong>{storeName}</strong> valoramos profundamente la confianza que depositas en nosotros al realizar tus compras online. Por ello, nos comprometemos formalmente a proteger la confidencialidad y seguridad de tus datos personales.
-            </p>
-            <p>
-              Para proveer este sitio web y gestionar tus pedidos de manera digital, {storeName} hace uso de la plataforma multitenant <strong>Obsidiana</strong>. Toda la información personal compartida a través de este canal de checkout es administrada en bases de datos aisladas e independientes mediante políticas estrictas de seguridad a nivel de base de datos (Row Level Security o RLS). Esto garantiza que únicamente los administradores autorizados de {storeName} tengan acceso a tus datos para la preparación de tu orden.
+              ¡Hola! Te damos la bienvenida a nuestra tienda online. En <strong>{storeName}</strong> valoramos profundamente la honestidad, la confianza y la claridad en cada una de tus visitas. Por ello, redactamos esta guía para explicarte detalladamente y en palabras sencillas cómo funciona nuestro catálogo, cómo despachamos tus compras y qué tipo de productos ofrecemos.
             </p>
           </section>
+
+          <hr className="border-zinc-200 dark:border-zinc-800" />
+
+          {/* Section 1 */}
+          <section className="space-y-6">
+            <h2 className="text-lg font-black uppercase tracking-wider" style={primaryText}>
+              1. Dos Formas de Comprar en Nuestra Tienda
+            </h2>
+            <p>
+              Para brindarte un catálogo extenso y con opciones de alta calidad, dividimos nuestra oferta en dos tipos de productos claramente identificables:
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Local Stock Card */}
+              <div className="rounded-2xl p-6 border space-y-3" style={{ backgroundColor: cardBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                <span className="material-symbols-outlined text-3xl" style={primaryText}>storefront</span>
+                <h3 className="font-black text-xs uppercase tracking-wider" style={{ color: textColor }}>Productos de Stock Local</h3>
+                <ul className="text-xs space-y-2.5 opacity-90">
+                  <li>• Artículos disponibles directamente en nuestro local físico.</li>
+                  <li>• Los pagas contra entrega en efectivo, por transferencia o mediante tarjeta vía Mercado Pago.</li>
+                  <li>• Nosotros preparamos, empaquetamos y coordinamos el despacho a tu dirección o te los guardamos para retiro gratis en nuestra sucursal.</li>
+                  <li>• La facturación y garantía es manejada en su totalidad de forma directa por nuestro equipo.</li>
+                </ul>
+              </div>
+
+              {/* Affiliate Card */}
+              <div className="rounded-2xl p-6 border space-y-3" style={{ backgroundColor: cardBg, borderColor: appearance.dark_mode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                <span className="material-symbols-outlined text-3xl" style={primaryText}>bolt</span>
+                <h3 className="font-black text-xs uppercase tracking-wider" style={{ color: textColor }}>Recomendados de Mercado Libre</h3>
+                <ul className="text-xs space-y-2.5 opacity-90">
+                  <li>• Artículos que curamos y seleccionamos cuidadosamente de Mercado Libre.</li>
+                  <li>• Al hacer clic en comprar, te redirigimos de forma segura a la publicación oficial para completar el pago de forma habitual.</li>
+                  <li>• El precio es exactamente el mismo; percibimos una pequeña comisión por recomendación abonada por Mercado Libre.</li>
+                  <li>• El envío impositivo, distribución (Mercado Envíos) y programa de Compra Protegida corren por cuenta del vendedor en Mercado Libre.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-zinc-200 dark:border-zinc-800" />
 
           {/* Section 2 */}
           <section className="space-y-4">
             <h2 className="text-lg font-black uppercase tracking-wider" style={primaryText}>
-              2. Información que Recopilamos
+              2. Tus Datos de Contacto y Privacidad de Pago
             </h2>
             <p>
-              Durante tu experiencia de navegación y específicamente al momento de finalizar tu pedido (Checkout), recopilamos de forma voluntaria la siguiente información identificatoria para habilitar el procesamiento comercial:
-            </p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li><strong>Datos de Contacto:</strong> Nombre y apellido completo, dirección de correo electrónico y número de teléfono móvil.</li>
-              <li><strong>Datos de Distribución:</strong> Dirección física de entrega completa, calle, número, localidad y referencias/notas de envío adicionales.</li>
-              <li><strong>Datos de Operación:</strong> Resumen de los artículos seleccionados, variantes, cantidades y el método de pago elegido (efectivo, transferencia bancaria o Mercado Pago).</li>
-            </ul>
-            <p>
-              <em>Nota Importante:</em> Esta plataforma <strong>no almacena ni procesa directamente</strong> datos de tarjetas de crédito o credenciales de cuentas bancarias. Las operaciones en línea se canalizan de forma segura mediante enlaces encriptados externos proporcionados por procesadores habilitados como Mercado Pago.
-            </p>
-          </section>
-
-          {/* Section 3 */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-black uppercase tracking-wider" style={primaryText}>
-              3. Finalidad del Tratamiento de Datos
-            </h2>
-            <p>
-              Toda información recolectada es procesada y utilizada estrictamente para las siguientes finalidades comerciales legítimas:
+              Garantizar tu tranquilidad al navegar y realizar pedidos en nuestro checkout digital es nuestro mayor compromiso:
             </p>
             <ul className="list-disc pl-6 space-y-2">
               <li>
-                <strong>Gestión y Despacho de Pedidos:</strong> Preparar tu mercadería física, coordinar la logística de transporte y procesar la entrega correspondiente en la dirección de destino.
+                <strong>Tus Datos de Envío:</strong> La información básica que ingresas (nombre, dirección y teléfono) es procesada bajo esquemas estrictos de seguridad de la base de datos de Obsidiana, utilizándose únicamente para coordinar entregas locales y facturación impositiva de nuestro negocio.
               </li>
               <li>
-                <strong>Verificación Financiera:</strong> Corroborar la veracidad y acreditación de los fondos recibidos en transferencias bancarias o pasarelas online.
+                <strong>Privacidad Financiera:</strong> Nosotros <strong>nunca guardamos ni tenemos acceso</strong> a tus números de tarjeta de crédito, cuentas bancarias o claves. Todo pago online se realiza a través de las pasarelas certificadas y encriptadas externas de Mercado Pago o Mercado Libre.
               </li>
               <li>
-                <strong>Comunicación Transaccional Directa:</strong> Notificarte sobre actualizaciones en el estado de preparación de tus compras o coordinar detalles de retiro. El número telefónico ingresado podrá ser utilizado por {storeName} para iniciar conversaciones fluidas de soporte o facturación a través de **WhatsApp** o llamada de voz.
+                <strong>Cookies de Recomendación:</strong> Si decides comprar un producto de Mercado Libre recomendado en las siguientes horas, se almacena una cookie transitoria en tu navegador para adjudicarnos la comisión por recomendación. Puedes desactivar o borrar tus cookies cuando gustes en tu navegador.
               </li>
             </ul>
-          </section>
-
-          {/* Section 4 */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-black uppercase tracking-wider" style={primaryText}>
-              4. Transferencia de Datos a Terceros
-            </h2>
-            <p>
-              Tenemos una política estricta de no comercialización. <strong>Bajo ninguna circunstancia vendemos, alquilamos, distribuimos ni comerciamos</strong> con tu información personal a empresas de publicidad ni a terceros ajenos a la transacción comercial.
-            </p>
-            <p>
-              Tus datos únicamente serán compartidos con terceros en los siguientes escenarios excepcionales y necesarios:
-            </p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>Servicios postales, mensajeros o transportistas designados por {storeName} para efectuar la entrega material de tu paquete.</li>
-              <li>Entidades gubernamentales o judiciales competentes, únicamente cuando exista una orden legal válida o un requerimiento regulatorio aplicable.</li>
-            </ul>
-          </section>
-
-          {/* Section 5 */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-black uppercase tracking-wider" style={primaryText}>
-              5. Derechos de Acceso, Rectificación y Supresión (ARCO)
-            </h2>
-            <p>
-              Como titular de tus datos personales, posees pleno control sobre la información provista. Tienes derecho en todo momento a:
-            </p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>Consultar qué datos personales tenemos almacenados sobre tu historial.</li>
-              <li>Solicitar la rectificación o corrección de datos incorrectos o incompletos.</li>
-              <li>Solicitar la eliminación o supresión total de tus datos de contacto de nuestro panel administrativo.</li>
-            </ul>
-            <p>
-              Para ejercer cualquiera de estos derechos, puedes ponerte en contacto directo con los encargados de atención al cliente de {storeName} a través del enlace de <strong>WhatsApp</strong> o correo de soporte provistos en la parte inferior de este sitio web. Tu solicitud será atendida y procesada a la brevedad.
-            </p>
           </section>
 
         </div>
@@ -300,9 +281,8 @@ export default function PrivacidadPage({ params }: { params: Promise<{ slug: str
           {/* Sub Links Row */}
           <div className="flex flex-wrap items-center justify-center gap-6 mb-4 text-[10px] tracking-widest uppercase opacity-55">
             <Link href="/terminos" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Términos de Uso</Link>
-            <span className="cursor-default font-black" style={{ color: currentTheme.primary }}>Política de Privacidad</span>
-            <Link href="/afiliados" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Divulgación de Afiliados</Link>
-            <span className="cursor-default opacity-40" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Defensa al Consumidor</span>
+            <Link href="/privacidad" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</Link>
+            <span className="cursor-default font-black" style={{ color: currentTheme.primary }}>Divulgación de Afiliados</span>
           </div>
 
           {/* Copyright */}

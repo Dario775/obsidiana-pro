@@ -76,6 +76,8 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname === '/register' ||
     request.nextUrl.pathname === '/forgot-password' ||
     request.nextUrl.pathname === '/reset-password' ||
+    request.nextUrl.pathname === '/politica-afiliados' ||
+    request.nextUrl.pathname === '/privacidad' ||
     request.nextUrl.pathname.startsWith('/auth/') ||
     request.nextUrl.pathname.startsWith('/tienda/');
 

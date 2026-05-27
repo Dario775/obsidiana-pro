@@ -217,8 +217,8 @@ export default function LoginPage() {
         {/* Top */}
         <div className="relative">
           <Link href="/" className="flex items-center gap-3 mb-8 group">
-            <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
-              <span className="material-symbols-outlined text-violet-400 text-2xl">storefront</span>
+            <div className="w-12 h-12 rounded-2xl bg-violet-500/5 border border-white/5 flex items-center justify-center group-hover:bg-violet-500/10 transition-colors">
+              <img src="/logo.png" alt="Obsidiana" className="w-6 h-6 object-contain rounded-md" />
             </div>
             <span className="text-lg font-black text-white tracking-tight">Obsidiana</span>
             <span className="material-symbols-outlined text-zinc-600 text-sm ml-2 group-hover:text-zinc-400 transition-colors">arrow_back</span>
@@ -287,8 +287,8 @@ export default function LoginPage() {
         <div className="w-full max-w-[420px]">
           {/* Mobile logo */}
           <Link href="/" className="lg:hidden flex items-center gap-3 mb-10 group">
-            <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-              <span className="material-symbols-outlined text-violet-400">storefront</span>
+            <div className="w-10 h-10 rounded-xl bg-violet-500/5 border border-white/5 flex items-center justify-center">
+              <img src="/logo.png" alt="Obsidiana" className="w-5 h-5 object-contain rounded-md" />
             </div>
             <span className="text-lg font-black text-white">Obsidiana</span>
             <span className="material-symbols-outlined text-zinc-600 text-sm ml-2">arrow_back</span>

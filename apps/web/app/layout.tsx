@@ -17,9 +17,14 @@ const geist = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Obsidiana - SaaS Multitenant",
+  title: "Obsidiana",
   description: "SaaS multi-tenant de tiendas con POS integrado",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

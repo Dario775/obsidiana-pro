@@ -60,8 +60,11 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#0b1326]/60 border-b border-white/10">
         <div className="flex justify-between items-center w-full px-4 md:px-10 max-w-[1440px] mx-auto h-20">
-          <Link href="/" className="text-xl font-extrabold text-[#dae2fd]">
-            Obsidiana
+          <Link href="/" className="flex items-center gap-2.5 text-xl font-extrabold text-[#dae2fd] group">
+            <div className="w-8 h-8 rounded-lg bg-[#b76dff]/10 border border-[#b76dff]/20 flex items-center justify-center group-hover:bg-[#b76dff]/20 transition-all">
+              <img src="/logo.png" alt="Obsidiana Logo" className="w-4.5 h-4.5 object-contain rounded-md" />
+            </div>
+            <span>Obsidiana</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-[#ddb7ff] border-b-2 border-[#ddb7ff] font-bold pb-1 transition-colors">
@@ -117,9 +120,6 @@ export default function LandingPage() {
             <div className="relative bg-[rgba(23,31,51,0.6)] backdrop-blur-md border border-white/10 rounded-[2.5rem] overflow-hidden p-4 md:p-8">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex gap-4">
-                  <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span> SISTEMA ONLINE
-                  </div>
                   <div className="px-3 py-1 rounded-full bg-[#ddb7ff]/10 border border-[#ddb7ff]/20 text-[#ddb7ff] text-xs font-bold flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span> PLAN: PROFESIONAL
                   </div>
@@ -235,13 +235,34 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Stats Section */}
-        <section className="py-20 border-y border-white/5">
-          <div className="max-w-[1440px] mx-auto px-4 md:px-10 text-center">
-            <p className="text-xs font-medium tracking-widest text-[#cfc2d6] mb-12 uppercase">Más de 5,000 tiendas confían en Obsidiana</p>
-            <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-              {['NIKE', 'ADIDAS', 'PUMA', 'SAMSUNG', 'APPLE'].map((brand) => (
-                <div key={brand} className="text-xl md:text-2xl font-black italic tracking-tighter">{brand}</div>
+        {/* Business Features Section */}
+        <section className="py-24 border-y border-white/5 bg-[#0b1326]/40 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(93,180,255,0.03),transparent_50%)] pointer-events-none"></div>
+          <div className="max-w-[1440px] mx-auto px-4 md:px-10 text-center relative z-10">
+            <span className="text-[10px] font-bold tracking-[0.25em] text-[#5de6ff] uppercase mb-4 block">DISEÑADO PARA TU CRECIMIENTO</span>
+            <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4 tracking-tight">
+              TODO LO QUE TU NEGOCIO NECESITA PARA CRECER
+            </h2>
+            <p className="text-xs md:text-sm text-[#cfc2d6] opacity-60 max-w-xl mx-auto mb-16">
+              Obsidiana unifica las herramientas más potentes del comercio en una sola plataforma simple, veloz y pensada para la comodidad de tus clientes.
+            </p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6 max-w-6xl mx-auto">
+              {[
+                { name: 'Catálogo al Instante', role: 'Velocidad de Carga', icon: 'speed', desc: 'Cargas instantáneas en celulares para que tus compradores elijan rápido y no abandonen.', glow: 'group-hover:border-[#b76dff]/30 hover:shadow-[0_0_20px_rgba(183,109,255,0.15)]' },
+                { name: 'Seguridad Total', role: 'Información Privada', icon: 'shield', desc: 'Tus registros de caja, stock y clientes están protegidos de forma 100% confidencial.', glow: 'group-hover:border-emerald-500/30 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]' },
+                { name: 'Cobros Integrados', role: 'Medios de Pago', icon: 'payments', desc: 'Acepta tarjetas de crédito, débito y transferencias de forma unificada y segura.', glow: 'group-hover:border-blue-500/30 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]' },
+                { name: 'Control de Stock', role: 'Mostrador + Web', icon: 'sync_alt', desc: 'Si vendes en tu local físico o en internet, tu inventario se actualiza de forma automática.', glow: 'group-hover:border-yellow-400/30 hover:shadow-[0_0_20px_rgba(250,204,21,0.15)]' },
+                { name: 'Pedidos en WhatsApp', role: 'Conexión Directa', icon: 'chat', desc: 'Recibe resúmenes estructurados directo a tu celular para cerrar ventas en segundos.', glow: 'group-hover:border-[#5de6ff]/30 hover:shadow-[0_0_20px_rgba(93,230,255,0.15)]' },
+              ].map((tech, i) => (
+                <div key={i} className={`bg-[#131b2e]/60 backdrop-blur-md p-6 rounded-[2rem] border border-white/5 text-left transition-all duration-500 hover:-translate-y-1.5 group cursor-default ${tech.glow}`}>
+                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                    <span className="material-symbols-outlined text-[#dae2fd] opacity-60 group-hover:opacity-100 transition-opacity text-xl">{tech.icon}</span>
+                  </div>
+                  <h4 className="font-extrabold text-sm text-white mb-0.5 tracking-tight">{tech.name}</h4>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#cfc2d6]/50 mb-3">{tech.role}</p>
+                  <p className="text-[11px] text-[#cfc2d6] opacity-60 leading-relaxed font-medium">{tech.desc}</p>
+                </div>
               ))}
             </div>
           </div>
@@ -341,7 +362,12 @@ export default function LandingPage() {
       <footer className="bg-[#060e20] border-t border-white/10">
         <div className="w-full px-4 md:px-10 py-12 max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-start gap-10 md:gap-0">
           <div className="mb-6 md:mb-0">
-            <div className="text-xl font-bold text-[#dae2fd] mb-4">Obsidiana</div>
+            <div className="flex items-center gap-2.5 text-xl font-bold text-[#dae2fd] mb-4">
+              <div className="w-7 h-7 rounded-lg bg-[#b76dff]/10 border border-[#b76dff]/20 flex items-center justify-center">
+                <img src="/logo.png" alt="Obsidiana Logo" className="w-4 h-4 object-contain rounded-md" />
+              </div>
+              <span>Obsidiana</span>
+            </div>
             <p className="text-sm text-[#cfc2d6] max-w-xs opacity-60">
               La plataforma de comercio omnicanal líder en Latinoamérica. Diseñada para el alto rendimiento.
             </p>
@@ -355,15 +381,40 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col gap-3 md:gap-4">
               <span className="text-xs font-medium text-[#ddb7ff] uppercase tracking-widest">LEGAL</span>
-              <a href="#" className="text-[#cfc2d6] hover:text-[#5de6ff] transition-all">Privacidad</a>
-              <a href="#" className="text-[#cfc2d6] hover:text-[#5de6ff] transition-all">Términos</a>
+              <Link href="/privacidad" className="text-[#cfc2d6] hover:text-[#5de6ff] transition-all">Privacidad</Link>
+              <Link href="/politica-afiliados" className="text-[#cfc2d6] hover:text-[#5de6ff] transition-all">Términos</Link>
             </div>
             <div className="flex flex-col gap-3 md:gap-4 col-span-2 md:col-span-1">
               <span className="text-xs font-medium text-[#ddb7ff] uppercase tracking-widest">SOCIAL</span>
-              <div className="flex gap-4">
-                <span className="material-symbols-outlined text-[#cfc2d6] hover:text-[#ddb7ff] cursor-pointer transition-colors">brand_awareness</span>
-                <span className="material-symbols-outlined text-[#cfc2d6] hover:text-[#ddb7ff] cursor-pointer transition-colors">forum</span>
-                <span className="material-symbols-outlined text-[#cfc2d6] hover:text-[#ddb7ff] cursor-pointer transition-colors">public</span>
+              <div className="flex items-center gap-4">
+                {/* WhatsApp */}
+                <a 
+                  href="https://wa.me/543877534410" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  title="WhatsApp" 
+                  className="text-[#cfc2d6] hover:text-[#25D366] transition-colors flex items-center"
+                >
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.963C16.588 2.016 14.12 1.01 11.66 1.01c-5.442 0-9.866 4.372-9.87 9.802 0 1.714.462 3.393 1.337 4.866L2.125 21.84l6.522-1.705z" />
+                  </svg>
+                </a>
+                {/* Facebook */}
+                <a 
+                  href="https://facebook.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  title="Facebook" 
+                  className="text-[#cfc2d6] hover:text-[#1877F2] transition-colors flex items-center"
+                >
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                  </svg>
+                </a>
+                {/* Website */}
+                <Link href="/" title="Sitio Web" className="text-[#cfc2d6] hover:text-[#b76dff] transition-colors flex items-center">
+                  <span className="material-symbols-outlined text-[20px]">public</span>
+                </Link>
               </div>
             </div>
           </div>

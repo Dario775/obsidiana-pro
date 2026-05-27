@@ -123,7 +123,7 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
         {/* Header */}
         <div className="px-6 pb-4 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="Obsidiana Logo" className="w-7 h-7 object-contain brightness-110" />
+            <img src="/logo.png" alt="Obsidiana Logo" className="w-7 h-7 object-contain brightness-110" />
             <div>
               <h2 className="text-base font-black text-white tracking-tight leading-none">Obsidiana</h2>
               <p className="text-[10px] text-zinc-500 font-semibold mt-1">

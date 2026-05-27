@@ -53,9 +53,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '1.0.0',
     date: '2026-05-20',
-    title: 'Lanzamiento Oficial Obsidiana-Pro',
+    title: 'Lanzamiento Oficial Obsidiana',
     type: 'major',
-    description: 'Primera versión estable de Obsidiana-Pro con todos los módulos de retail integrados.',
+    description: 'Primera versión estable de Obsidiana con todos los módulos de retail integrados.',
     changes: [
       { type: 'feat', text: 'Terminal POS táctil e intuitiva con soporte offline parcial.' },
       { type: 'feat', text: 'Gestión unificada de inventario con alertas de bajo stock.' },

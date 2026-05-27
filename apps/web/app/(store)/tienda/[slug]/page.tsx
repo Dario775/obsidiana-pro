@@ -2080,6 +2080,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
           <div className="flex flex-wrap items-center justify-center gap-6 mb-4 text-[10px] tracking-widest uppercase opacity-55">
             <a href="/terminos" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Términos de Uso</a>
             <a href="/privacidad" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</a>
+            <a href="/afiliados" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Divulgación de Afiliados</a>
             <a 
               href="https://www.argentina.gob.ar/produccion/defensa-del-consumidor/formulario" 
               target="_blank" 

@@ -1,7 +1,7 @@
 # Obsidiana - Sistema Checkpoint
 
-> Fecha: 2026-05-21
-> Estado: ✅ Auth Flow Hardened + Password Recovery + Subdomain Routing + plan_id UUID Fix + DB Audit Passed + Mercado Libre Stock Decoupling
+> Fecha: 2026-05-27
+> Estado: ✅ Rebranding Completed to "Obsidiana" + Platform Terms & Privacy Policy published + Landing branding revamped with sleek glowing integrations grid + Email registration hardened with confirmPassword and anti-XSS/SQLi regex filtering + Official V4 Logo fully integrated with rounded corners across all components, favicon icons, and headers/footers + Footer social vector links (WhatsApp +543877534410 and Facebook) integrated successfully.
 
 ---
 
@@ -273,6 +273,12 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 - [x] **Database Schema**: Tabla `locations` creada, RLS policies para plans/tenant_members/locations, unique constraint tenant_members
 - [x] **DB Audit**: 0 errores, 0 warnings. 3 planes, 2 tenants, 2 members, 2 locations, 5 auth users, todo consistente
 - [x] **Mercado Libre Stock Decoupling**: Se desacopló completamente el stock de productos importados de Mercado Libre del inventario físico. Las métricas del catálogo web excluyen estos productos, la tabla administrativa muestra un badge premium de "Enlace ML" en stock e indica "No aplica" en la reserva, y las nuevas importaciones se registran con stock `0`.
+- [x] **Rebranding Global de Marca**: Cambio exhaustivo de "Obsidiana-Pro" a "Obsidiana" en todos los componentes de interfaz, variables, títulos, y archivos legales, consolidando un software de diseño de alta fidelidad libre de clichés.
+- [x] **Políticas de la Plataforma**: Términos de Servicio y Política de Privacidad de Obsidiana adaptados legalmente de forma clara e integrados en landing pages y tiendas de inquilinos, registrados en el middleware como rutas públicas autorizadas.
+- [x] **Rediseño Estético de la Landing Page**: Reemplazo de la sección de marcas con una rejilla premium animada y retroiluminada de integraciones, removiendo badges parpadeantes genéricos como "SISTEMA ONLINE" o "CONECTADO".
+- [x] **Blindaje del Registro por Email**: Implementado el campo de "Confirmar contraseña" (frontend y API de backend) y aplicados filtros regex de whitelist estrictos (`/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚüÜ\s.,'\-&()]+$/`) para desinfectar y validar el correo y el nombre del negocio (`storeName`), bloqueando de raíz ataques XSS, HTML y SQL injection.
+- [x] **Integración de Identidad Visual V4 (Logos y Favicon)**: Copiado el logotipo oficial de fondo blanco `Logo Obsidiana V4 fondo blanco.png` como logo principal del sistema, íconos de la PWA, favicon de pestaña del navegador, y configurado el título del navegador a exactamente "Obsidiana" con bordes redondeados (`rounded-md`, `rounded-lg`) en todas las cabeceras (headers), pies de página (footers), formularios y paneles SaaS.
+- [x] **Enlaces Sociales Vectoriales en el Footer**: Botones interactivos vectoriales SVG oficiales de alta fidelidad integrados en el footer de la plataforma para WhatsApp (apuntando a +543877534410 con hover verde corporativo) y Facebook (con hover azul corporativo).
 
 ## 12. Pendientes / Roadmap
 
@@ -301,8 +307,8 @@ pnpm build
 
 # Push a producción
 git add .
-git commit -m "feat: implement premium PWA support and mobile native optimizations"
+git commit -m "feat: implement premium V4 logo, secure registration, and policy pages"
 git push
 ```
 
-*Última actualización: 2026-05-21 23:05 — Obsidiana Team*
+*Última actualización: 2026-05-27 18:50 — Obsidiana Team*

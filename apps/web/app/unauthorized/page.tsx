@@ -16,7 +16,7 @@ function UnauthorizedContent() {
       <div className="w-full max-w-[500px] z-10 text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
         {/* Logo */}
         <div className="flex justify-center mb-2">
-          <Image src="/logo.svg" alt="Logo" width={56} height={56} className="h-14 w-auto brightness-110 drop-shadow-[0_0_15px_rgba(139,92,246,0.3)]" />
+          <Image src="/logo.png" alt="Logo" width={56} height={56} className="h-14 w-auto brightness-110 drop-shadow-[0_0_15px_rgba(139,92,246,0.3)]" />
         </div>
 
         {/* Contenedor Glassmorphic */}

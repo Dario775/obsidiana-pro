@@ -311,7 +311,7 @@ export function Topbar({ isSidebarCollapsed = false, onToggleSidebar }: TopbarPr
         )}
 
         <div className="flex items-center gap-2 lg:hidden">
-          <img src="/logo.svg" alt="Obsidiana" className="w-5 h-5 object-contain brightness-110" />
+          <img src="/logo.png" alt="Obsidiana" className="w-5 h-5 object-contain brightness-110 rounded-md" />
           <span className="text-lg font-black tracking-tight text-white uppercase leading-none">Obsidiana</span>
         </div>
         
@@ -736,7 +736,7 @@ export function Topbar({ isSidebarCollapsed = false, onToggleSidebar }: TopbarPr
                   </span>
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Descubre las últimas mejoras, correcciones y nuevas funcionalidades añadidas a Obsidiana-Pro.
+                  Descubre las últimas mejoras, correcciones y nuevas funcionalidades añadidas a Obsidiana.
                 </p>
               </div>
               <button 

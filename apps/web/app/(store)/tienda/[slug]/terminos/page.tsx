@@ -305,6 +305,7 @@ export default function TerminosPage({ params }: { params: Promise<{ slug: strin
           <div className="flex flex-wrap items-center justify-center gap-6 mb-4 text-[10px] tracking-widest uppercase opacity-55">
             <span className="cursor-default font-black" style={{ color: currentTheme.primary }}>Términos de Uso</span>
             <Link href="/privacidad" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Política de Privacidad</Link>
+            <Link href="/afiliados" className="cursor-pointer hover:opacity-100 transition-opacity" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Divulgación de Afiliados</Link>
             <span className="cursor-default opacity-40" style={{ color: appearance.dark_mode ? '#ffffff' : '#000000' }}>Defensa al Consumidor</span>
           </div>
 

@@ -18,19 +18,14 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, storeName, googleUserId } = body;
+    const { email, password, confirmPassword, storeName, googleUserId } = body;
 
     // For Google users: they already have an auth account, just need a tenant
     const isGoogleUser = !!googleUserId;
 
     // Validate input
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!isGoogleUser && email && !emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'El formato del email no es válido' },
-        { status: 400 }
-      );
-    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const storeNameRegex = /^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚüÜ\s.,'\-&()]+$/;
 
     if (!storeName) {
       return NextResponse.json(
@@ -39,18 +34,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!isGoogleUser && (!email || !password)) {
+    if (storeName.length < 3 || storeName.length > 50) {
       return NextResponse.json(
-        { error: 'Email y contraseña son obligatorios' },
+        { error: 'El nombre del negocio debe tener entre 3 y 50 caracteres' },
         { status: 400 }
       );
     }
 
-    if (!isGoogleUser && password.length < 8) {
+    if (!storeNameRegex.test(storeName)) {
       return NextResponse.json(
-        { error: 'La contraseña debe tener al menos 8 caracteres' },
+        { error: 'El nombre del negocio contiene caracteres no permitidos. Solo se permiten letras, números, espacios y signos básicos (.,\'-&()).' },
         { status: 400 }
       );
+    }
+
+    if (!isGoogleUser) {
+      if (!email || !password) {
+        return NextResponse.json(
+          { error: 'Email y contraseña son obligatorios' },
+          { status: 400 }
+        );
+      }
+
+      if (!emailRegex.test(email)) {
+        return NextResponse.json(
+          { error: 'El formato del email no es válido' },
+          { status: 400 }
+        );
+      }
+
+      if (password.length < 8) {
+        return NextResponse.json(
+          { error: 'La contraseña debe tener al menos 8 caracteres' },
+          { status: 400 }
+        );
+      }
+
+      if (password !== confirmPassword) {
+        return NextResponse.json(
+          { error: 'Las contraseñas no coinciden' },
+          { status: 400 }
+        );
+      }
     }
 
     // Generate slug and check uniqueness

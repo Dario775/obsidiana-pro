@@ -120,11 +120,6 @@ export default function AdminHomePage() {
         
         <div className="relative z-10">
           <div className="flex flex-wrap items-center gap-3 mb-3">
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold text-[10px] uppercase tracking-wider flex items-center gap-2">
-                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                 Sistema Online
-              </span>
-              
               {/* Plan Badge */}
               <a 
                 href="/settings/billing"

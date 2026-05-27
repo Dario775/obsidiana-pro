@@ -7,9 +7,11 @@ import { supabase } from '../../lib/supabase';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -18,14 +20,47 @@ export default function RegisterPage() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    // Strict validation regex patterns to prevent code injection and ensure correct formats
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const storeNameRegex = /^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚüÜ\s.,'\-&()]+$/;
+
+    // 1. Email format check
+    if (!emailRegex.test(email)) {
+      setError('El formato del correo electrónico no es válido.');
+      return;
+    }
+
+    // 2. Business Name safety & sanity check
+    if (storeName.length < 3 || storeName.length > 50) {
+      setError('El nombre del negocio debe tener entre 3 y 50 caracteres.');
+      return;
+    }
+    if (!storeNameRegex.test(storeName)) {
+      setError('El nombre del negocio contiene caracteres no permitidos. Solo se permiten letras, números, espacios y signos básicos (.,\'-&()).');
+      return;
+    }
+
+    // 3. Password length check
+    if (password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    // 4. Password match check
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, storeName }),
+        body: JSON.stringify({ email, password, confirmPassword, storeName }),
       });
 
       const data = await res.json();
@@ -107,8 +142,8 @@ export default function RegisterPage() {
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative flex-col justify-between p-12 xl:p-16 z-10">
         <div className="relative">
           <Link href="/" className="flex items-center gap-3 mb-8 group">
-            <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
-              <span className="material-symbols-outlined text-violet-400 text-2xl">storefront</span>
+            <div className="w-12 h-12 rounded-2xl bg-violet-500/5 border border-white/5 flex items-center justify-center group-hover:bg-violet-500/10 transition-colors">
+              <img src="/logo.png" alt="Obsidiana" className="w-6 h-6 object-contain rounded-md" />
             </div>
             <span className="text-lg font-black text-white tracking-tight">Obsidiana</span>
             <span className="material-symbols-outlined text-zinc-600 text-sm ml-2 group-hover:text-zinc-400 transition-colors">arrow_back</span>
@@ -164,8 +199,8 @@ export default function RegisterPage() {
       <div className="w-full lg:w-1/2 xl:w-[45%] flex items-center justify-center p-6 sm:p-10 z-10">
         <div className="w-full max-w-[420px]">
           <Link href="/" className="lg:hidden flex items-center gap-3 mb-10 group">
-            <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-              <span className="material-symbols-outlined text-violet-400">storefront</span>
+            <div className="w-10 h-10 rounded-xl bg-violet-500/5 border border-white/5 flex items-center justify-center">
+              <img src="/logo.png" alt="Obsidiana" className="w-5 h-5 object-contain rounded-md" />
             </div>
             <span className="text-lg font-black text-white">Obsidiana</span>
             <span className="material-symbols-outlined text-zinc-600 text-sm ml-2">arrow_back</span>
@@ -199,7 +234,7 @@ export default function RegisterPage() {
                   type="text"
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
-                  placeholder="Ej: Mi Tienda Pro"
+                  placeholder="Ej: Mi Tienda"
                   className="w-full px-4 py-3.5 rounded-xl bg-zinc-900/50 border border-white/10 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all text-white placeholder:text-zinc-600"
                   required
                 />
@@ -236,6 +271,30 @@ export default function RegisterPage() {
                   >
                     <span className="material-symbols-outlined text-[20px]">
                       {showPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Confirmar contraseña</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repetí tu contraseña"
+                    className="w-full px-4 py-3.5 rounded-xl bg-zinc-900/50 border border-white/10 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all text-white placeholder:text-zinc-600 pr-12"
+                    required
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {showConfirmPassword ? 'visibility_off' : 'visibility'}
                     </span>
                   </button>
                 </div>
