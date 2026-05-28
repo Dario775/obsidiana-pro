@@ -8,6 +8,7 @@ import { ChatbotAssistant } from "../../components/chatbot-assistant";
 import { AdminBottomNav } from "../../components/admin-bottom-nav";
 import { PWAInstallPrompt } from "../../components/pwa-install-prompt";
 import { TenantProvider } from "../../hooks/use-tenant";
+import { OnboardingWizard } from "../../components/onboarding-wizard";
 
 export default function AdminLayout({
   children,
@@ -34,6 +35,8 @@ export default function AdminLayout({
               <PWAInstallPrompt />
             </div>
           </div>
+          {/* Wizard de onboarding — aparece automáticamente para nuevos tenants */}
+          <OnboardingWizard />
         </TenantProvider>
       </AuthGuard>
     </AuthProvider>
