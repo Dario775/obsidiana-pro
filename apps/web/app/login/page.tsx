@@ -68,12 +68,21 @@ export default function LoginPage() {
 
   async function handlePostLogin(user: any) {
     try {
+      // DEFINITIVE Super Admin detection by email — prevents ever falling through to store creation
+      const SUPER_ADMIN_EMAIL = 'dary775@gmail.com';
+      const PLATFORM_TENANT_ID = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
+
+      if (user.email === SUPER_ADMIN_EMAIL) {
+        router.refresh();
+        window.location.href = '/overview';
+        return;
+      }
+
       let tenantId = user.user_metadata?.tenant_id;
 
-      // Detectar super admin por is_platform_admin en user_metadata (seteado por callback)
-      // Eliminado: hardcodeo por email
+      // Fallback: Detectar super admin por is_platform_admin en user_metadata
       if (!tenantId && user.user_metadata?.is_platform_admin === true) {
-        tenantId = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
+        tenantId = PLATFORM_TENANT_ID;
       }
 
       if (tenantId) {

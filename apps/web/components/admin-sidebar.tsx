@@ -14,7 +14,7 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut, role, permissions, isSuperAdmin } = useAuth();
-  const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading, tenant } = useTenant();
+  const { isOnlineStoreEnabled, getPlanName, loading: tenantLoading, tenant, hasFeature } = useTenant();
   const isPlatformAdmin = isSuperAdmin || tenant?.is_platform_admin === true;
 
   const isActive = (path: string) => {
@@ -128,15 +128,25 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
               {isActive('/customers') && (
                 <ul className="pl-6 mt-1.5 space-y-1 border-l border-white/5 ml-5">
                   <li>
-                    <Link href="/customers/segments" className={`flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${isActive('/customers/segments') ? 'text-violet-400 bg-white/5' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
-                      <span className="material-symbols-outlined text-[15px]">category</span>
-                      Segmentos
+                    <Link href="/customers/segments" className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${isActive('/customers/segments') ? 'text-violet-400 bg-white/5' : 'text-zinc-500 hover:text-white hover:bg-white/5'} ${!hasFeature('segments') ? 'opacity-60' : ''}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[15px]">category</span>
+                        <span>Segmentos</span>
+                      </div>
+                      {!hasFeature('segments') && (
+                        <span className="material-symbols-outlined text-[12px] text-amber-500/70 shrink-0">lock</span>
+                      )}
                     </Link>
                   </li>
                   <li>
-                    <Link href="/customers/loyalty" className={`flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${isActive('/customers/loyalty') ? 'text-violet-400 bg-white/5' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
-                      <span className="material-symbols-outlined text-[15px]">military_tech</span>
-                      Club de Puntos
+                    <Link href="/customers/loyalty" className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${isActive('/customers/loyalty') ? 'text-violet-400 bg-white/5' : 'text-zinc-500 hover:text-white hover:bg-white/5'} ${!hasFeature('loyalty') ? 'opacity-60' : ''}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[15px]">military_tech</span>
+                        <span>Club de Puntos</span>
+                      </div>
+                      {!hasFeature('loyalty') && (
+                        <span className="material-symbols-outlined text-[12px] text-amber-500/70 shrink-0">lock</span>
+                      )}
                     </Link>
                   </li>
                 </ul>

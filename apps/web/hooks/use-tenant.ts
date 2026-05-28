@@ -101,11 +101,17 @@ async function fetchTenantData(): Promise<{ tenant: Tenant | null; plan: Plan | 
 
     let tenantId = user.user_metadata?.tenant_id;
 
-    // Si el usuario tiene is_platform_admin en sus metadatos (seteado durante login)
-    // o si su tenant tiene is_platform_admin = true en DB, usamos el tenant de plataforma.
-    // NOTA: El hardcodeo por email fue eliminado — la fuente de verdad es la DB.
+    const SUPER_ADMIN_EMAIL = 'dary775@gmail.com';
+    const PLATFORM_TENANT_ID = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
+
+    // DEFINITIVE: Super Admin detection by email — always takes priority
+    if (user.email === SUPER_ADMIN_EMAIL) {
+      tenantId = PLATFORM_TENANT_ID;
+    }
+
+    // Fallback: Detectar super admin por is_platform_admin en user_metadata
     if (!tenantId && user.user_metadata?.is_platform_admin === true) {
-      tenantId = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
+      tenantId = PLATFORM_TENANT_ID;
     }
 
 

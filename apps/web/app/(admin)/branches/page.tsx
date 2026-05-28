@@ -20,7 +20,7 @@ interface Branch {
 }
 
 export default function BranchesPage() {
-  const { tenant } = useTenant();
+  const { tenant, plan } = useTenant();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -81,6 +81,12 @@ export default function BranchesPage() {
   async function handleCreateBranch(e: React.FormEvent) {
     e.preventDefault();
     if (!tenant?.id || !formData.name.trim()) return;
+
+    const maxBranches = plan?.max_branches || 1;
+    if (branches.length >= maxBranches) {
+      alert(`Límite de sucursales alcanzado. Tu plan actual permite hasta ${maxBranches} sucursal(es). Para crear más, actualizá tu suscripción.`);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -243,6 +249,11 @@ export default function BranchesPage() {
         
         <button 
           onClick={() => {
+            const maxBranches = plan?.max_branches || 1;
+            if (branches.length >= maxBranches) {
+              alert(`Límite de sucursales alcanzado. Tu plan actual permite hasta ${maxBranches} sucursal(es). Para crear más, actualizá tu suscripción.`);
+              return;
+            }
             resetForm();
             setShowModal(true);
           }}

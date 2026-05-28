@@ -8,6 +8,8 @@ const AVAILABLE_FEATURES = [
   { key: 'inventory', label: 'Gestión de Inventario' },
   { key: 'mercadopago', label: 'Pagos Mercado Pago' },
   { key: 'multi_branch', label: 'Multisucursal' },
+  { key: 'loyalty', label: 'Club de Puntos' },
+  { key: 'segments', label: 'Segmentación de Clientes' },
   { key: 'custom_domain', label: 'Dominio Propio' },
   { key: 'reports_basic', label: 'Reportes Básicos' },
   { key: 'reports_advanced', label: 'Reportes Avanzados' },

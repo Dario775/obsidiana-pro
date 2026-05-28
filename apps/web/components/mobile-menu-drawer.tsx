@@ -16,7 +16,7 @@ interface MobileMenuDrawerProps {
 export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
   const pathname = usePathname();
   const { user, signOut, role, permissions } = useAuth();
-  const { tenant, isOnlineStoreEnabled } = useTenant();
+  const { tenant, isOnlineStoreEnabled, hasFeature } = useTenant();
   const { theme } = useTheme();
 
   // Prevent background scrolling when drawer is open
@@ -81,13 +81,15 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
       title: 'Segmentos de Clientes',
       href: '/customers/segments',
       icon: 'category',
-      desc: 'Agrupar y segmentar clientes'
+      desc: 'Agrupar y segmentar clientes',
+      feature: 'segments'
     },
     {
       title: 'Programa de Fidelidad',
       href: '/customers/loyalty',
       icon: 'military_tech',
-      desc: 'Configurar club de puntos y premios'
+      desc: 'Configurar club de puntos y premios',
+      feature: 'loyalty'
     },
     {
       title: 'Proveedores',
@@ -175,14 +177,17 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
           <div>
             <h3 className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">Gestión Retail</h3>
             <div className="grid grid-cols-1 gap-2">
-              {menuItems.map((item) => {
+              {menuItems.map((item: any) => {
                 const active = isActive(item.href);
+                const isLocked = item.feature ? !hasFeature(item.feature) : false;
                 return (
                   <Link 
                     key={item.href}
                     href={item.href}
                     onClick={onClose}
                     className={`flex items-center gap-4 p-3 rounded-xl transition-all btn-native-active ${
+                      isLocked ? 'opacity-65' : ''
+                    } ${
                       active 
                         ? 'bg-secondary/10 text-secondary border-l-4 border-secondary' 
                         : 'bg-white/5 text-zinc-300 hover:text-white'
@@ -192,7 +197,15 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
                       {item.icon}
                     </span>
                     <div className="flex-1 flex flex-col">
-                      <span className="text-[13px] font-bold tracking-tight">{item.title}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-bold tracking-tight">{item.title}</span>
+                        {isLocked && (
+                          <span className="text-[8px] bg-amber-500/10 text-amber-500 font-extrabold uppercase px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[9px] font-bold">lock</span>
+                            Premium
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-zinc-500 font-medium">{item.desc}</span>
                     </div>
                     <span className="material-symbols-outlined text-[16px] text-zinc-600">chevron_right</span>

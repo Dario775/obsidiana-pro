@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
+import { FeatureGate } from '@/components/feature-gate';
 
 interface Customer {
   id: string;
@@ -295,7 +296,8 @@ export default function LoyaltyPage() {
   };
 
   return (
-    <div className="max-w-[1440px] mx-auto flex flex-col gap-8 pb-32">
+    <FeatureGate feature="loyalty">
+      <div className="max-w-[1440px] mx-auto flex flex-col gap-8 pb-32">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/10 pb-6">
         <div>
@@ -743,6 +745,7 @@ export default function LoyaltyPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </FeatureGate>
   );
 }

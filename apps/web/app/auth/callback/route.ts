@@ -98,7 +98,41 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}${next}`);
       }
 
-      // 3. New Google user — create tenant automatically
+      // 3. SUPER ADMIN DETECTION (DEFINITIVE — runs BEFORE auto-create)
+      // This prevents the recurring bug where dary775@gmail.com gets a new store
+      // created every time their metadata or tenant_members row is lost.
+      const SUPER_ADMIN_EMAIL = 'dary775@gmail.com';
+      const PLATFORM_TENANT_ID = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
+
+      if (data.user.email === SUPER_ADMIN_EMAIL) {
+        // Ensure tenant_members association exists
+        const { data: existingMember } = await supabaseAdmin
+          .from('tenant_members')
+          .select('id')
+          .eq('tenant_id', PLATFORM_TENANT_ID)
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+
+        if (!existingMember) {
+          await supabaseAdmin.from('tenant_members').insert({
+            tenant_id: PLATFORM_TENANT_ID,
+            user_id: data.user.id,
+            role: 'owner',
+          });
+        }
+
+        // Always ensure user_metadata is correct
+        await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+          user_metadata: {
+            tenant_id: PLATFORM_TENANT_ID,
+            is_platform_admin: true,
+          },
+        });
+
+        return NextResponse.redirect(`${origin}/overview`);
+      }
+
+      // 4. New Google user — create tenant automatically
       const storeName = state ? decodeURIComponent(state) : (data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'Mi Tienda');
       let slug = storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       const baseSlug = slug;

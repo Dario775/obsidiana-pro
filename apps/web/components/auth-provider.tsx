@@ -68,13 +68,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      const SUPER_ADMIN_EMAIL = 'dary775@gmail.com';
+      const PLATFORM_TENANT_ID = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
+
       let tenantId = currentUser.user_metadata?.tenant_id;
       
-      // La detección de super admin se hace mediante is_platform_admin en user_metadata
-      // que es seteado por el callback de auth leyendo la tabla tenants.
-      // Eliminado: hardcodeo por email (dary775@gmail.com, admin@admin.com, etc.)
+      // DEFINITIVE: Super Admin detection by email — always takes priority
+      if (currentUser.email === SUPER_ADMIN_EMAIL) {
+        tenantId = PLATFORM_TENANT_ID;
+      }
+
+      // Fallback: Detectar super admin por is_platform_admin en user_metadata
       if (!tenantId && currentUser.user_metadata?.is_platform_admin === true) {
-        tenantId = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
+        tenantId = PLATFORM_TENANT_ID;
       }
 
       let dbRole = 'owner';

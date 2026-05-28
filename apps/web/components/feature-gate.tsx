@@ -46,9 +46,21 @@ function LockedState({ feature }: { feature: string }) {
       title: 'Catálogo Web Bloqueado',
       description: 'El catálogo online requiere un plan con tienda habilitada.',
     },
+    loyalty: {
+      title: 'Club de Puntos Bloqueado',
+      description: 'El programa de fidelidad y acumulación de puntos para incentivar clientes requiere un plan superior.',
+    },
+    segments: {
+      title: 'Segmentación de Clientes Bloqueada',
+      description: 'La creación de segmentos avanzados y filtros automatizados de clientes requiere un plan Pro o superior.',
+    },
+    multi_branch: {
+      title: 'Gestión de Sucursales Bloqueada',
+      description: 'El control multisucursal y gestión de múltiples inventarios físicos requiere un plan Premium.',
+    },
   };
 
-  const labels = featureLabels[feature] || featureLabels.online_store || { title: 'No disponible', description: 'Función bloqueada' };
+  const labels = featureLabels[feature] || { title: 'Módulo de Suscripción Premium', description: 'Esta función requiere un plan superior. Contactá a soporte para actualizar tu suscripción.' };
 
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">

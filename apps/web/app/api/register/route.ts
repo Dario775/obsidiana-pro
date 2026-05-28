@@ -69,6 +69,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password, confirmPassword, storeName, googleUserId } = body;
 
+    // DEFINITIVE: Block Super Admin email from creating a new store
+    const SUPER_ADMIN_EMAIL = 'dary775@gmail.com';
+    if (email === SUPER_ADMIN_EMAIL) {
+      return NextResponse.json(
+        { error: 'Esta cuenta es de administración de plataforma y no puede crear tiendas.' },
+        { status: 403 }
+      );
+    }
+
     // For Google users: they already have an auth account, just need a tenant
     const isGoogleUser = !!googleUserId;
 
