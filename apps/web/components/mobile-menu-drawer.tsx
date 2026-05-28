@@ -76,6 +76,36 @@ export function MobileMenuDrawer({ isOpen, onClose }: MobileMenuDrawerProps) {
       href: '/customers',
       icon: 'group',
       desc: 'Crédito y cuentas corrientes'
+    },
+    {
+      title: 'Segmentos de Clientes',
+      href: '/customers/segments',
+      icon: 'category',
+      desc: 'Agrupar y segmentar clientes'
+    },
+    {
+      title: 'Programa de Fidelidad',
+      href: '/customers/loyalty',
+      icon: 'military_tech',
+      desc: 'Configurar club de puntos y premios'
+    },
+    {
+      title: 'Proveedores',
+      href: '/suppliers',
+      icon: 'local_shipping',
+      desc: 'Gestión de proveedores'
+    },
+    {
+      title: 'Ventas POS',
+      href: '/sales',
+      icon: 'trending_up',
+      desc: 'Historial de ventas diarias'
+    },
+    {
+      title: 'Sucursales',
+      href: '/branches',
+      icon: 'map',
+      desc: 'Administrar ubicaciones físicas'
     }
   ];
 

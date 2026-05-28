@@ -26,6 +26,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [showSecondConfirm, setShowSecondConfirm] = useState(false);
 
   useEffect(() => {
     if (tenant) {
@@ -297,6 +298,7 @@ export default function SettingsPage() {
                 setShowDeleteModal(true);
                 setDeleteConfirmText('');
                 setDeleteError('');
+                setShowSecondConfirm(false);
               }}
               className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
             >
@@ -325,88 +327,128 @@ export default function SettingsPage() {
             </div>
 
             {/* Body */}
-            <div className="p-6 space-y-4">
-              <div className="space-y-3">
-                <p className="text-sm text-zinc-300 leading-relaxed">
-                  Estás a punto de eliminar permanentemente <span className="text-white font-bold">{tenant?.nombre || 'tu negocio'}</span> y todos sus datos.
-                </p>
-                <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 space-y-2">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Se eliminará:</p>
-                  <ul className="space-y-1.5">
-                    {[
-                      'Todos los productos e inventario',
-                      'Todos los pedidos y ventas',
-                      'Todos los clientes y segmentos',
-                      'Sesiones de caja y pagos',
-                      'Proveedores y movimientos de stock',
-                      'Configuración de tienda online',
-                      'Usuarios asociados al negocio',
-                    ].map((item) => (
-                      <li key={item} className="flex items-center gap-2 text-xs text-zinc-400">
-                        <span className="material-symbols-outlined text-red-400/60 text-[14px]">remove_circle</span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+            {!showSecondConfirm ? (
+              <div className="p-6 space-y-4">
+                <div className="space-y-3">
+                  <p className="text-sm text-zinc-300 leading-relaxed">
+                    Estás a punto de eliminar permanentemente <span className="text-white font-bold">{tenant?.nombre || 'tu negocio'}</span> y todos sus datos.
+                  </p>
+                  <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 space-y-2">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Se eliminará:</p>
+                    <ul className="space-y-1.5">
+                      {[
+                        'Todos los productos e inventario',
+                        'Todos los pedidos y ventas',
+                        'Todos los clientes y segmentos',
+                        'Sesiones de caja y pagos',
+                        'Proveedores y movimientos de stock',
+                        'Configuración de tienda online',
+                        'Usuarios asociados al negocio',
+                      ].map((item) => (
+                        <li key={item} className="flex items-center gap-2 text-xs text-zinc-400">
+                          <span className="material-symbols-outlined text-red-400/60 text-[14px]">remove_circle</span>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 flex gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-[16px] mt-0.5 shrink-0">info</span>
+                    <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                      Te recomendamos <strong>exportar tus datos</strong> antes de continuar. Cerrá este modal y usá el botón &quot;Exportar Datos&quot;.
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 flex gap-2">
-                  <span className="material-symbols-outlined text-amber-400 text-[16px] mt-0.5 shrink-0">info</span>
-                  <p className="text-[11px] text-amber-300/80 leading-relaxed">
-                    Te recomendamos <strong>exportar tus datos</strong> antes de continuar. Cerrá este modal y usá el botón &quot;Exportar Datos&quot;.
+
+                {/* Confirmation input */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                    Escribí <span className="text-red-400">ELIMINAR MI CUENTA</span> para confirmar
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => { setDeleteConfirmText(e.target.value); setDeleteError(''); }}
+                    placeholder="ELIMINAR MI CUENTA"
+                    className="w-full bg-zinc-950 border border-red-500/20 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-zinc-700 font-mono"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+
+                {deleteError && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+                    {deleteError}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 space-y-6 text-center animate-in zoom-in-95 duration-200">
+                <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-2 animate-bounce">
+                  <span className="material-symbols-outlined text-red-400 text-3xl font-black">warning</span>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-white font-black text-lg uppercase tracking-tight">¿Confirmación Final?</h4>
+                  <p className="text-zinc-400 text-sm leading-relaxed px-2">
+                    Estás a punto de eliminar tu cuenta por completo. ¿Aún así deseas continuar?
                   </p>
                 </div>
-              </div>
 
-              {/* Confirmation input */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-                  Escribí <span className="text-red-400">ELIMINAR MI CUENTA</span> para confirmar
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={(e) => { setDeleteConfirmText(e.target.value); setDeleteError(''); }}
-                  placeholder="ELIMINAR MI CUENTA"
-                  className="w-full bg-zinc-950 border border-red-500/20 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-zinc-700 font-mono"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
+                {deleteError && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+                    {deleteError}
+                  </div>
+                )}
               </div>
-
-              {deleteError && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
-                  {deleteError}
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Footer */}
-            <div className="p-6 pt-0 flex gap-3">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                disabled={deleting}
-                className="flex-1 px-5 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleteConfirmText !== 'ELIMINAR MI CUENTA' || deleting}
-                className="flex-1 px-5 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {deleting ? (
-                  <>
-                    <span className="material-symbols-outlined text-sm animate-spin">autorenew</span>
-                    Eliminando...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-sm">delete_forever</span>
-                    Eliminar Todo
-                  </>
-                )}
-              </button>
-            </div>
+            {!showSecondConfirm ? (
+              <div className="p-6 pt-0 flex gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleting}
+                  className="flex-1 px-5 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => setShowSecondConfirm(true)}
+                  disabled={deleteConfirmText !== 'ELIMINAR MI CUENTA'}
+                  className="flex-1 px-5 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-sm">delete_forever</span>
+                  Eliminar Todo
+                </button>
+              </div>
+            ) : (
+              <div className="p-6 pt-0 flex gap-3">
+                <button
+                  onClick={() => setShowSecondConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 px-5 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+                >
+                  No, cancelar
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="flex-1 px-5 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all disabled:opacity-30 flex items-center justify-center gap-2"
+                >
+                  {deleting ? (
+                     <>
+                       <span className="material-symbols-outlined text-sm animate-spin">autorenew</span>
+                       Eliminando...
+                     </>
+                  ) : (
+                     <>
+                       <span className="material-symbols-outlined text-sm">delete_forever</span>
+                       Sí, continuar
+                     </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -125,6 +125,40 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
                 <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/customers') ? "'FILL' 1" : "" }}>group</span>
                 Clientes
               </Link>
+              {isActive('/customers') && (
+                <ul className="pl-6 mt-1.5 space-y-1 border-l border-white/5 ml-5">
+                  <li>
+                    <Link href="/customers/segments" className={`flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${isActive('/customers/segments') ? 'text-violet-400 bg-white/5' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
+                      <span className="material-symbols-outlined text-[15px]">category</span>
+                      Segmentos
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/customers/loyalty" className={`flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${isActive('/customers/loyalty') ? 'text-violet-400 bg-white/5' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
+                      <span className="material-symbols-outlined text-[15px]">military_tech</span>
+                      Club de Puntos
+                    </Link>
+                  </li>
+                </ul>
+              )}
+            </li>
+            <li>
+              <Link href="/suppliers" className={navItemClasses('/suppliers')}>
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/suppliers') ? "'FILL' 1" : "" }}>local_shipping</span>
+                Proveedores
+              </Link>
+            </li>
+            <li>
+              <Link href="/sales" className={navItemClasses('/sales')}>
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/sales') ? "'FILL' 1" : "" }}>trending_up</span>
+                Ventas POS
+              </Link>
+            </li>
+            <li>
+              <Link href="/branches" className={navItemClasses('/branches')}>
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive('/branches') ? "'FILL' 1" : "" }}>map</span>
+                Sucursales
+              </Link>
             </li>
           </ul>
         </div>

@@ -101,7 +101,7 @@ export default function SalesPage() {
   const fmt = (n: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 
   return (
-    <main className="flex-1 lg:ml-64 p-4 md:p-8 bg-background min-h-screen max-w-[1440px] mx-auto w-full">
+    <div className="space-y-8">
       {/* Header Section */}
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -246,6 +246,6 @@ export default function SalesPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
