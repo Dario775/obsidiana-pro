@@ -505,7 +505,9 @@ export default function POSPage() {
         tax_ars?: number;
         discount_ars?: number;
         total_ars?: number;
+        number?: number;
       };
+      
       // Guardar datos para el recibo
       setLastSale({
         orderId: checkoutResult.order_id,
@@ -520,6 +522,57 @@ export default function POSPage() {
         date: new Date(),
         isCreditSale
       });
+
+      // === ACUMULACIÓN DE PUNTOS DE FIDELIDAD (LOYALTY) ===
+      if (customerId) {
+        try {
+          const { data: configData } = await supabase
+            .from('loyalty_settings')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .maybeSingle();
+
+          if (configData) {
+            const pointsPerArs = Number(configData.points_per_ars_spent) || 100;
+            const pointsToEarn = Math.floor((checkoutResult.total_ars ?? finalTotal) / pointsPerArs);
+
+            if (pointsToEarn > 0) {
+              // 1. Registrar transacción de suma de puntos
+              await supabase
+                .from('loyalty_transactions')
+                .insert({
+                  tenant_id: tenantId,
+                  customer_id: customerId,
+                  amount: pointsToEarn,
+                  type: 'earn',
+                  reason: `Compra POS Orden N° ${checkoutResult.number || ''}`
+                });
+
+              // 2. Obtener saldo actual
+              const { data: currentBal } = await supabase
+                .from('customer_loyalty_balances')
+                .select('points_balance')
+                .eq('customer_id', customerId)
+                .maybeSingle();
+
+              const oldBalance = currentBal ? Number(currentBal.points_balance) : 0;
+              const newBalance = oldBalance + pointsToEarn;
+
+              // 3. Upsert en el saldo acumulado
+              await supabase
+                .from('customer_loyalty_balances')
+                .upsert({
+                  customer_id: customerId,
+                  tenant_id: tenantId,
+                  points_balance: newBalance,
+                  updated_at: new Date().toISOString()
+                });
+            }
+          }
+        } catch (loyaltyErr) {
+          console.error('Error al procesar fidelización de puntos:', loyaltyErr);
+        }
+      }
 
       // Limpiar carrito
       setCart([]);
