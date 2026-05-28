@@ -314,12 +314,19 @@ export function OnboardingWizard() {
 
     try {
       // 1. Construir payload con TODOS los campos del wizard
+      const isDark = data.storeTheme === 'dark';
       const updatePayload: Record<string, any> = {
         settings: { ...(tenant.settings || {}), onboarding_completed: true },
         // Siempre guardar estos campos aunque estén vacíos (el usuario los limpió intencionalmente)
         nombre: data.businessName || tenant.nombre,
         store_name: data.storeName || tenant.store_name || data.businessName || tenant.nombre,
         store_theme: data.storeTheme || 'dark',
+        // Sincronizar store_appearance.dark_mode con la elección del wizard
+        // La tienda lee store_appearance para aplicar el modo oscuro/claro
+        store_appearance: {
+          ...((tenant as any).store_appearance || {}),
+          dark_mode: isDark,
+        },
       };
 
       // Campos opcionales — solo sobrescribir si el usuario los completó

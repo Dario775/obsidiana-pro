@@ -692,7 +692,7 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
     );
   }
 
-  if (!tenant.store_active && !isOwner) {
+  if ((!tenant.store_active || tenant.status === 'inactive') && !isOwner) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-zinc-900 border border-white/10 p-8 rounded-3xl text-center space-y-6 shadow-2xl">

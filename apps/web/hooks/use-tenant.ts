@@ -177,13 +177,19 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
   const hasFeature = useCallback((featureName: string): boolean => {
     if (!tenant || !plan) return false;
-    if (featureName === 'online_store' && plan.online_store === true) return true;
-    if (featureName === 'pos' && plan.pos === true) return true;
-    if (plan.features && plan.features[featureName] === true) return true;
+
+    // online_store: el plan DEBE permitirlo Y el tenant debe tener la tienda habilitada
     if (featureName === 'online_store') {
       const planAllows = plan.online_store === true || plan.features?.['online_store'] === true;
       return !!(planAllows && tenant.online_store_enabled);
     }
+
+    // pos: verificar en plan
+    if (featureName === 'pos') return plan.pos === true;
+
+    // resto de features en el JSONB del plan
+    if (plan.features && plan.features[featureName] === true) return true;
+
     return false;
   }, [tenant, plan]);
 
@@ -238,13 +244,19 @@ function useTenantStandalone(): TenantContextValue {
 
   const hasFeature = useCallback((featureName: string): boolean => {
     if (!tenant || !plan) return false;
-    if (featureName === 'online_store' && plan.online_store === true) return true;
-    if (featureName === 'pos' && plan.pos === true) return true;
-    if (plan.features && plan.features[featureName] === true) return true;
+
+    // online_store: el plan DEBE permitirlo Y el tenant debe tener la tienda habilitada
     if (featureName === 'online_store') {
       const planAllows = plan.online_store === true || plan.features?.['online_store'] === true;
       return !!(planAllows && tenant.online_store_enabled);
     }
+
+    // pos: verificar en plan
+    if (featureName === 'pos') return plan.pos === true;
+
+    // resto de features en el JSONB del plan
+    if (plan.features && plan.features[featureName] === true) return true;
+
     return false;
   }, [tenant, plan]);
 
