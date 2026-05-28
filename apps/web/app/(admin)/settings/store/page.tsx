@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { FeatureGate } from '@/components/feature-gate';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { getStoreUrl } from '@/lib/store-url';
@@ -40,8 +41,37 @@ type Tab = 'general' | 'apariencia' | 'envio' | 'social' | 'pagos';
 
 export default function StoreSettingsPage() {
   const { tenant } = useTenant();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [saving, setSaving] = useState(false);
+  const [showManualMp, setShowManualMp] = useState(false);
+  const [mpNotification, setMpNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    const connected = searchParams.get('mp_connected');
+    const error = searchParams.get('mp_error');
+
+    if (connected === 'true') {
+      setMpNotification({
+        type: 'success',
+        message: '¡Cuenta de Mercado Pago conectada con éxito! Tu tienda ya está lista para procesar cobros automáticamente.'
+      });
+      window.history.replaceState(null, '', window.location.pathname);
+    } else if (error) {
+      let msg = 'Hubo un problema al conectar con Mercado Pago.';
+      if (error === 'missing_params') msg = 'Error: Faltan parámetros en la respuesta de autenticación.';
+      if (error === 'token_exchange_failed') msg = 'Error: No se pudieron intercambiar las credenciales con Mercado Pago.';
+      if (error === 'database_update_failed') msg = 'Error: No se pudieron guardar las credenciales en la base de datos.';
+      if (error === 'platform_credentials_missing') msg = 'Error: Faltan credenciales de plataforma de la app de Mercado Pago.';
+      
+      setMpNotification({
+        type: 'error',
+        message: msg
+      });
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [searchParams]);
   
   const [form, setForm] = useState({
     store_name: '',
@@ -189,6 +219,47 @@ export default function StoreSettingsPage() {
       setForm(f => ({ ...f, store_banners: [...f.store_banners, result.secure_url] }));
     }
     setUploading(false);
+  }
+
+  async function handleDisconnectMP() {
+    if (!confirm('¿Estás seguro de que deseas desconectar tu cuenta de Mercado Pago? Los cobros automáticos quedarán suspendidos.')) return;
+    
+    setSaving(true);
+    try {
+      const tenantId = tenant?.id;
+      if (!tenantId) return;
+
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          store_mp_access_token: null,
+          store_mp_public_key: null,
+          store_mp_refresh_token: null,
+          store_mp_user_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tenantId);
+
+      if (error) throw error;
+
+      setForm(f => ({
+        ...f,
+        store_mp_access_token: '',
+        store_mp_public_key: '',
+      }));
+
+      setMpNotification({
+        type: 'success',
+        message: 'Cuenta de Mercado Pago desconectada exitosamente.'
+      });
+      
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Error al desconectar MP:', err);
+      alert('Error al desconectar: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSave() {
@@ -962,46 +1033,141 @@ export default function StoreSettingsPage() {
               </div>
 
               {/* Mercado Pago */}
-              <div className="p-6 bg-zinc-950 border border-white/5 rounded-2xl space-y-4">
-                <div className="flex items-center gap-2.5">
-                  <span className="material-symbols-outlined text-secondary text-2xl">payment</span>
-                  <div>
-                    <h4 className="font-bold text-white text-sm">Mercado Pago</h4>
-                    <p className="text-xs text-zinc-500">Cobros automáticos con tarjetas de crédito, débito o saldo en cuenta</p>
+              <div className="p-6 bg-zinc-950 border border-white/5 rounded-2xl space-y-6">
+                
+                {/* Banner de Notificación MP */}
+                {mpNotification && (
+                  <div className={`p-4 rounded-xl flex gap-3 text-xs leading-relaxed border animate-in slide-in-from-top duration-300 ${
+                    mpNotification.type === 'success' 
+                      ? 'bg-emerald-950/30 border-emerald-500/20 text-emerald-300' 
+                      : 'bg-rose-950/30 border-rose-500/20 text-rose-300'
+                  }`}>
+                    <span className="material-symbols-outlined shrink-0 text-lg">
+                      {mpNotification.type === 'success' ? 'check_circle' : 'error'}
+                    </span>
+                    <div className="flex-1 flex justify-between items-start">
+                      <p>{mpNotification.message}</p>
+                      <button 
+                        type="button" 
+                        onClick={() => setMpNotification(null)}
+                        className="text-zinc-500 hover:text-zinc-300 transition-colors ml-2"
+                      >
+                        <span className="material-symbols-outlined text-sm">close</span>
+                      </button>
+                    </div>
                   </div>
+                )}
+
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-secondary text-2xl">payment</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Mercado Pago</h4>
+                      <p className="text-xs text-zinc-500">Cobros automáticos con tarjetas de crédito, débito o saldo en cuenta</p>
+                    </div>
+                  </div>
+
+                  {/* Estado Badge */}
+                  {form.store_mp_access_token ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Conectado
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700/55">
+                      Desconectado
+                    </span>
+                  )}
                 </div>
 
-                <div className="p-4 bg-zinc-900 border border-white/5 rounded-xl flex gap-3 text-xs text-zinc-400 leading-relaxed">
-                  <span className="material-symbols-outlined text-secondary">info</span>
-                  <p>
-                    Configurá tus credenciales de <strong>Mercado Pago</strong> para recibir pagos automáticos. 
-                    Podés encontrarlas en el panel de desarrolladores de Mercado Pago.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 pt-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-zinc-400 mb-1.5">MP Public Key</label>
-                    <input
-                      type="text"
-                      value={form.store_mp_public_key}
-                      onChange={(e) => setForm(f => ({ ...f, store_mp_public_key: e.target.value }))}
-                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
-                      placeholder="APP_USR-..."
-                    />
+                {form.store_mp_access_token ? (
+                  /* VISTA CONECTADA (PREMIUM) */
+                  <div className="p-5 bg-zinc-900 border border-white/5 rounded-xl space-y-4 animate-in fade-in duration-200">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1.5">
+                        <div className="text-xs font-semibold text-zinc-400">Detalles de Conexión</div>
+                        <div className="text-xs text-zinc-300 flex items-center gap-2">
+                          <span className="material-symbols-outlined text-zinc-500 text-sm">account_circle</span>
+                          ID de Cuenta: <span className="font-mono text-white">{(tenant as any)?.store_mp_user_id || 'Principal'}</span>
+                        </div>
+                        <div className="text-[10px] text-zinc-500">
+                          Los pagos se acreditarán de inmediato en tu cuenta personal de Mercado Pago.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectMP}
+                        className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 hover:border-rose-500/30 rounded-xl text-xs font-bold transition-all"
+                      >
+                        Desconectar cuenta
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  /* VISTA DESCONECTADA (PREMIUM) */
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <div className="p-4 bg-zinc-900 border border-white/5 rounded-xl flex gap-3 text-xs text-zinc-400 leading-relaxed">
+                      <span className="material-symbols-outlined text-secondary">info</span>
+                      <p>
+                        Conectá tu cuenta de **Mercado Pago** para recibir pagos en piloto automático en tu tienda online.
+                        Los clientes podrán pagar mediante transferencia, débito o crédito y el dinero llegará directamente a tu cuenta.
+                      </p>
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-zinc-400 mb-1.5">MP Access Token</label>
-                    <input
-                      type="password"
-                      value={form.store_mp_access_token}
-                      onChange={(e) => setForm(f => ({ ...f, store_mp_access_token: e.target.value }))}
-                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
-                      placeholder="APP_USR-..."
-                    />
-                    <p className="text-[10px] text-zinc-600 mt-1">Este token es secreto y se usa para generar los cobros de forma segura.</p>
+                    <div className="flex flex-col items-center justify-center py-6 border border-dashed border-white/10 rounded-xl space-y-4 bg-zinc-950/45">
+                      <span className="material-symbols-outlined text-5xl text-zinc-600">bolt</span>
+                      <div className="text-center space-y-1">
+                        <h5 className="font-bold text-xs text-white">Conexión en un solo clic</h5>
+                        <p className="text-[10px] text-zinc-500 max-w-[280px]">Serás redirigido a Mercado Pago de manera 100% segura para autorizar Obsidiana.</p>
+                      </div>
+                      <a
+                        href={`/api/auth/mercadopago/connect?tenantId=${tenant?.id}`}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#009ee3] hover:bg-[#0087c4] text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-lg shadow-[#009ee3]/10"
+                      >
+                        <span className="material-symbols-outlined text-sm">login</span>
+                        Conectar con Mercado Pago
+                      </a>
+                    </div>
                   </div>
+                )}
+
+                {/* OPCIÓN MANUAL ADICIONAL (Para admins o desarrollo) */}
+                <div className="pt-2 border-t border-white/5 flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualMp(!showManualMp)}
+                    className="text-left text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1.5 w-max"
+                  >
+                    <span className="material-symbols-outlined text-xs">settings</span>
+                    {showManualMp ? 'Ocultar configuración manual' : '¿Querés configurar tus credenciales manualmente?'}
+                  </button>
+
+                  {showManualMp && (
+                    <div className="grid grid-cols-1 gap-4 pt-3 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-400 mb-1.5">MP Public Key (Manual)</label>
+                        <input
+                          type="text"
+                          value={form.store_mp_public_key}
+                          onChange={(e) => setForm(f => ({ ...f, store_mp_public_key: e.target.value }))}
+                          className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
+                          placeholder="APP_USR-..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-400 mb-1.5">MP Access Token (Manual)</label>
+                        <input
+                          type="password"
+                          value={form.store_mp_access_token}
+                          onChange={(e) => setForm(f => ({ ...f, store_mp_access_token: e.target.value }))}
+                          className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-secondary/70 focus:ring-2 focus:ring-secondary/20 transition-all"
+                          placeholder="APP_USR-..."
+                        />
+                        <p className="text-[10px] text-zinc-600 mt-1">Este token es secreto y se usa para generar los cobros de forma segura.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
