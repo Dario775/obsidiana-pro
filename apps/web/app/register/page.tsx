@@ -67,26 +67,6 @@ export default function RegisterPage() {
       if (!res.ok) throw new Error(data.error || 'Error al registrarse');
 
       setSuccess(true);
-      
-      // Retry auto-login with backoff (Supabase may need a moment to propagate the new user)
-      const tryLogin = async (attempts: number): Promise<boolean> => {
-        for (let i = 0; i < attempts; i++) {
-          const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-          if (!loginError) return true;
-          if (i < attempts - 1) {
-            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-          }
-        }
-        return false;
-      };
-
-      const loggedIn = await tryLogin(3);
-      if (!loggedIn) {
-        setError('Cuenta creada pero no pudimos iniciar sesión automáticamente. Por favor iniciá sesión manualmente.');
-        setTimeout(() => router.push('/login'), 3000);
-        return;
-      }
-      setTimeout(() => router.push('/dashboard'), 2000);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -113,16 +93,31 @@ export default function RegisterPage() {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
-        <div className="text-center space-y-6 max-w-md">
-          <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
-            <span className="material-symbols-outlined text-emerald-400 text-4xl">check_circle</span>
+        {/* Background Effects */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[120px]"></div>
+        </div>
+
+        <div className="relative z-10 text-center space-y-6 max-w-md p-8 rounded-3xl bg-zinc-900/40 border border-white/5 backdrop-blur-md">
+          <div className="w-16 h-16 bg-violet-500/10 border border-violet-500/20 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <span className="material-symbols-outlined text-violet-400 text-3xl">mail</span>
           </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-white tracking-tight">¡Cuenta creada!</h2>
-            <p className="text-zinc-500 font-medium">Preparando tu panel de control...</p>
+          <div className="space-y-3">
+            <h2 className="text-2xl font-black text-white tracking-tight">¡Verificá tu email!</h2>
+            <p className="text-sm text-zinc-300 font-medium leading-relaxed">
+              Hemos enviado un enlace de confirmación a <span className="text-violet-400 font-bold">{email}</span>.
+            </p>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              Por favor, revisá tu bandeja de entrada (y la carpeta de spam) y hacé clic en el enlace para activar tu cuenta y poder ingresar.
+            </p>
           </div>
-          <div className="w-48 h-1 bg-zinc-900 rounded-full overflow-hidden mx-auto">
-            <div className="h-full bg-emerald-500 rounded-full animate-[loading_2s_ease-in-out]"></div>
+          <div className="pt-4 border-t border-white/5">
+            <Link 
+              href="/login" 
+              className="inline-flex w-full items-center justify-center bg-violet-500 hover:bg-violet-400 text-white py-3 px-6 rounded-xl font-bold text-sm tracking-wider uppercase shadow-lg shadow-violet-500/10 active:scale-[0.98] transition-all"
+            >
+              Ir a Iniciar Sesión
+            </Link>
           </div>
         </div>
       </div>
@@ -183,15 +178,27 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-zinc-600">
-          <div className="flex -space-x-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="w-8 h-8 rounded-full bg-zinc-800 border-2 border-zinc-950 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[12px] text-zinc-500">person</span>
+        {/* Bottom - Testimonial */}
+        <div className="space-y-4 max-w-md">
+          <div className="p-5 rounded-2xl bg-zinc-900/30 border border-white/5 backdrop-blur-sm space-y-3">
+            <div className="flex gap-0.5 text-amber-400">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <span key={star} className="material-symbols-outlined text-[16px] fill-current">star</span>
+              ))}
+            </div>
+            <p className="text-sm text-zinc-300 font-medium leading-relaxed italic">
+              "La migración a Obsidiana fue súper simple. El soporte nos ayudó en cada paso y la tienda online integrada empezó a vender en menos de 24 horas."
+            </p>
+            <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center text-[10px] font-black text-white shadow-sm">
+                SR
               </div>
-            ))}
+              <div>
+                <p className="text-xs font-bold text-white leading-none">Sofía Rossi</p>
+                <p className="text-[10px] font-medium text-zinc-500 mt-0.5">Socia Gerente en Nexo Tienda</p>
+              </div>
+            </div>
           </div>
-          <p className="text-xs font-medium">+2,500 negocios ya confían en nosotros</p>
         </div>
       </div>
 

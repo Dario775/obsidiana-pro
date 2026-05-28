@@ -270,16 +270,27 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Bottom */}
-        <div className="flex items-center gap-4 text-zinc-600">
-          <div className="flex -space-x-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-8 h-8 rounded-full bg-zinc-800 border-2 border-zinc-950 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[12px] text-zinc-500">person</span>
+        {/* Bottom - Testimonial */}
+        <div className="space-y-4 max-w-md">
+          <div className="p-5 rounded-2xl bg-zinc-900/30 border border-white/5 backdrop-blur-sm space-y-3">
+            <div className="flex gap-0.5 text-amber-400">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <span key={star} className="material-symbols-outlined text-[16px] fill-current">star</span>
+              ))}
+            </div>
+            <p className="text-sm text-zinc-300 font-medium leading-relaxed italic">
+              "Obsidiana transformó la gestión de nuestro local. El control de stock en tiempo real y la rapidez del punto de venta nos ahorran horas de trabajo todos los días."
+            </p>
+            <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center text-[10px] font-black text-white shadow-sm">
+                AM
               </div>
-            ))}
+              <div>
+                <p className="text-xs font-bold text-white leading-none">Alejandro Muñoz</p>
+                <p className="text-[10px] font-medium text-zinc-500 mt-0.5">Fundador de Distribuidora Sur</p>
+              </div>
+            </div>
           </div>
-          <p className="text-xs font-medium">+2,500 negocios confían en nosotros</p>
         </div>
       </div>
 

@@ -218,23 +218,33 @@ export async function POST(request: NextRequest) {
 
     } else {
       // Traditional email/password registration
-      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
+      // We use the standard supabaseClient (non-admin) with signUp so that GoTrue sends the confirmation email.
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+
+      const origin = request.nextUrl.origin;
+      const { data: userData, error: userError } = await supabaseClient.auth.signUp({
         email,
         password,
-        email_confirm: true,
-        user_metadata: {
-          store_name: storeName,
-          tenant_id: tenantData.id,
+        options: {
+          emailRedirectTo: `${origin}/auth/callback?type=signup`,
+          data: {
+            store_name: storeName,
+            tenant_id: tenantData.id,
+          },
         },
       });
 
-      if (userError) {
+      if (userError || !userData?.user) {
         // CLEANUP: Delete the tenant since user creation failed
         console.error('User creation failed, cleaning up tenant:', userError);
         await supabaseAdmin.from('tenants').delete().eq('id', tenantData.id);
         
+        const errMsg = userError?.message || 'Error al registrar el usuario';
+        
         // Handle duplicate email case
-        if (userError.message?.includes('already registered') || userError.message?.includes('already exists') || userError.message?.includes('User already registered')) {
+        if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('User already registered')) {
           return NextResponse.json(
             { error: 'Ya existe una cuenta con ese email. Iniciá sesión o recuperá tu contraseña.' },
             { status: 400 }
@@ -242,7 +252,7 @@ export async function POST(request: NextRequest) {
         }
         
         return NextResponse.json(
-          { error: userError.message },
+          { error: errMsg },
           { status: 400 }
         );
       }
