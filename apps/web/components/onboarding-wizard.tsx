@@ -286,14 +286,17 @@ export function OnboardingWizard() {
     if (step > 0) goToStep(step - 1, 'back');
   };
 
-  const markCompleted = async () => {
-    if (!tenant?.id) return;
-    await supabase
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const markCompleted = async (): Promise<boolean> => {
+    if (!tenant?.id) return false;
+    const { error } = await supabase
       .from('tenants')
       .update({
         settings: { ...(tenant.settings || {}), onboarding_completed: true },
       })
       .eq('id', tenant.id);
+    return !error;
   };
 
   const skip = async () => {
@@ -307,37 +310,82 @@ export function OnboardingWizard() {
       return;
     }
     setSaving(true);
+    setSaveError(null);
+
     try {
+      // 1. Construir payload con TODOS los campos del wizard
       const updatePayload: Record<string, any> = {
         settings: { ...(tenant.settings || {}), onboarding_completed: true },
+        // Siempre guardar estos campos aunque estén vacíos (el usuario los limpió intencionalmente)
+        nombre: data.businessName || tenant.nombre,
+        store_name: data.storeName || tenant.store_name || data.businessName || tenant.nombre,
+        store_theme: data.storeTheme || 'dark',
       };
 
-      if (data.businessName) updatePayload.nombre = data.businessName;
-      if (data.cuit) updatePayload.cuit = data.cuit;
+      // Campos opcionales — solo sobrescribir si el usuario los completó
+      if (data.cuit.trim()) updatePayload.cuit = data.cuit.trim();
       if (data.ivaCondition) updatePayload.condicion_iva = data.ivaCondition;
-      if (data.phone) updatePayload.phone = data.phone;
-      if (data.address) updatePayload.address = data.address;
-      if (data.storeName) updatePayload.store_name = data.storeName;
-      if (data.storeTagline) updatePayload.store_tagline = data.storeTagline;
-      if (data.storeTheme) updatePayload.store_theme = data.storeTheme;
+      if (data.phone.trim()) updatePayload.phone = data.phone.trim();
+      if (data.address.trim()) updatePayload.address = data.address.trim();
+      if (data.storeTagline.trim()) updatePayload.store_tagline = data.storeTagline.trim();
 
-      await supabase.from('tenants').update(updatePayload).eq('id', tenant.id);
+      // 2. Guardar en tenants — verificar error explícitamente
+      const { error: tenantError } = await supabase
+        .from('tenants')
+        .update(updatePayload)
+        .eq('id', tenant.id);
 
-      // Crear primer producto si se completó
-      if (!data.skipProduct && data.productName && data.productPrice) {
-        await supabase.from('products').insert({
-          tenant_id: tenant.id,
-          nombre: data.productName,
-          precio: parseFloat(data.productPrice) || 0,
-          stock: 0,
-          available_online: true,
-        });
+      if (tenantError) {
+        console.error('Error actualizando tenant:', tenantError);
+        setSaveError(`Error al guardar el negocio: ${tenantError.message}`);
+        setSaving(false);
+        return;
       }
-    } catch (err) {
-      console.error('Onboarding save error:', err);
-    } finally {
+
+      // 3. Crear primer producto si se completó y tiene nombre y precio
+      if (!data.skipProduct && data.productName.trim() && data.productPrice) {
+        const precio = parseFloat(data.productPrice);
+        if (!isNaN(precio) && precio >= 0) {
+          // Generar slug único a partir del nombre
+          const slugBase = data.productName.trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+          const slugUnique = `${slugBase}-${Date.now()}`;
+
+          const { error: productError } = await supabase
+            .from('products')
+            .insert({
+              tenant_id: tenant.id,
+              nombre: data.productName.trim(),
+              slug: slugUnique,
+              precio: precio,
+              precio_ars: precio,
+              price_ars: precio,
+              status: 'active',
+              available_online: true,
+            })
+            .select('id')
+            .single();
+
+          if (productError) {
+            // El producto falló pero el tenant se guardó — no es crítico
+            console.warn('No se pudo crear el primer producto:', productError.message);
+            // Continuar igual — el tenant ya fue guardado
+          }
+        }
+      }
+
+      // 4. Recargar la página para que el TenantProvider y el dashboard
+      //    reflejen inmediatamente los nuevos datos
+      window.location.reload();
+
+    } catch (err: any) {
+      console.error('Error inesperado en onboarding:', err);
+      setSaveError('Ocurrió un error inesperado. Intentá de nuevo.');
       setSaving(false);
-      setVisible(false);
     }
   };
 
@@ -685,6 +733,16 @@ export function OnboardingWizard() {
           )}
         </div>
 
+        {/* Error banner — solo visible si saveAndFinish falla */}
+        {saveError && (
+          <div className="mx-8 mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <p className="text-xs text-red-400 leading-relaxed">{saveError}</p>
+          </div>
+        )}
+
         {/* Navigation */}
         <div className="px-8 pb-8 flex items-center justify-between">
           {/* Back / Skip */}
@@ -746,3 +804,4 @@ export function OnboardingWizard() {
     </div>
   );
 }
+
