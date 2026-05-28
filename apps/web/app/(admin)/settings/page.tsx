@@ -22,6 +22,10 @@ export default function SettingsPage() {
   const [ivaCondition, setIvaCondition] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (tenant) {
@@ -106,6 +110,32 @@ export default function SettingsPage() {
       alert('Error al guardar');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== 'ELIMINAR MI CUENTA') return;
+    setDeleting(true);
+    setDeleteError('');
+
+    try {
+      const res = await fetch('/api/account', { method: 'DELETE' });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDeleteError(data.error || 'Error al eliminar la cuenta');
+        return;
+      }
+
+      // Clear local storage and redirect
+      if (typeof window !== 'undefined') {
+        window.localStorage.clear();
+        window.location.href = '/login?message=' + encodeURIComponent('Tu cuenta fue eliminada exitosamente. ¡Gracias por usar Obsidiana!');
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error de conexión');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -261,32 +291,125 @@ export default function SettingsPage() {
             <span className="material-symbols-outlined text-[16px]">download</span>
             Exportar Datos
           </button>
-          <button 
-            onClick={() => {
-              const confirmed = window.confirm(
-                '⚠️ ¿Estás seguro que querés eliminar tu cuenta?\n\n' +
-                'Esta acción eliminará:\n' +
-                '• Todos los productos e inventario\n' +
-                '• Todos los pedidos y clientes\n' +
-                '• La tienda online\n' +
-                '• Tu cuenta de usuario\n\n' +
-                'Esta acción es IRREVERSIBLE.\n\n' +
-                'Te recomendamos exportar tus datos primero.'
-              );
-              if (confirmed) {
-                const doubleConfirm = window.prompt('Escribí "ELIMINAR" para confirmar:');
-                if (doubleConfirm === 'ELIMINAR') {
-                  alert('Contactá a soporte@obsidiana.com para completar la eliminación de tu cuenta. Esta acción requiere verificación manual por seguridad.');
-                }
-              }
-            }}
-            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[16px]">delete_forever</span>
-            Eliminar Cuenta
-          </button>
+          {role === 'owner' && (
+            <button 
+              onClick={() => {
+                setShowDeleteModal(true);
+                setDeleteConfirmText('');
+                setDeleteError('');
+              }}
+              className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[16px]">delete_forever</span>
+              Eliminar Cuenta
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#141414] border border-red-500/20 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl shadow-red-950/30">
+            {/* Header */}
+            <div className="p-6 border-b border-red-500/10 bg-red-950/20">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-red-400 text-2xl">delete_forever</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-red-400 tracking-tight">Eliminar Cuenta</h3>
+                  <p className="text-[10px] text-red-400/60 font-bold uppercase tracking-widest">Acción irreversible</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div className="space-y-3">
+                <p className="text-sm text-zinc-300 leading-relaxed">
+                  Estás a punto de eliminar permanentemente <span className="text-white font-bold">{tenant?.nombre || 'tu negocio'}</span> y todos sus datos.
+                </p>
+                <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 space-y-2">
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Se eliminará:</p>
+                  <ul className="space-y-1.5">
+                    {[
+                      'Todos los productos e inventario',
+                      'Todos los pedidos y ventas',
+                      'Todos los clientes y segmentos',
+                      'Sesiones de caja y pagos',
+                      'Proveedores y movimientos de stock',
+                      'Configuración de tienda online',
+                      'Usuarios asociados al negocio',
+                    ].map((item) => (
+                      <li key={item} className="flex items-center gap-2 text-xs text-zinc-400">
+                        <span className="material-symbols-outlined text-red-400/60 text-[14px]">remove_circle</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 flex gap-2">
+                  <span className="material-symbols-outlined text-amber-400 text-[16px] mt-0.5 shrink-0">info</span>
+                  <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                    Te recomendamos <strong>exportar tus datos</strong> antes de continuar. Cerrá este modal y usá el botón &quot;Exportar Datos&quot;.
+                  </p>
+                </div>
+              </div>
+
+              {/* Confirmation input */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                  Escribí <span className="text-red-400">ELIMINAR MI CUENTA</span> para confirmar
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => { setDeleteConfirmText(e.target.value); setDeleteError(''); }}
+                  placeholder="ELIMINAR MI CUENTA"
+                  className="w-full bg-zinc-950 border border-red-500/20 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-zinc-700 font-mono"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+
+              {deleteError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+                  {deleteError}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 pt-0 flex gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="flex-1 px-5 py-3 bg-zinc-900 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'ELIMINAR MI CUENTA' || deleting}
+                className="flex-1 px-5 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin">autorenew</span>
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm">delete_forever</span>
+                    Eliminar Todo
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
