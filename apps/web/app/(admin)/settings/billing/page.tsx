@@ -19,12 +19,50 @@ export default function BillingPage() {
   const [paymentMethod, setPaymentMethod] = useState('transferencia');
   const [transferProof, setTransferProof] = useState<File | null>(null);
   const [informPaymentStep, setInformPaymentStep] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
     if (!tenantLoading) {
       fetchData();
     }
   }, [tenant, tenantLoading]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('status');
+      if (status === 'success') {
+        setStatusMessage({
+          type: 'success',
+          text: '¡Pago aprobado con éxito! Tu plan se actualizará automáticamente en unos instantes.'
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (status === 'failure') {
+        setStatusMessage({
+          type: 'error',
+          text: 'Hubo un inconveniente al procesar tu pago. Por favor, intentá de nuevo.'
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (status === 'pending') {
+        setStatusMessage({
+          type: 'info',
+          text: 'Tu pago está en estado pendiente. Te notificaremos cuando se acredite.'
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  // When platformConfig changes, auto-select the best default payment method
+  useEffect(() => {
+    if (platformConfig) {
+      if (platformConfig.mp_enabled) {
+        setPaymentMethod('mp');
+      } else if (platformConfig.transfer_enabled) {
+        setPaymentMethod('transferencia');
+      }
+    }
+  }, [platformConfig]);
 
   async function fetchData() {
     if (!tenant?.id) {
@@ -33,15 +71,15 @@ export default function BillingPage() {
     }
     setLoading(true);
     try {
-      const [plansRes, paymentsRes, platformRes, productsRes] = await Promise.all([
+      const [plansRes, paymentsRes, platformConfigData, productsRes] = await Promise.all([
         supabase.from('plans').select('*').order('monthly_price', { ascending: true }),
         supabase.from('subscription_payments').select('*').eq('tenant_id', tenant.id).order('paid_at', { ascending: false }),
-        supabase.from('platform_config').select('*').eq('key', 'payment_config').limit(1).maybeSingle(),
+        fetch('/api/platform/payment-config').then(res => res.json()).catch(() => null),
         supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenant.id)
       ]);
       setPlans(plansRes.data || []);
       setPayments(paymentsRes.data || []);
-      if (platformRes.data) setPlatformConfig(platformRes.data.value);
+      if (platformConfigData) setPlatformConfig(platformConfigData);
       setProductCount(productsRes.count || 0);
     } catch (err) {
       console.error(err);
@@ -222,6 +260,30 @@ export default function BillingPage() {
           </p>
         </div>
       </div>
+
+      {/* Payment returning status alert */}
+      {statusMessage && (
+         <div className={`p-6 rounded-[2rem] border animate-in fade-in slide-in-from-top-4 duration-500 relative overflow-hidden ${
+            statusMessage.type === 'success' 
+               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+               : statusMessage.type === 'error'
+                  ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                  : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+         }`}>
+            <div className="flex items-center gap-4 relative z-10">
+               <span className="material-symbols-outlined text-2xl">
+                  {statusMessage.type === 'success' ? 'check_circle' : statusMessage.type === 'error' ? 'cancel' : 'pending'}
+               </span>
+               <div className="flex-1 col">
+                  <h4 className="text-[10px] font-black uppercase tracking-wider">Facturación de Plataforma</h4>
+                  <p className="text-sm font-bold text-zinc-300 mt-1">{statusMessage.text}</p>
+               </div>
+               <button onClick={() => setStatusMessage(null)} className="text-zinc-500 hover:text-white transition-colors">
+                  <span className="material-symbols-outlined text-lg">close</span>
+               </button>
+            </div>
+         </div>
+      )}
 
       {/* Subscription Status Card */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

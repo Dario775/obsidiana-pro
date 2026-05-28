@@ -49,6 +49,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Configuración de pago de plataforma no disponible' }, { status: 500 });
     }
 
+    // Determine origin dynamically to support localhost, vercel deployments, and production domains
+    const reqUrl = new URL(req.url);
+    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || reqUrl.origin || 'https://obsidiana.pro';
+
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
       headers: {
@@ -71,16 +75,21 @@ export async function POST(req: Request) {
           type: 'subscription_payment',
         },
         back_urls: {
-          success: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?status=success`,
-          failure: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?status=failure`,
-          pending: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?status=pending`,
+          success: `${origin}/settings/billing?status=success`,
+          failure: `${origin}/settings/billing?status=failure`,
+          pending: `${origin}/settings/billing?status=pending`,
         },
         auto_return: 'approved',
-        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/platform/webhooks/mercadopago`,
+        notification_url: `${origin}/api/platform/webhooks/mercadopago`,
       }),
     });
 
     const preference = await response.json();
+
+    if (!response.ok) {
+      console.error('MercadoPago Preference Creation Error:', preference);
+      return NextResponse.json({ error: preference.message || 'Error de MercadoPago al crear preferencia' }, { status: response.status });
+    }
 
     return NextResponse.json({ 
       id: preference.id, 
