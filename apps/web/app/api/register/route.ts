@@ -3,20 +3,69 @@ import { createClient } from '@supabase/supabase-js';
 
 /**
  * POST /api/register
- * 
+ *
  * Server-side registration:
  * 1. Validates input
  * 2. Creates tenant with supabaseAdmin (bypasses RLS)
  * 3. Creates user via Auth admin API with tenant_id in metadata
  * 4. If user creation fails, cleans up the tenant reliably
- * 
+ *
  * This prevents orphan tenants since the admin client can always clean up.
  */
 
 import { supabaseAdmin } from '@/lib/supabase-server';
 
+// ── Rate Limiter en memoria ───────────────────────────────────────────────────
+// Máximo 5 registros por IP por hora (ventana deslizante).
+// Nota: En entornos serverless con múltiples instancias este límite es por instancia.
+// Para límites globales, considerar Upstash Redis o Vercel Rate Limiting.
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hora
+
+const registrationAttempts = new Map<string, number[]>();
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  );
+}
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+
+  // Limpiar entradas expiradas
+  const attempts = (registrationAttempts.get(ip) || []).filter((t) => t > windowStart);
+
+  if (attempts.length >= RATE_LIMIT_MAX) {
+    registrationAttempts.set(ip, attempts);
+    return true;
+  }
+
+  attempts.push(now);
+  registrationAttempts.set(ip, attempts);
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // ── Rate limiting ───────────────────────────────────────────────────────
+    const clientIp = getClientIp(request);
+    if (isRateLimited(clientIp)) {
+      return NextResponse.json(
+        { error: 'Demasiados intentos de registro. Por favor espera un momento e intenta nuevamente.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': '3600',
+            'X-RateLimit-Limit': String(RATE_LIMIT_MAX),
+            'X-RateLimit-Window': '3600s',
+          },
+        }
+      );
+    }
     const body = await request.json();
     const { email, password, confirmPassword, storeName, googleUserId } = body;
 

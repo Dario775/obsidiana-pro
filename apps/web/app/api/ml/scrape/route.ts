@@ -1,11 +1,41 @@
 import { NextResponse } from 'next/server';
 
+// ── Whitelist de dominios permitidos ─────────────────────────────────────────
+const ALLOWED_SCRAPE_DOMAINS = [
+  'mercadolibre.com.ar',
+  'mercadolibre.com',
+  'articulo.mercadolibre.com.ar',
+  'www.mercadolibre.com.ar',
+  'www.mercadolibre.com',
+];
+
+function isScrapeAllowed(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return ALLOWED_SCRAPE_DOMAINS.some(
+      (d) => host === d || host.endsWith(`.${d}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { url } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+    }
+
+    // ── Validación de dominio ─────────────────────────────────────────────────
+    if (!isScrapeAllowed(url)) {
+      return NextResponse.json(
+        { error: 'Domain not allowed. Only MercadoLibre URLs are permitted.' },
+        { status: 403 }
+      );
     }
 
     const response = await fetch(url, {
