@@ -1,7 +1,7 @@
 # Obsidiana - Sistema Checkpoint
 
-> Fecha: 2026-05-27
-> Estado: ✅ Rebranding Completed to "Obsidiana" + Platform Terms & Privacy Policy published + Landing branding revamped with sleek glowing integrations grid + Email registration hardened with confirmPassword and anti-XSS/SQLi regex filtering + Official V4 Logo fully integrated with rounded corners across all components, favicon icons, and headers/footers + Footer social vector links (WhatsApp +543877534410 and Facebook) integrated successfully.
+> Fecha: 2026-05-28
+> Estado: ✅ Rebranding Completed to "Obsidiana" + Platform Terms & Privacy Policy published + Landing branding revamped with sleek glowing integrations grid + Email registration hardened with confirmPassword and anti-XSS/SQLi regex filtering + Official V4 Logo fully integrated with rounded corners across all components, favicon icons, and headers/footers + Footer social vector links (WhatsApp +543877534410 and Facebook) integrated successfully + Premium Visual Onboarding Wizard (5 steps) implemented and auto-triggers for new tenants.
 
 ---
 
@@ -279,12 +279,12 @@ Función atómica que: registra orden, calcula IVA, agrega items con snapshots, 
 - [x] **Blindaje del Registro por Email**: Implementado el campo de "Confirmar contraseña" (frontend y API de backend) y aplicados filtros regex de whitelist estrictos (`/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚüÜ\s.,'\-&()]+$/`) para desinfectar y validar el correo y el nombre del negocio (`storeName`), bloqueando de raíz ataques XSS, HTML y SQL injection.
 - [x] **Integración de Identidad Visual V4 (Logos y Favicon)**: Copiado el logotipo oficial de fondo blanco `Logo Obsidiana V4 fondo blanco.png` como logo principal del sistema, íconos de la PWA, favicon de pestaña del navegador, y configurado el título del navegador a exactamente "Obsidiana" con bordes redondeados (`rounded-md`, `rounded-lg`) en todas las cabeceras (headers), pies de página (footers), formularios y paneles SaaS.
 - [x] **Enlaces Sociales Vectoriales en el Footer**: Botones interactivos vectoriales SVG oficiales de alta fidelidad integrados en el footer de la plataforma para WhatsApp (apuntando a +543877534410 con hover verde corporativo) y Facebook (con hover azul corporativo).
+- [x] **Onboarding Visual Wizard (5 Pasos)**: Wizard premium de configuración inicial con modal full-screen, barra de progreso animada, ilustraciones SVG únicas por paso (Bienvenida → Tu Negocio → Tienda Online → Primer Producto → Listo!), transiciones slide, selector de tema claro/oscuro, y guardado atómico en Supabase usando el campo JSONB `settings.onboarding_completed`. Se activa automáticamente para nuevos tenants y nunca interrumpe a usuarios existentes.
 
 ## 12. Pendientes / Roadmap
 
 1. **Integración real ARCA**: Conectar con servidores fiscales de ARCA (ex-AFIP) para emisión real de reportes Z
 2. **Tracking de envíos**: Flujo de seguimiento en tiempo real para compras online
-3. **Onboarding visual**: Wizard de personalización de banner al registrar un nuevo tenant
 4. **Notificaciones push**: Alertas de stock crítico y nuevos pedidos
 5. **Reportes avanzados**: Gráficos de rendimiento mensual y comparativos
 6. **Convertir `plan_id` a `uuid` nativo en DB**: Migración DDL pendiente (datos ya son UUIDs válidos)
@@ -307,8 +307,8 @@ pnpm build
 
 # Push a producción
 git add .
-git commit -m "feat: implement premium V4 logo, secure registration, and policy pages"
+git commit -m "feat: add premium onboarding wizard with 5 steps, animations and Supabase saving"
 git push
 ```
 
-*Última actualización: 2026-05-27 18:50 — Obsidiana Team*
+*Última actualización: 2026-05-27 22:44 — Obsidiana Team*
