@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from '../../../lib/supabase-server';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 // Helper to get authenticated user and their tenant_id
 async function getAuthContext() {
@@ -123,6 +124,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // ── Rate limiting: 10 usuarios creados por IP por hora ───────────────────
+    const ip = getClientIp(request);
+    const { allowed, retryAfter } = checkRateLimit(`users:${ip}`, 10, 3_600_000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Límite de creación de usuarios alcanzado. Esperá antes de agregar más.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      );
+    }
+
     const { tenantId, hasAccess, error } = await getAuthContext();
     if (error) return NextResponse.json({ error }, { status: 401 });
     if (!hasAccess) return NextResponse.json({ error: 'Prohibido' }, { status: 403 });

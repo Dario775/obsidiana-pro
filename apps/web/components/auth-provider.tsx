@@ -70,9 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       let tenantId = currentUser.user_metadata?.tenant_id;
       
-      // Force platform admin tenant for global administrators
-      if (currentUser.email === 'dary775@gmail.com' || currentUser.email === 'admin@admin.com' || currentUser.email === 'admin@obsidiana.com') {
-        tenantId = '51605ab9-958d-4e81-8360-8007fe842c85';
+      // La detección de super admin se hace mediante is_platform_admin en user_metadata
+      // que es seteado por el callback de auth leyendo la tabla tenants.
+      // Eliminado: hardcodeo por email (dary775@gmail.com, admin@admin.com, etc.)
+      if (!tenantId && currentUser.user_metadata?.is_platform_admin === true) {
+        tenantId = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
       }
 
       let dbRole = 'owner';

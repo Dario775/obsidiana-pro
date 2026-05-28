@@ -57,16 +57,6 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}/login?message=Email confirmado. Ingresá con tu contraseña.`);
       }
 
-      // Force platform admin redirect for global administrators
-      const isAdminEmail = 
-        data.user.email === 'dary775@gmail.com' ||
-        data.user.email === 'admin@admin.com' ||
-        data.user.email === 'admin@obsidiana.com';
-      
-      if (isAdminEmail) {
-        return NextResponse.redirect(`${origin}/overview`);
-      }
-
       // 1. Check for tenant association via user_metadata first
       const metadataTenantId = data.user.user_metadata?.tenant_id;
       

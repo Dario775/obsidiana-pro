@@ -1,8 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
+    // ── Rate limiting: 30 checkouts por IP por minuto ─────────────────────────
+    const ip = getClientIp(req);
+    const { allowed, retryAfter } = checkRateLimit(`checkout:${ip}`, 30, 60_000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes. Esperá un momento e intentá de nuevo.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      );
+    }
+
     const { cart, tenantId, customerInfo, orderId } = await req.json();
 
     const supabase = createClient(

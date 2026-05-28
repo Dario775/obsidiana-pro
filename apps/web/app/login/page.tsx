@@ -69,10 +69,11 @@ export default function LoginPage() {
   async function handlePostLogin(user: any) {
     try {
       let tenantId = user.user_metadata?.tenant_id;
-      
-      // Force platform admin tenant for global administrators
-      if (user.email === 'dary775@gmail.com' || user.email === 'admin@admin.com' || user.email === 'admin@obsidiana.com') {
-        tenantId = '51605ab9-958d-4e81-8360-8007fe842c85';
+
+      // Detectar super admin por is_platform_admin en user_metadata (seteado por callback)
+      // Eliminado: hardcodeo por email
+      if (!tenantId && user.user_metadata?.is_platform_admin === true) {
+        tenantId = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
       }
 
       if (tenantId) {

@@ -101,11 +101,14 @@ async function fetchTenantData(): Promise<{ tenant: Tenant | null; plan: Plan | 
 
     let tenantId = user.user_metadata?.tenant_id;
 
-    // Force platform admin tenant for global administrators
-    if (user.email === 'dary775@gmail.com' || user.email === 'admin@admin.com' || user.email === 'admin@obsidiana.com') {
-      tenantId = '51605ab9-958d-4e81-8360-8007fe842c85';
+    // Si el usuario tiene is_platform_admin en sus metadatos (seteado durante login)
+    // o si su tenant tiene is_platform_admin = true en DB, usamos el tenant de plataforma.
+    // NOTA: El hardcodeo por email fue eliminado — la fuente de verdad es la DB.
+    if (!tenantId && user.user_metadata?.is_platform_admin === true) {
+      tenantId = process.env.NEXT_PUBLIC_PLATFORM_TENANT_ID || '51605ab9-958d-4e81-8360-8007fe842c85';
     }
- 
+
+
     if (!tenantId) {
       const { data: memberData } = await supabase
         .from('tenant_members')
