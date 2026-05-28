@@ -82,7 +82,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/tienda/');
 
   // Redirect authenticated users away from auth pages to dashboard
-  const authPages = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const authPages = ['/login', '/register', '/forgot-password'];
   if (user && authPages.includes(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }

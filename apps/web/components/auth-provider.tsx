@@ -149,6 +149,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let debounceTimer: NodeJS.Timeout | null = null;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Handle password recovery: redirect to reset-password page
+      if (event === 'PASSWORD_RECOVERY') {
+        const sessionUser = session?.user ?? null;
+        setUser(sessionUser);
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/reset-password')) {
+          window.location.href = '/reset-password';
+        }
+        return;
+      }
+
       // Only react to meaningful events, debounce rapid-fire events
       if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         if (debounceTimer) clearTimeout(debounceTimer);
