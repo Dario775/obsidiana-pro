@@ -299,7 +299,7 @@ export default function SuppliersPage() {
                     <td className="py-5 px-8">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-center font-black text-xs text-violet-400 group-hover:scale-105 transition-transform">
-                          {supplier.nombre[0].toUpperCase()}
+                          {supplier.nombre.charAt(0).toUpperCase() || 'P'}
                         </div>
                         <div>
                           <p className="font-bold text-sm text-white group-hover:text-violet-400 transition-colors">{supplier.nombre}</p>
