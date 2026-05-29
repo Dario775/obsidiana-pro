@@ -340,14 +340,7 @@ export function Topbar({ isSidebarCollapsed = false, onToggleSidebar }: TopbarPr
         </nav>
       </div>
 
-      {/* Centered Store Name */}
-      {tenant?.nombre && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10">
-          <span className="text-white text-[11px] md:text-[13px] font-bold uppercase tracking-widest bg-zinc-900/90 px-4 py-1.5 rounded-full border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
-            {tenant.nombre}
-          </span>
-        </div>
-      )}
+
 
       <div className="flex items-center gap-4">
         {/* Acciones de Caja POS */}
@@ -406,6 +399,13 @@ export function Topbar({ isSidebarCollapsed = false, onToggleSidebar }: TopbarPr
         <ThemeToggle />
 
         <div className="flex items-center gap-2 text-violet-500 relative">
+          {/* Store Name (aligned next to session profile) */}
+          {tenant?.nombre && (
+            <span className="hidden md:inline-block text-white text-[10px] font-black uppercase tracking-widest bg-zinc-900 border border-white/10 px-3.5 py-1.5 rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.5)] mr-1 max-w-[150px] truncate select-none">
+              {tenant.nombre}
+            </span>
+          )}
+
           <button 
             onClick={() => {
               setIsOpen(!isOpen);
