@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     // 1. Get all members in the tenant
     const { data: members, error: membersError } = await supabaseAdmin
       .from('tenant_members')
-      .select('user_id, role, created_at')
+      .select('user_id, role, permissions, created_at')
       .eq('tenant_id', tenantId);
 
     if (membersError) {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Error al consultar miembros del negocio' }, { status: 500 });
     }
 
-    const memberMap = new Map(members.map(m => [m.user_id, { role: m.role, created_at: m.created_at }]));
+    const memberMap = new Map(members.map(m => [m.user_id, { role: m.role, permissions: m.permissions, created_at: m.created_at }]));
 
     // 2. Fetch users details via Auth Admin API
     const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
           email: u.email,
           name: u.user_metadata?.name || u.user_metadata?.full_name || 'Usuario',
           role: role,
-          permissions: u.user_metadata?.permissions || {
+          permissions: memberInfo?.permissions || u.user_metadata?.permissions || {
             sales_invoice: true,
             sales_cancel: role === 'owner',
             sales_discount: role === 'owner',
@@ -134,8 +134,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { tenantId, hasAccess, error } = await getAuthContext();
-    if (error) return NextResponse.json({ error }, { status: 401 });
+    const { user, tenantId, hasAccess, error } = await getAuthContext();
+    if (error || !user) return NextResponse.json({ error: error || 'Unauthorized' }, { status: 401 });
     if (!hasAccess) return NextResponse.json({ error: 'Prohibido' }, { status: 403 });
 
     const body = await request.json();
@@ -161,11 +161,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Error de validación del límite de usuarios' }, { status: 500 });
     }
 
+    // Fetch dynamic max_users from tenant's current plan
+    const { data: tenantPlan, error: tenantPlanError } = await supabaseAdmin
+      .from('tenants')
+      .select('plan_id, plans(max_users)')
+      .eq('id', tenantId)
+      .maybeSingle();
+
+    if (tenantPlanError) {
+      console.error('Error fetching tenant plan:', tenantPlanError);
+      return NextResponse.json({ error: 'Error al verificar plan y límites' }, { status: 500 });
+    }
+
+    const maxUsers = (tenantPlan?.plans as any)?.max_users ?? 5;
+
     // Filter created sub-users (roles other than owner)
     const subUsers = members.filter(m => m.role !== 'owner');
-    if (subUsers.length >= 5) {
+    if (subUsers.length >= maxUsers) {
       return NextResponse.json(
-        { error: 'Límite alcanzado: El plan actual permite crear hasta 5 usuarios adicionales.' },
+        { error: `Límite alcanzado: El plan actual permite crear hasta ${maxUsers} usuarios adicionales. Para crear más, actualizá tu suscripción.` },
         { status: 400 }
       );
     }
@@ -198,13 +212,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: createError.message }, { status: 400 });
     }
 
-    // Insert into tenant_members
+    // Insert into tenant_members with permissions and added_by tracking
     const { error: memberInsertError } = await supabaseAdmin
       .from('tenant_members')
       .insert({
         tenant_id: tenantId,
         user_id: createdAuthUser.user.id,
         role: role || 'member',
+        permissions: defaultPermissions,
+        added_by: user.id
       });
 
     if (memberInsertError) {
@@ -234,8 +250,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { tenantId, hasAccess, error } = await getAuthContext();
-    if (error) return NextResponse.json({ error }, { status: 401 });
+    const { user, tenantId, hasAccess, error } = await getAuthContext();
+    if (error || !user) return NextResponse.json({ error: error || 'Unauthorized' }, { status: 401 });
     if (!hasAccess) return NextResponse.json({ error: 'Prohibido' }, { status: 403 });
 
     const body = await request.json();
@@ -278,33 +294,38 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 400 });
     }
 
-    // Update role in tenant_members if provided and user is not the owner
-    if (role && currentRole !== 'owner') {
+    // Update role and permissions in tenant_members if user is not the owner
+    if (currentRole !== 'owner') {
       if (existingMember) {
         // Update existing member record
-        const { error: roleUpdateError } = await supabaseAdmin
+        const { error: memberUpdateError } = await supabaseAdmin
           .from('tenant_members')
-          .update({ role })
+          .update({ 
+            ...(role ? { role } : {}),
+            ...(permissions ? { permissions } : {})
+          })
           .eq('tenant_id', tenantId)
           .eq('user_id', userId);
 
-        if (roleUpdateError) {
-          console.error('Error updating member role:', roleUpdateError);
-          return NextResponse.json({ error: 'Error al actualizar el rol en la base de datos' }, { status: 500 });
+        if (memberUpdateError) {
+          console.error('Error updating member details:', memberUpdateError);
+          return NextResponse.json({ error: 'Error al actualizar el usuario en la base de datos' }, { status: 500 });
         }
       } else {
         // Insert member record (in case it was missing)
-        const { error: roleInsertError } = await supabaseAdmin
+        const { error: memberInsertError } = await supabaseAdmin
           .from('tenant_members')
           .insert({
             tenant_id: tenantId,
             user_id: userId,
-            role,
+            role: role || 'member',
+            permissions: permissions || {},
+            added_by: user.id
           });
 
-        if (roleInsertError) {
-          console.error('Error inserting member role:', roleInsertError);
-          return NextResponse.json({ error: 'Error al registrar el rol del usuario' }, { status: 500 });
+        if (memberInsertError) {
+          console.error('Error inserting member details:', memberInsertError);
+          return NextResponse.json({ error: 'Error al registrar el usuario en la base de datos' }, { status: 500 });
         }
       }
     }

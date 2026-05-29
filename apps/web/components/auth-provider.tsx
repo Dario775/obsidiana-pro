@@ -85,18 +85,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let dbRole = 'owner';
       let isPlatformAdmin = false;
+      let dbPermissions: any = null;
       
       if (tenantId) {
         const { data: memberData } = await supabase
           .from('tenant_members')
-          .select('role')
+          .select('role, permissions')
           .eq('tenant_id', tenantId)
           .eq('user_id', currentUser.id)
           .limit(1)
           .maybeSingle();
 
         if (memberData) {
-          dbRole = memberData.role;
+          dbRole = memberData.role || 'member';
+          dbPermissions = memberData.permissions;
         }
 
         const { data: tenantData } = await supabase
@@ -123,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           cash_close: true,
         });
       } else {
-        const userPerms = currentUser.user_metadata?.permissions || {
+        const userPerms = dbPermissions || currentUser.user_metadata?.permissions || {
           sales_invoice: true,
           sales_cancel: false,
           sales_discount: false,

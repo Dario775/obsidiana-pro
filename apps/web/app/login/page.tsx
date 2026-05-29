@@ -92,9 +92,11 @@ export default function LoginPage() {
           .eq('id', tenantId)
           .maybeSingle();
         if (tenantError) throw tenantError;
-        if (tenantData?.status !== 'active') {
+        if (!tenantData || tenantData?.status !== 'active') {
+          await supabase.auth.signOut();
+          console.warn(`[AUTH] Intento de acceso a cuenta suspendida/inválida. TenantID: ${tenantId}, Email: ${user.email}`);
           setProcessing(false);
-          setError('Tu cuenta está suspendida. Contactá al soporte.');
+          setError(!tenantData ? 'Tu cuenta no está asociada a ningún negocio válido.' : 'Tu cuenta está suspendida. Contactá al soporte.');
           return;
         }
         if (tenantData?.is_platform_admin === true) {
@@ -120,9 +122,11 @@ export default function LoginPage() {
           .eq('id', memberData.tenant_id)
           .maybeSingle();
         if (tenantError) throw tenantError;
-        if (tenantData?.status !== 'active') {
+        if (!tenantData || tenantData?.status !== 'active') {
+          await supabase.auth.signOut();
+          console.warn(`[AUTH] Intento de acceso a cuenta suspendida/inválida. TenantID: ${memberData.tenant_id}, Email: ${user.email}`);
           setProcessing(false);
-          setError('Tu cuenta está suspendida. Contactá al soporte.');
+          setError(!tenantData ? 'La tienda asociada no existe o no es válida.' : 'Tu cuenta está suspendida. Contactá al soporte.');
           return;
         }
         const target = tenantData?.is_platform_admin ? '/overview' : '/dashboard';
@@ -148,6 +152,7 @@ export default function LoginPage() {
       router.refresh();
       window.location.href = '/dashboard';
     } catch (err: any) {
+      await supabase.auth.signOut().catch(() => {});
       setProcessing(false);
       setError(err.message || 'Error al completar el inicio de sesión.');
     }
@@ -334,8 +339,21 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-in fade-in slide-in-from-top-1">
-                {error}
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-in fade-in slide-in-from-top-1 space-y-2.5">
+                <p>{error}</p>
+                {error.includes('suspendida') && (
+                  <div className="pt-2 border-t border-red-500/10">
+                    <a
+                      href="https://wa.me/5491133445566?text=Hola,%20mi%20cuenta%20de%20Obsidiana%20está%20suspendida.%20¿Podrían%20ayudarme?"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-bold text-red-300 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">support_agent</span>
+                      Contactar a Soporte
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 

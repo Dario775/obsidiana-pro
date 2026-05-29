@@ -70,7 +70,9 @@ export async function GET(request: Request) {
         
         if (tenantData) {
           if (tenantData.status !== 'active') {
-            return NextResponse.redirect(`${origin}/login?error=Tu cuenta está suspendida. Contactá al soporte.`);
+            await supabase.auth.signOut();
+            console.warn(`[AUTH] Intento de acceso OAuth (metadata) a cuenta suspendida. TenantID: ${metadataTenantId}, Email: ${data.user.email}`);
+            return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent('Tu cuenta está suspendida. Contactá al soporte.')}`);
           }
           if (tenantData.is_platform_admin) {
             return NextResponse.redirect(`${origin}/overview`);
@@ -89,7 +91,9 @@ export async function GET(request: Request) {
       if (memberData) {
         const tenantStatus = (memberData.tenants as any)?.status;
         if (tenantStatus !== 'active') {
-          return NextResponse.redirect(`${origin}/login?error=Tu cuenta está suspendida. Contactá al soporte.`);
+          await supabase.auth.signOut();
+          console.warn(`[AUTH] Intento de acceso OAuth (member) a cuenta suspendida. TenantID: ${memberData.tenant_id}, Email: ${data.user.email}`);
+          return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent('Tu cuenta está suspendida. Contactá al soporte.')}`);
         }
         const isPlatformAdmin = (memberData.tenants as any)?.is_platform_admin;
         if (isPlatformAdmin) {

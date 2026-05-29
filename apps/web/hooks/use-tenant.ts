@@ -68,6 +68,7 @@ export interface Plan {
   yearly_price: number;
   max_products: number;
   max_branches: number;
+  max_users: number;
   online_store?: boolean;
   pos?: boolean;
   features: Record<string, any>;
@@ -184,6 +185,19 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (tenant && tenant.status !== 'active' && tenant.is_platform_admin !== true) {
+      const timer = setTimeout(async () => {
+        await supabase.auth.signOut();
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('tenantId');
+          window.location.href = '/login?error=Tu cuenta está suspendida. Contactá al soporte.';
+        }
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [tenant]);
+
   const hasFeature = useCallback((featureName: string): boolean => {
     if (!tenant || !plan) return false;
 
@@ -211,6 +225,46 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     tenant, plan, loading, error, hasFeature, getPlanName,
     isOnlineStoreEnabled: tenant?.online_store_enabled === true,
   }), [tenant, plan, loading, error, hasFeature, getPlanName]);
+
+  if (!loading && tenant && tenant.status !== 'active' && tenant.is_platform_admin !== true) {
+    return React.createElement('div', { className: 'min-h-screen flex items-center justify-center bg-zinc-950 p-6 relative overflow-hidden' },
+      React.createElement('div', { className: 'absolute inset-0 pointer-events-none' },
+        React.createElement('div', { className: 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[120px]' }),
+        React.createElement('div', { className: 'absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:4rem_4rem]' })
+      ),
+      React.createElement('div', { className: 'relative z-10 text-center space-y-6 max-w-md w-full p-8 rounded-3xl bg-zinc-900/40 border border-white/5 backdrop-blur-md shadow-2xl animate-in fade-in zoom-in duration-300' },
+        React.createElement('div', { className: 'w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto shadow-inner' },
+          React.createElement('span', { className: 'material-symbols-outlined text-red-400 text-3xl' }, 'block')
+        ),
+        React.createElement('div', { className: 'space-y-3' },
+          React.createElement('h2', { className: 'text-2xl font-black text-white tracking-tight' }, 'Tienda Suspendida'),
+          React.createElement('p', { className: 'text-sm text-zinc-300 font-medium leading-relaxed' }, 
+            'El acceso a ',
+            React.createElement('span', { className: 'text-red-400 font-bold' }, tenant.nombre || tenant.store_name || 'tu tienda'),
+            ' ha sido suspendido temporalmente.'
+          ),
+          React.createElement('p', { className: 'text-xs text-zinc-500 leading-relaxed' }, 
+            'Por favor, ponte en contacto con soporte técnico o con la administración de la plataforma para resolver tu estado de cuenta.'
+          )
+        ),
+        React.createElement('div', { className: 'pt-4 border-t border-white/5' },
+          React.createElement('button', {
+            onClick: async () => {
+              await supabase.auth.signOut();
+              if (typeof window !== 'undefined') {
+                window.localStorage.removeItem('tenantId');
+                window.location.href = '/login';
+              }
+            },
+            className: 'w-full bg-zinc-900 hover:bg-zinc-800 text-white py-3 px-6 rounded-xl font-bold text-sm border border-white/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2'
+          }, 
+            React.createElement('span', { className: 'material-symbols-outlined text-[18px]' }, 'logout'),
+            'Cerrar Sesión'
+          )
+        )
+      )
+    );
+  }
 
   return React.createElement(TenantContext.Provider, { value }, children);
 }

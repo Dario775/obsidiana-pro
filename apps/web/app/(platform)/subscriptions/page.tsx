@@ -57,6 +57,7 @@ export default function SubscriptionsPage() {
     yearly_price: '',
     max_products: '50',
     max_branches: '1',
+    max_users: '5',
     online_store: false,
     pos: true,
     features: {} as Record<string, boolean>,
@@ -297,6 +298,7 @@ export default function SubscriptionsPage() {
         yearly_price: String(p.yearly_price || 0),
         max_products: String(p.max_products || 50),
         max_branches: String(p.max_branches || 1),
+        max_users: String(p.max_users || 5),
         online_store: !!(p.online_store || parsedFeatures.online_store),
         pos: !!(p.pos || parsedFeatures.pos),
         features: parsedFeatures,
@@ -311,6 +313,7 @@ export default function SubscriptionsPage() {
         yearly_price: '',
         max_products: '50',
         max_branches: '1',
+        max_users: '5',
         online_store: false,
         pos: true,
         features: {
@@ -338,6 +341,7 @@ export default function SubscriptionsPage() {
         yearly_price: parseInt(planFormData.yearly_price) || 0,
         max_products: parseInt(planFormData.max_products) || 50,
         max_branches: parseInt(planFormData.max_branches) || 1,
+        max_users: parseInt(planFormData.max_users) || 5,
         online_store: planFormData.online_store,
         pos: planFormData.pos,
         features: planFormData.features,
@@ -704,13 +708,17 @@ export default function SubscriptionsPage() {
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex gap-2">
-                        <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5" title="Límite de Productos">
                           <span className="material-symbols-outlined text-[10px] text-zinc-500">inventory_2</span>
                           <span className="text-[10px] font-bold text-zinc-400">{p.max_products || 50}</span>
                         </div>
-                        <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5" title="Límite de Sucursales">
                           <span className="material-symbols-outlined text-[10px] text-zinc-500">store</span>
                           <span className="text-[10px] font-bold text-zinc-400">{p.max_branches || 1}</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5" title="Límite de Usuarios">
+                          <span className="material-symbols-outlined text-[10px] text-zinc-500">group</span>
+                          <span className="text-[10px] font-bold text-zinc-400">{p.max_users || 5}</span>
                         </div>
                       </div>
                     </td>
@@ -889,7 +897,7 @@ export default function SubscriptionsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Límite Productos</label>
                   <input
@@ -905,6 +913,15 @@ export default function SubscriptionsPage() {
                     type="number"
                     value={planFormData.max_branches}
                     onChange={(e) => setPlanFormData({ ...planFormData, max_branches: e.target.value })}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Límite Usuarios</label>
+                  <input
+                    type="number"
+                    value={planFormData.max_users}
+                    onChange={(e) => setPlanFormData({ ...planFormData, max_users: e.target.value })}
                     className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                   />
                 </div>
