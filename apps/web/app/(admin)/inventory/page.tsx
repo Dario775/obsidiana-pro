@@ -1982,6 +1982,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                               }}
                               className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
                               placeholder="Ej: Auriculares Sony WH-1000XM4"
+                              autoComplete="one-time-code"
                             />
                           </div>
 
@@ -2005,6 +2006,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                                 }}
                                 className="w-full bg-[#121214] border border-white/10 rounded-xl pl-9 pr-3 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
                                 placeholder="7790895067587"
+                                autoComplete="one-time-code"
                               />
                               {imageSearchLoading && (
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -2075,6 +2077,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                             onChange={(e) => setFormData({...formData, sku: e.target.value})}
                             className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
                             placeholder="Ej: SNY-1000-B"
+                            autoComplete="one-time-code"
                           />
                         </div>
                         <div>
@@ -2091,6 +2094,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                             onChange={(e) => setFormData({...formData, slug: e.target.value})}
                             className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
                             placeholder="auto-generado"
+                            autoComplete="one-time-code"
                           />
                         </div>
                       </div>
@@ -2729,6 +2733,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                   value={formData.nombre}
                   onChange={(e) => setFormData({...formData, nombre: e.target.value})}
                   className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  autoComplete="one-time-code"
                 />
               </div>
 
@@ -2741,6 +2746,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                     value={formData.sku}
                     onChange={(e) => setFormData({...formData, sku: e.target.value})}
                     className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    autoComplete="one-time-code"
                   />
                 </div>
                 <div>
@@ -2786,6 +2792,7 @@ async function generateUniqueSlug(tenantId: string, baseSlug: string): Promise<s
                   value={formData.barcode}
                   onChange={(e) => setFormData({...formData, barcode: e.target.value})}
                   className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  autoComplete="one-time-code"
                 />
               </div>
 
