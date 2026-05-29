@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/use-tenant';
+import { useAuth } from '@/components/auth-provider';
 
 interface Branch {
   id: string;
@@ -21,6 +22,8 @@ interface Branch {
 
 export default function BranchesPage() {
   const { tenant, plan } = useTenant();
+  const { role } = useAuth();
+  const isAdminOrOwner = role === 'owner' || role === 'admin';
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,6 +85,11 @@ export default function BranchesPage() {
     e.preventDefault();
     if (!tenant?.id || !formData.name.trim()) return;
 
+    if (!isAdminOrOwner) {
+      alert('Operación no permitida. Solo los propietarios o administradores pueden crear sucursales.');
+      return;
+    }
+
     const maxBranches = plan?.max_branches || 1;
     if (branches.length >= maxBranches) {
       alert(`Límite de sucursales alcanzado. Tu plan actual permite hasta ${maxBranches} sucursal(es). Para crear más, actualizá tu suscripción.`);
@@ -127,6 +135,11 @@ export default function BranchesPage() {
     e.preventDefault();
     if (!selectedBranch) return;
 
+    if (!isAdminOrOwner) {
+      alert('Operación no permitida. Solo los propietarios o administradores pueden editar sucursales.');
+      return;
+    }
+
     setSaving(true);
     try {
       const { error } = await supabase
@@ -158,6 +171,11 @@ export default function BranchesPage() {
   }
 
   async function handleDeleteBranch(branch: Branch) {
+    if (!isAdminOrOwner) {
+      alert('Operación no permitida. Solo los propietarios o administradores pueden eliminar sucursales.');
+      return;
+    }
+
     if (branch.is_default) {
       alert('No se puede eliminar la sucursal principal por defecto. Establece otra sucursal como principal primero.');
       return;
@@ -182,6 +200,11 @@ export default function BranchesPage() {
   }
 
   async function handleSetDefault(branch: Branch) {
+    if (!isAdminOrOwner) {
+      alert('Operación no permitida. Solo los propietarios o administradores pueden cambiar la sucursal principal.');
+      return;
+    }
+
     if (branch.is_default) return;
     if (!tenant?.id) return;
 
@@ -230,6 +253,17 @@ export default function BranchesPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto flex flex-col gap-8 pb-32">
+      {/* Readonly Alert Banner for Staff (role: member) */}
+      {!isAdminOrOwner && (
+        <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center gap-3 relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+          <span className="material-symbols-outlined text-2xl shrink-0">info</span>
+          <div>
+            <h4 className="text-[10px] font-black uppercase tracking-wider">Modo de Solo Lectura</h4>
+            <p className="text-xs font-semibold text-zinc-300 mt-0.5">Como miembro del staff, podés consultar las ubicaciones pero únicamente los administradores o propietarios tienen permisos para crear, editar o eliminar sucursales.</p>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/10 pb-8 relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[100px] -mr-48 -mt-48 pointer-events-none group-hover:bg-primary/10 transition-all duration-1000"></div>
@@ -247,21 +281,23 @@ export default function BranchesPage() {
           </p>
         </div>
         
-        <button 
-          onClick={() => {
-            const maxBranches = plan?.max_branches || 1;
-            if (branches.length >= maxBranches) {
-              alert(`Límite de sucursales alcanzado. Tu plan actual permite hasta ${maxBranches} sucursal(es). Para crear más, actualizá tu suscripción.`);
-              return;
-            }
-            resetForm();
-            setShowModal(true);
-          }}
-          className="flex items-center justify-center gap-3 px-6 py-3 bg-primary-container text-white rounded-xl hover:bg-[#6D28D9] transition-all font-black text-[10px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(124,58,237,0.3)] active:scale-95 group shrink-0"
-        >
-          <span className="material-symbols-outlined text-[18px] group-hover:rotate-90 transition-transform">add</span>
-          Nueva Sucursal
-        </button>
+        {isAdminOrOwner && (
+          <button 
+            onClick={() => {
+              const maxBranches = plan?.max_branches || 1;
+              if (branches.length >= maxBranches) {
+                alert(`Límite de sucursales alcanzado. Tu plan actual permite hasta ${maxBranches} sucursal(es). Para crear más, actualizá tu suscripción.`);
+                return;
+              }
+              resetForm();
+              setShowModal(true);
+            }}
+            className="flex items-center justify-center gap-3 px-6 py-3 bg-primary-container text-white rounded-xl hover:bg-[#6D28D9] transition-all font-black text-[10px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(124,58,237,0.3)] active:scale-95 group shrink-0"
+          >
+            <span className="material-symbols-outlined text-[18px] group-hover:rotate-90 transition-transform">add</span>
+            Nueva Sucursal
+          </button>
+        )}
       </div>
 
       {/* Branches Grid */}
@@ -310,8 +346,8 @@ export default function BranchesPage() {
                   </p>
                 </div>
                 
-                {/* Delete / Set Default buttons */}
-                {!branch.is_default && (
+                {/* Delete button (only for admin/owners) */}
+                {!branch.is_default && isAdminOrOwner && (
                   <button 
                     onClick={() => handleDeleteBranch(branch)}
                     className="text-zinc-600 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10"
@@ -340,25 +376,27 @@ export default function BranchesPage() {
                 </div>
               </div>
 
-              <div className="border-t border-white/5 pt-6 relative z-10 mt-auto">
-                 <div className="flex gap-3">
-                    <button 
-                      onClick={() => openEditModal(branch)}
-                      className="flex-1 bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-black text-[9px] uppercase tracking-widest py-3 rounded-xl"
-                    >
-                      Editar Datos
-                    </button>
-                    {!branch.is_default && branch.is_active && (
-                      <button 
-                        onClick={() => handleSetDefault(branch)}
-                        className="flex-1 bg-zinc-900 border border-white/10 text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10 transition-all font-black text-[9px] uppercase tracking-widest py-3 rounded-xl flex items-center justify-center gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">star</span>
-                        Hacer Principal
-                      </button>
-                    )}
+               {isAdminOrOwner && (
+                 <div className="border-t border-white/5 pt-6 relative z-10 mt-auto">
+                    <div className="flex gap-3">
+                       <button 
+                         onClick={() => openEditModal(branch)}
+                         className="flex-1 bg-zinc-900 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-black text-[9px] uppercase tracking-widest py-3 rounded-xl"
+                       >
+                         Editar Datos
+                       </button>
+                       {!branch.is_default && branch.is_active && (
+                         <button 
+                           onClick={() => handleSetDefault(branch)}
+                           className="flex-1 bg-zinc-900 border border-white/10 text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10 transition-all font-black text-[9px] uppercase tracking-widest py-3 rounded-xl flex items-center justify-center gap-1.5"
+                         >
+                           <span className="material-symbols-outlined text-[14px]">star</span>
+                           Hacer Principal
+                         </button>
+                       )}
+                    </div>
                  </div>
-              </div>
+               )}
             </div>
           ))}
         </div>
