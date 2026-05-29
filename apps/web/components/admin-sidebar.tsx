@@ -62,9 +62,32 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
             <span className="font-data-tabular text-on-background text-sm font-medium truncate max-w-[140px]">
               {user?.email || 'Admin de Tienda'}
             </span>
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${isSuperAdmin ? 'text-violet-400' : 'text-zinc-600'}`}>
-              {isSuperAdmin ? 'Super Admin' : 'Propietario'}
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+              <span className={`text-[9px] font-bold uppercase tracking-wider ${isSuperAdmin ? 'text-violet-400' : 'text-zinc-500'}`}>
+                {isSuperAdmin ? 'Super Admin' : role === 'owner' ? 'Propietario' : 'Colaborador'}
+              </span>
+              
+              {!isSuperAdmin && !tenantLoading && (
+                role === 'owner' ? (
+                  <Link 
+                    href="/settings/billing" 
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 hover:text-violet-300 text-[8px] font-black uppercase tracking-wider border border-violet-500/20 transition-all cursor-pointer active:scale-95"
+                    title="Administrar Suscripción"
+                  >
+                    <span className="w-1 h-1 rounded-full bg-violet-400 animate-pulse"></span>
+                    {getPlanName()}
+                  </Link>
+                ) : (
+                  <span 
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[8px] font-black uppercase tracking-wider border border-white/5"
+                    title="Plan de Tienda"
+                  >
+                    <span className="w-1 h-1 rounded-full bg-zinc-500"></span>
+                    {getPlanName()}
+                  </span>
+                )
+              )}
+            </div>
           </div>
         </div>
         <div className="flex flex-col gap-2 mt-4">
