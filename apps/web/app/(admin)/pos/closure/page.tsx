@@ -58,7 +58,7 @@ export default function ZClosurePage() {
           .from('payments')
           .select('id, amount_ars, method, processed_at, metadata, order_id, orders(placed_at, total_ars)')
           .eq('tenant_id', tenant!.id)
-          .or(`cash_session_id.eq.${session.id},and(cash_session_id.is.null,processed_at.gte.${session.opened_at})`);
+          .or(`cash_session_id.eq.${session.id},and(cash_session_id.is.null,processed_at.gte.${new Date(session.opened_at).toISOString()})`);
 
         if (paymentsError) throw paymentsError;
         setPayments(paymentsData || []);
@@ -468,7 +468,7 @@ export default function ZClosurePage() {
                 <div className="relative group">
                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600 font-bold group-focus-within:text-primary transition-colors">$</span>
                   <input 
-                    className="w-full bg-zinc-955 border border-white/10 rounded-xl py-4 pl-10 pr-6 text-xl font-black text-white focus:ring-1 focus:ring-primary outline-none transition-all shadow-2xl" 
+                    className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-4 pl-10 pr-6 text-xl font-black text-white focus:ring-1 focus:ring-primary outline-none transition-all shadow-2xl" 
                     type="number"
                     step="0.01"
                     min="0"

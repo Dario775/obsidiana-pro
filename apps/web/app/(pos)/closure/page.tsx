@@ -57,7 +57,7 @@ export default function ClosurePage() {
           .from('payments')
           .select('id, amount_ars, method, processed_at, metadata, order_id, orders(placed_at, total_ars)')
           .eq('tenant_id', tenant!.id)
-          .or(`cash_session_id.eq.${session.id},and(cash_session_id.is.null,processed_at.gte.${session.opened_at})`);
+          .or(`cash_session_id.eq.${session.id},and(cash_session_id.is.null,processed_at.gte.${new Date(session.opened_at).toISOString()})`);
 
         if (paymentsError) throw paymentsError;
         setPayments(paymentsData || []);
