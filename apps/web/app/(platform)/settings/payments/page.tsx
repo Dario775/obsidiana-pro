@@ -125,23 +125,14 @@ export default function PlatformPaymentSettingsPage() {
     
     setSaving(true);
     try {
-      const response = await fetch('https://api.mercadopago.com/preferences', {
+      const response = await fetch('/api/platform/settings/payments/generate-link', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.mp_client_secret}`,
         },
         body: JSON.stringify({
-          items: [{
-            title: 'Suscripción Obsidiana',
-            quantity: 1,
-            currency_id: 'ARS',
-            unit_price: amount,
-          }],
-          back_urls: {
-            success: `${window.location.origin}/platform/subscriptions?payment=success`,
-            failure: `${window.location.origin}/platform/subscriptions?payment=failed`,
-          },
+          amount,
+          mp_client_secret: config.mp_client_secret,
         }),
       });
 
@@ -150,7 +141,8 @@ export default function PlatformPaymentSettingsPage() {
         setConfig({ ...config, mp_link: data.init_point });
         alert('Link generado: ' + data.init_point);
       } else {
-        alert('Error al generar link. Verificá las credenciales.');
+        const errData = await response.json().catch(() => ({}));
+        alert('Error al generar link: ' + (errData.error || 'Verificá las credenciales.'));
       }
     } catch (err) {
       console.error(err);
