@@ -66,6 +66,7 @@ export default function BillingPage() {
 
   async function fetchData() {
     if (!tenant?.id) {
+      console.warn('[Billing] No tenant.id, skipping fetchData');
       setLoading(false);
       return;
     }
@@ -79,10 +80,17 @@ export default function BillingPage() {
       ]);
       setPlans(plansRes.data || []);
       setPayments(paymentsRes.data || []);
-      if (platformConfigData) setPlatformConfig(platformConfigData);
+      console.log('[Billing] platformConfigData received:', platformConfigData);
+      // Only save if response is valid (has mp_enabled or transfer_enabled field, not an error)
+      if (platformConfigData && !platformConfigData.error && typeof platformConfigData.mp_enabled === 'boolean') {
+        console.log('[Billing] Setting platformConfig:', platformConfigData);
+        setPlatformConfig(platformConfigData);
+      } else {
+        console.warn('[Billing] platformConfigData inválido o con error:', platformConfigData);
+      }
       setProductCount(productsRes.count || 0);
     } catch (err) {
-      console.error(err);
+      console.error('[Billing] fetchData error:', err);
       setPlans([]);
       setPayments([]);
     } finally {
@@ -543,26 +551,24 @@ export default function BillingPage() {
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-                  {transferConfig && (
-                     <button 
-                        onClick={() => setPaymentMethod('transferencia')}
-                        className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'transferencia' ? 'bg-primary border-primary' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
-                     >
-                        <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'transferencia' ? 'text-black' : 'text-zinc-600 group-hover/btn:text-white'}`}>account_balance</span>
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'transferencia' ? 'text-black/60' : 'text-zinc-500'}`}>Método Directo</p>
-                        <h4 className={`text-sm font-black uppercase ${paymentMethod === 'transferencia' ? 'text-black' : 'text-white'}`}>Transferencia</h4>
-                     </button>
-                  )}
-                  {mpConfig && (
-                     <button 
-                        onClick={() => setPaymentMethod('mp')}
-                        className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'mp' ? 'bg-blue-600 border-blue-600' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
-                     >
-                        <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'mp' ? 'text-white' : 'text-zinc-600 group-hover/btn:text-white'}`}>payment</span>
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'mp' ? 'text-white/60' : 'text-zinc-500'}`}>Automático</p>
-                        <h4 className={`text-sm font-black uppercase text-white`}>MercadoPago</h4>
-                     </button>
-                  )}
+                  <button 
+                     type="button"
+                     onClick={() => setPaymentMethod('transferencia')}
+                     className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'transferencia' ? 'bg-primary border-primary' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
+                  >
+                     <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'transferencia' ? 'text-black' : 'text-zinc-600 group-hover/btn:text-white'}`}>account_balance</span>
+                     <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'transferencia' ? 'text-black/60' : 'text-zinc-500'}`}>Método Directo</p>
+                     <h4 className={`text-sm font-black uppercase ${paymentMethod === 'transferencia' ? 'text-black' : 'text-white'}`}>Transferencia</h4>
+                  </button>
+                  <button 
+                     type="button"
+                     onClick={() => setPaymentMethod('mp')}
+                     className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'mp' ? 'bg-blue-600 border-blue-600' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
+                  >
+                     <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'mp' ? 'text-white' : 'text-zinc-600 group-hover/btn:text-white'}`}>payment</span>
+                     <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'mp' ? 'text-white/60' : 'text-zinc-500'}`}>Automático</p>
+                     <h4 className="text-sm font-black uppercase text-white">MercadoPago</h4>
+                  </button>
                </div>
 
                {paymentMethod === 'transferencia' && transferConfig && (
@@ -603,13 +609,14 @@ export default function BillingPage() {
                )}
 
                <div className="flex gap-4">
-                  <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-5 rounded-[1.5rem] bg-zinc-950 text-zinc-500 font-black text-[10px] uppercase tracking-widest border border-white/5 hover:text-white transition-all active:scale-95">Cerrar</button>
+                  <button type="button" onClick={() => setShowPaymentModal(false)} className="flex-1 py-5 rounded-[1.5rem] bg-zinc-950 text-zinc-500 font-black text-[10px] uppercase tracking-widest border border-white/5 hover:text-white transition-all active:scale-95">Cerrar</button>
                   <button 
+                     type="button"
                      onClick={handlePayment}
                      disabled={updating || (paymentMethod === 'transferencia' && !transferProof)}
                      className="flex-1 py-5 rounded-[1.5rem] bg-primary text-black font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/10 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50"
                   >
-                     {updating ? 'Procesando...' : paymentMethod === 'transferencia' ? 'Informar Pago' : 'Pagar Ahora'}
+                     {updating ? 'Procesando...' : paymentMethod === 'transferencia' ? 'Informar Pago' : 'Pagar Ahora con MercadoPago'}
                   </button>
                </div>
             </div>
