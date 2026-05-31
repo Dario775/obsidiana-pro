@@ -19,6 +19,8 @@ export default function PlatformPaymentSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [verifyStatus, setVerifyStatus] = useState<{ ok: boolean; message: string; account?: any } | null>(null);
+  const [verifying, setVerifying] = useState(false);
   
   const [config, setConfig] = useState<PlatformPaymentConfig>({
     id: '',
@@ -117,38 +119,40 @@ export default function PlatformPaymentSettingsPage() {
     }
   }
 
-  async function generateMpLink(amount: number) {
-    if (!config.mp_client_id || !config.mp_client_secret) {
-      alert('Primero configurá las credenciales de MercadoPago');
+  async function verifyCredentials() {
+    if (!config.mp_client_secret) {
+      setVerifyStatus({ ok: false, message: 'Ingresá el Access Token antes de verificar.' });
       return;
     }
     
-    setSaving(true);
+    setVerifying(true);
+    setVerifyStatus(null);
     try {
       const response = await fetch('/api/platform/settings/payments/generate-link', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount,
-          mp_client_secret: config.mp_client_secret,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mp_client_secret: config.mp_client_secret }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setConfig({ ...config, mp_link: data.init_point });
-        alert('Link generado: ' + data.init_point);
+      const data = await response.json();
+
+      if (data.valid) {
+        setVerifyStatus({
+          ok: true,
+          message: `✅ Token válido — Cuenta: ${data.account?.nickname || data.account?.email}`,
+          account: data.account,
+        });
       } else {
-        const errData = await response.json().catch(() => ({}));
-        alert('Error al generar link: ' + (errData.error || 'Verificá las credenciales.'));
+        setVerifyStatus({
+          ok: false,
+          message: `❌ Token inválido: ${data.error || 'Verificá el Access Token en el panel de MP.'}`,
+        });
       }
     } catch (err) {
       console.error(err);
-      alert('Error al conectar con MercadoPago');
+      setVerifyStatus({ ok: false, message: '❌ Error de conexión al verificar.' });
     } finally {
-      setSaving(false);
+      setVerifying(false);
     }
   }
 
@@ -262,36 +266,47 @@ export default function PlatformPaymentSettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-zinc-400 text-xs font-black uppercase tracking-widest mb-2">Client Secret</label>
+              <label className="block text-zinc-400 text-xs font-black uppercase tracking-widest mb-2">Access Token (Client Secret)</label>
               <input
                 type="password"
                 value={config.mp_client_secret}
-                onChange={(e) => setConfig({ ...config, mp_client_secret: e.target.value })}
-                placeholder="Tu Client Secret"
+                onChange={(e) => { setConfig({ ...config, mp_client_secret: e.target.value }); setVerifyStatus(null); }}
+                placeholder="APP_USR-xxxxx..."
                 className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-zinc-400 text-xs font-black uppercase tracking-widest mb-2">Link de Pago Generated</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={config.mp_link}
-                  placeholder="El link se genera automáticamente"
-                  className="flex-1 w-full bg-zinc-800 border border-white/10 rounded-xl px-4 py-3 text-zinc-400"
-                />
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => generateMpLink(15000)}
-                  disabled={!config.mp_enabled || !config.mp_client_id || !config.mp_client_secret || saving}
-                  className="px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs uppercase disabled:opacity-50"
+                  onClick={verifyCredentials}
+                  disabled={!config.mp_client_secret || verifying}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs uppercase disabled:opacity-50 flex items-center gap-2 transition-all"
                 >
-                  Generar Link
+                  {verifying ? (
+                    <span className="material-symbols-outlined text-sm animate-spin">autorenew</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-sm">verified</span>
+                  )}
+                  {verifying ? 'Verificando...' : 'Verificar Credenciales'}
                 </button>
+                {verifyStatus && (
+                  <div className={`flex-1 text-xs font-bold px-4 py-2.5 rounded-xl border ${
+                    verifyStatus.ok
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                  }`}>
+                    {verifyStatus.message}
+                    {verifyStatus.account && (
+                      <span className="block text-[10px] text-emerald-500/70 mt-0.5">
+                        País: {verifyStatus.account.country_id} · ID: {verifyStatus.account.id}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-              <p className="text-[10px] text-zinc-500 mt-1">
-                Click en "Generar Link" para crear un link de pago de prueba con $15.000
+              <p className="text-[10px] text-zinc-600 mt-2">
+                Verificá que tu Access Token sea válido antes de guardar. El cobro de suscripciones se acredita en esta cuenta de MP.
               </p>
             </div>
           </div>

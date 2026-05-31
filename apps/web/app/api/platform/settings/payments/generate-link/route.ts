@@ -2,6 +2,13 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
+/**
+ * POST /api/platform/settings/payments/generate-link
+ * 
+ * Verifies that the given Mercado Pago Access Token is valid by calling
+ * the MP Users/me endpoint. Does NOT create any payment preference.
+ * Only accessible by the platform super admin.
+ */
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
@@ -22,54 +29,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
-    // Verify it is strictly the platform admin
+    // Strictly platform admin only
     if (user.email !== 'dary775@gmail.com') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const { amount, mp_client_secret } = await request.json();
+    const { mp_client_secret } = await request.json();
 
-    if (!amount || !mp_client_secret) {
-      return NextResponse.json({ error: 'Faltan datos requeridos' }, { status: 400 });
+    if (!mp_client_secret) {
+      return NextResponse.json({ error: 'Falta el Access Token' }, { status: 400 });
     }
 
-    const reqUrl = new URL(request.url);
-    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || reqUrl.origin || 'https://www.obsidiana.com.ar';
-
-    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
-      method: 'POST',
+    // Call MP /users/me to verify the token — no preference is created
+    const mpResponse = await fetch('https://api.mercadopago.com/users/me', {
       headers: {
         'Authorization': `Bearer ${mp_client_secret}`,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        items: [{
-          title: 'Suscripción Obsidiana',
-          quantity: 1,
-          currency_id: 'ARS',
-          unit_price: amount,
-        }],
-        back_urls: {
-          success: `${origin}/platform/subscriptions?payment=success`,
-          failure: `${origin}/platform/subscriptions?payment=failed`,
-        },
-      }),
     });
 
-    const preference = await response.json();
+    const mpData = await mpResponse.json();
 
-    if (!response.ok) {
-      console.error('MercadoPago Preference Creation Error:', preference);
-      return NextResponse.json({ error: preference.message || 'Error de MercadoPago al crear preferencia' }, { status: response.status });
+    if (!mpResponse.ok) {
+      return NextResponse.json(
+        { 
+          valid: false,
+          error: mpData.message || 'Token inválido o sin permisos',
+          code: mpData.code,
+        },
+        { status: 200 } // Always 200 so the client can read the body
+      );
     }
 
-    return NextResponse.json({ 
-      id: preference.id, 
-      init_point: preference.init_point 
+    // Token is valid — return safe info from MP account
+    return NextResponse.json({
+      valid: true,
+      account: {
+        id: mpData.id,
+        email: mpData.email,
+        nickname: mpData.nickname,
+        site_id: mpData.site_id,
+        country_id: mpData.country_id,
+      },
     });
 
   } catch (error: any) {
-    console.error('Error in generate-link API:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Error in verify-credentials API:', error);
+    return NextResponse.json({ valid: false, error: error.message }, { status: 500 });
   }
 }
