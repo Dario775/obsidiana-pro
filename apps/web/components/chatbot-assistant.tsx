@@ -12,7 +12,7 @@ interface Message {
 }
 
 export function ChatbotAssistant() {
-  const { tenant } = useTenant();
+  const { tenant, plan } = useTenant();
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -74,20 +74,20 @@ export function ChatbotAssistant() {
   const getKnowledgeAnswer = (query: string): string => {
     const q = query.toLowerCase();
 
-    // Context variables
+    // Context variables dynamically loaded from real plans and limits
     const storeName = tenant?.nombre || 'tu comercio';
-    const activePlan = tenant?.plan_id ? tenant.plan_id.toUpperCase() : 'FREE';
-    const subStatus = tenant?.subscription_status === 'active' ? 'Activa ●' : 'Inactiva / Expirada ⚠';
-    const maxProducts = activePlan === 'PRO' ? 'Ilimitados' : '50';
-    const maxBranches = activePlan === 'PRO' ? 'Ilimitadas' : '1';
+    const planName = plan ? (plan.nombre || plan.name) : 'Gratis';
+    const subStatus = tenant?.subscription_status === 'active' || tenant?.paid_until ? 'Activa ●' : 'Inactiva / Pendiente de Confirmación ⚠';
+    const maxProducts = plan ? (plan.max_products >= 99999 ? 'Ilimitados' : String(plan.max_products)) : '100';
+    const maxBranches = plan ? String(plan.max_branches) : '1';
     const currentProducts = productCount !== null ? productCount : '0';
 
     if (q.includes('plan') || q.includes('suscripcion') || q.includes('billing') || q.includes('pagar plan') || q.includes('precio')) {
-      return `Tu negocio **${storeName}** está utilizando el **Plan ${activePlan}** (${subStatus}).\n\n` +
-        `**Detalle del plan:**\n` +
+      return `Tu negocio **${storeName}** está utilizando el **Plan ${planName}** (${subStatus}).\n\n` +
+        `**Detalle de límites actuales de tu plan:**\n` +
         `• **Productos:** Tenés cargados ${currentProducts} de ${maxProducts} permitidos.\n` +
-        `• **Sucursales:** 1 sucursal activa de ${maxBranches} permitidas.\n\n` +
-        `Si querés cambiar tu plan o realizar un pago, podés ingresar a la opción de **Ajustes Globales** en la parte inferior del menú lateral y dirigirte a la pestaña de Suscripciones.`;
+        `• **Sucursales:** 1 sucursal de ${maxBranches} permitidas.\n\n` +
+        `Si querés renovar tu plan, cambiarlo o realizar un pago automático, podés hacer click en la etiqueta de tu plan **(${planName})** en la esquina superior izquierda del menú lateral, o bien ir a la sección de **Ajustes Globales** en el menú y elegir **Planes y Suscripción**.`;
     }
 
     if (q.includes('mercado libre') || q.includes('mercadolibre') || q.includes('meli') || q.includes('importar') || q.includes('sincroniz')) {
@@ -126,8 +126,8 @@ export function ChatbotAssistant() {
       return `**Tu Tienda Online y WhatsApp:**\n\n` +
         `• **Catálogo en Vivo**: Tus clientes pueden ingresar a tu tienda online desde cualquier celular o computadora para ver tus productos y precios actualizados en tiempo real.\n` +
         `• **Pedidos por WhatsApp**: Tus clientes seleccionan lo que desean comprar, completan sus datos de envío y el pedido te llega directamente a tu **WhatsApp** con el detalle listo para preparar.\n` +
-        `• **Personalización**: Podés cambiar los colores de tu tienda y subir tu logo desde la opción **Personalización** en el menú lateral.\n` +
-        `• **Dominio Propio**: Si querés usar una dirección web personalizada (ej: \`www.tunegocio.com\`), podés solicitarlo ingresando a **Personalización** (disponible para el Plan PRO).`;
+        `• **Personalización**: Podés cambiar los colores de tu tienda y subir tu logo desde la opción **Tienda Online** en Ajustes Globales.\n` +
+        `• **Dominio Propio**: Si querés usar una dirección web personalizada (ej: \`www.tunegocio.com\`), podés configurarlo ingresando a **Ajustes Globales** -> **Tienda Online** -> pestaña **Dominios** (disponible para planes de pago).`;
     }
 
     if (q.includes('ayuda') || q.includes('soporte') || q.includes('asistencia') || q.includes('contacto') || q.includes('error')) {
