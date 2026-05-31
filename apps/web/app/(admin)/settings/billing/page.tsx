@@ -537,9 +537,11 @@ export default function BillingPage() {
 
       {/* Payment Modal Refined */}
       {showPaymentModal && selectedPlan && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-[#121212] border border-white/10 rounded-[3rem] w-full max-w-xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-300">
-            <div className="p-10">
+        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-[#121212] border border-t border-x-0 border-b-0 md:border border-white/10 rounded-t-[2.5rem] rounded-b-none md:rounded-[3rem] w-full max-w-full md:max-w-xl overflow-y-auto max-h-[85vh] md:max-h-[95vh] shadow-[0_0_100px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom md:slide-in-from-top-4 duration-300 ease-out">
+             {/* Native Grab Handle for Mobile */}
+             <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mt-4 mb-2 md:hidden" />
+             <div className="p-6 md:p-10">
                <div className="flex items-center justify-between mb-10">
                   <div>
                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Procesar Suscripción</h3>

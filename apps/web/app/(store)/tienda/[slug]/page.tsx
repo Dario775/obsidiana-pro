@@ -1765,15 +1765,17 @@ export default function TiendaPage({ params }: { params: Promise<{ slug: string 
 
       {selectedProduct && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm" 
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm" 
           style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
           onClick={() => { setSelectedProduct(null); setSelectedVariant({}); }}
         >
           <div 
-            className="w-full max-w-4xl rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-300" 
+            className="w-full max-w-full md:max-w-4xl rounded-t-[2.5rem] rounded-b-none md:rounded-3xl overflow-y-auto max-h-[85vh] md:max-h-[90vh] flex flex-col md:flex-row shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom md:slide-in-from-top-4 duration-300 ease-out" 
             style={{ backgroundColor: cardBg }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Native Grab Handle for Mobile */}
+            <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mt-4 mb-2 md:hidden shrink-0" />
             {/* Gallery Section */}
             <div className="w-full md:w-1/2 flex flex-col" style={{ backgroundColor: appearance.dark_mode ? '#121214' : '#f8f8f8' }}>
               <div className="relative aspect-square overflow-hidden group">
