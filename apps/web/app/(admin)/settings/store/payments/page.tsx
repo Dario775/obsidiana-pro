@@ -67,18 +67,18 @@ export default function StorePaymentsPage() {
     }
   }, [tenant]);
 
-useEffect(() => {
+  useEffect(() => {
     const mpMethod = methods.find(m => m.id === 'mp');
-    if (mpMethod?.config) {
+    if (mpMethod?.config || tenant?.store_mp_access_token) {
       setMpConfig({
-        link: mpMethod.config.link || '',
-        clientId: mpMethod.config.clientId || '',
-        clientSecret: mpMethod.config.clientSecret || '',
-        publicKey: mpMethod.config.publicKey || '',
-        webhookUrl: mpMethod.config.webhookUrl || '',
+        link: mpMethod?.config?.link || '',
+        clientId: mpMethod?.config?.clientId || '',
+        clientSecret: mpMethod?.config?.clientSecret || tenant?.store_mp_access_token || '',
+        publicKey: mpMethod?.config?.publicKey || tenant?.store_mp_public_key || '',
+        webhookUrl: mpMethod?.config?.webhookUrl || '',
       });
     }
-  }, [methods]);
+  }, [methods, tenant]);
 
   function toggleMethod(methodId: string) {
     setMethods(prev => prev.map(m => 
@@ -104,6 +104,8 @@ useEffect(() => {
         .from('tenants')
         .update({
           store_payment_methods: updatedMethods,
+          store_mp_access_token: mpConfig.clientSecret || null,
+          store_mp_public_key: mpConfig.publicKey || null,
         })
         .eq('id', tenant?.id);
 

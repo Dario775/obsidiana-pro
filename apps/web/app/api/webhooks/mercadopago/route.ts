@@ -97,19 +97,33 @@ export async function POST(req: Request) {
     // 1. Obtener el Access Token del Tenant
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('store_mp_access_token')
+      .select('store_mp_access_token, store_payment_methods')
       .eq('id', tenantId)
       .single();
 
-    if (tenantError || !tenant?.store_mp_access_token) {
-      console.error('Tenant not found or no token:', tenantId);
+    if (tenantError || !tenant) {
+      console.error('Tenant not found:', tenantId);
+      return NextResponse.json({ error: 'Tenant error' }, { status: 400 });
+    }
+
+    // Fallback inteligente: buscar en las columnas individuales primero, y si no en el arreglo JSONB
+    let mpAccessToken = tenant.store_mp_access_token;
+    if (!mpAccessToken && tenant.store_payment_methods && Array.isArray(tenant.store_payment_methods)) {
+      const mpMethod = tenant.store_payment_methods.find((m: any) => m.id === 'mp');
+      if (mpMethod?.enabled && mpMethod?.config?.clientSecret) {
+        mpAccessToken = mpMethod.config.clientSecret;
+      }
+    }
+
+    if (!mpAccessToken) {
+      console.error('Mercado Pago not configured for tenant:', tenantId);
       return NextResponse.json({ error: 'Tenant error' }, { status: 400 });
     }
 
     // 2. Verificar el estado del pago directamente en la API de MP
     const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${resourceId}`, {
       headers: {
-        Authorization: `Bearer ${tenant.store_mp_access_token}`,
+        Authorization: `Bearer ${mpAccessToken}`,
       },
     });
 

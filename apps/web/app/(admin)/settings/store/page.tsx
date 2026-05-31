@@ -296,7 +296,12 @@ export default function StoreSettingsPage() {
         if (m.id === 'mp') {
           return {
             ...m,
-            enabled: !!(form.store_mp_public_key || form.store_mp_access_token)
+            enabled: !!(form.store_mp_public_key || form.store_mp_access_token),
+            config: {
+              ...(m.config || {}),
+              clientSecret: form.store_mp_access_token || m.config?.clientSecret || '',
+              publicKey: form.store_mp_public_key || m.config?.publicKey || '',
+            }
           };
         }
         return m;

@@ -51,7 +51,12 @@ export async function POST(req: Request) {
 
     // Determine origin dynamically to support localhost, vercel deployments, and production domains
     const reqUrl = new URL(req.url);
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || reqUrl.origin || 'https://obsidiana.pro';
+    let origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || reqUrl.origin || 'https://www.obsidiana.com.ar';
+
+    // Si estamos en localhost o es HTTP, usar el dominio de producción como fallback para evitar que Mercado Pago rechace auto_return
+    if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.startsWith('http://')) {
+      origin = 'https://www.obsidiana.com.ar';
+    }
 
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',

@@ -24,11 +24,24 @@ export async function POST(req: Request) {
     // 1. Obtener el Access Token del Tenant y validar la orden
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('store_mp_access_token, nombre')
+      .select('store_mp_access_token, store_payment_methods, nombre')
       .eq('id', tenantId)
       .single();
 
-    if (tenantError || !tenant?.store_mp_access_token) {
+    if (tenantError || !tenant) {
+      return NextResponse.json({ error: 'El negocio no tiene configurado Mercado Pago o no existe' }, { status: 400 });
+    }
+
+    // Fallback inteligente: buscar en las columnas individuales primero, y si no en el arreglo JSONB
+    let mpAccessToken = tenant.store_mp_access_token;
+    if (!mpAccessToken && tenant.store_payment_methods && Array.isArray(tenant.store_payment_methods)) {
+      const mpMethod = tenant.store_payment_methods.find((m: any) => m.id === 'mp');
+      if (mpMethod?.enabled && mpMethod?.config?.clientSecret) {
+        mpAccessToken = mpMethod.config.clientSecret;
+      }
+    }
+
+    if (!mpAccessToken) {
       return NextResponse.json({ error: 'El negocio no tiene configurado Mercado Pago' }, { status: 400 });
     }
 
@@ -51,6 +64,12 @@ export async function POST(req: Request) {
        // El total del carrito enviado debe coincidir con lo que esperamos o usamos el de la DB
     }
 
+    // Normalizar origen: Mercado Pago exige HTTPS público para auto_return
+    let origin = req.headers.get('origin') || 'https://www.obsidiana.com.ar';
+    if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.startsWith('http://')) {
+      origin = 'https://www.obsidiana.com.ar';
+    }
+
     // 2. Crear la Preferencia en Mercado Pago
     const preference = {
       items: cart.map((item: any) => ({
@@ -67,19 +86,19 @@ export async function POST(req: Request) {
         },
       },
       back_urls: {
-        success: `${req.headers.get('origin')}/tienda/${tenantId}?status=success&order=${orderId}`,
-        failure: `${req.headers.get('origin')}/tienda/${tenantId}?status=failure&order=${orderId}`,
-        pending: `${req.headers.get('origin')}/tienda/${tenantId}?status=pending&order=${orderId}`,
+        success: `${origin}/tienda/${tenantId}?status=success&order=${orderId}`,
+        failure: `${origin}/tienda/${tenantId}?status=failure&order=${orderId}`,
+        pending: `${origin}/tienda/${tenantId}?status=pending&order=${orderId}`,
       },
       auto_return: 'approved',
       external_reference: orderId,
-      notification_url: `${req.headers.get('origin')}/api/webhooks/mercadopago?tenantId=${tenantId}`,
+      notification_url: `${origin}/api/webhooks/mercadopago?tenantId=${tenantId}`,
     };
 
     const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${tenant.store_mp_access_token}`,
+        'Authorization': `Bearer ${mpAccessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(preference),
