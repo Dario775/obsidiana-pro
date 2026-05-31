@@ -552,29 +552,60 @@ export default function BillingPage() {
                   </button>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+               <p className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-4">1. Seleccioná el método de pago</p>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                   <button 
                      type="button"
                      onClick={() => setPaymentMethod('transferencia')}
-                     className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'transferencia' ? 'bg-primary border-primary' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
+                     className={`p-6 rounded-[2rem] border transition-all text-left relative group/btn ${paymentMethod === 'transferencia' ? 'bg-primary/10 border-primary shadow-[0_0_30px_rgba(124,58,237,0.15)]' : 'bg-zinc-950/40 border-white/5 hover:border-white/10 hover:bg-zinc-950'}`}
                   >
-                     <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'transferencia' ? 'text-black' : 'text-zinc-600 group-hover/btn:text-white'}`}>account_balance</span>
-                     <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'transferencia' ? 'text-black/60' : 'text-zinc-500'}`}>Método Directo</p>
-                     <h4 className={`text-sm font-black uppercase ${paymentMethod === 'transferencia' ? 'text-black' : 'text-white'}`}>Transferencia</h4>
+                     <div className="absolute top-6 right-6">
+                        {paymentMethod === 'transferencia' ? (
+                           <div className="w-5 h-5 rounded-full border-2 border-primary bg-primary flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 rounded-full bg-black"></div>
+                           </div>
+                        ) : (
+                           <div className="w-5 h-5 rounded-full border-2 border-zinc-700 bg-transparent"></div>
+                        )}
+                     </div>
+                     <span className={`material-symbols-outlined text-3xl mb-4 transition-colors ${paymentMethod === 'transferencia' ? 'text-primary' : 'text-zinc-600 group-hover/btn:text-white'}`}>account_balance</span>
+                     <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Método Directo</p>
+                     <h4 className="text-sm font-black uppercase text-white">Transferencia</h4>
                   </button>
                   <button 
                      type="button"
                      onClick={() => setPaymentMethod('mp')}
-                     className={`p-6 rounded-[2rem] border transition-all text-left group/btn ${paymentMethod === 'mp' ? 'bg-blue-600 border-blue-600' : 'bg-zinc-950 border-white/5 hover:border-white/10'}`}
+                     className={`p-6 rounded-[2rem] border transition-all text-left relative group/btn ${paymentMethod === 'mp' ? 'bg-blue-500/10 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.15)]' : 'bg-zinc-950/40 border-white/5 hover:border-white/10 hover:bg-zinc-950'}`}
                   >
-                     <span className={`material-symbols-outlined text-3xl mb-4 ${paymentMethod === 'mp' ? 'text-white' : 'text-zinc-600 group-hover/btn:text-white'}`}>payment</span>
-                     <p className={`text-[10px] font-black uppercase tracking-widest ${paymentMethod === 'mp' ? 'text-white/60' : 'text-zinc-500'}`}>Automático</p>
+                     <div className="absolute top-6 right-6">
+                        {paymentMethod === 'mp' ? (
+                           <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 rounded-full bg-black"></div>
+                           </div>
+                        ) : (
+                           <div className="w-5 h-5 rounded-full border-2 border-zinc-700 bg-transparent"></div>
+                        )}
+                     </div>
+                     <span className={`material-symbols-outlined text-3xl mb-4 transition-colors ${paymentMethod === 'mp' ? 'text-blue-400' : 'text-zinc-600 group-hover/btn:text-white'}`}>payment</span>
+                     <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Automático</p>
                      <h4 className="text-sm font-black uppercase text-white">MercadoPago</h4>
                   </button>
                </div>
 
+               {paymentMethod === 'mp' && (
+                  <div className="bg-blue-500/5 rounded-[2rem] border border-blue-500/10 p-6 mb-8 flex items-start gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                     <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                        <span className="material-symbols-outlined text-[20px]">info</span>
+                     </div>
+                     <div>
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider">Pago Automático e Instantáneo</h4>
+                        <p className="text-[10px] text-zinc-400 font-bold leading-relaxed mt-1">Serás redirigido a la plataforma oficial de Mercado Pago de forma segura para completar la transacción. Al finalizar, tu plan se activará al instante.</p>
+                     </div>
+                  </div>
+               )}
+
                {paymentMethod === 'transferencia' && transferConfig && (
-                  <div className="bg-zinc-950 rounded-[2rem] border border-white/5 p-8 mb-10 space-y-6">
+                  <div className="bg-zinc-950 rounded-[2rem] border border-white/5 p-8 mb-8 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                      <div className="grid grid-cols-2 gap-6">
                         <div>
                            <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Entidad Bancaria</p>
@@ -610,13 +641,17 @@ export default function BillingPage() {
                   </div>
                )}
 
-               <div className="flex gap-4">
+               <div className="flex gap-4 pt-2 border-t border-white/5">
                   <button type="button" onClick={() => setShowPaymentModal(false)} className="flex-1 py-5 rounded-[1.5rem] bg-zinc-950 text-zinc-500 font-black text-[10px] uppercase tracking-widest border border-white/5 hover:text-white transition-all active:scale-95">Cerrar</button>
                   <button 
                      type="button"
                      onClick={handlePayment}
                      disabled={updating || (paymentMethod === 'transferencia' && !transferProof)}
-                     className="flex-1 py-5 rounded-[1.5rem] bg-primary text-black font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/10 hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50"
+                     className={`flex-1 py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95 disabled:opacity-50 ${
+                        paymentMethod === 'mp' 
+                           ? 'bg-blue-600 text-white shadow-blue-600/10 hover:bg-blue-500' 
+                           : 'bg-primary text-black shadow-primary/10 hover:bg-emerald-400'
+                     }`}
                   >
                      {updating ? 'Procesando...' : paymentMethod === 'transferencia' ? 'Informar Pago' : 'Pagar Ahora con MercadoPago'}
                   </button>
