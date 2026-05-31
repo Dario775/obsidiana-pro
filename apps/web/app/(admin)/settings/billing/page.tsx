@@ -96,11 +96,25 @@ export default function BillingPage() {
   };
 
   const handlePayment = async () => {
-    if (!tenant?.id || !selectedPlan) return;
+    console.log('handlePayment: Clicked!', {
+      tenantId: tenant?.id,
+      selectedPlanId: selectedPlan?.id,
+      paymentMethod
+    });
+
+    if (!tenant?.id || !selectedPlan) {
+      console.error('handlePayment: Missing tenant or selectedPlan', {
+        tenant,
+        selectedPlan
+      });
+      alert('Error: Los datos del negocio o el plan seleccionado no están completamente cargados en el cliente.');
+      return;
+    }
     
     setUpdating(true);
     try {
       if (paymentMethod === 'mp') {
+        console.log('handlePayment: Fetching /api/platform/checkout/mercadopago...');
         const response = await fetch('/api/platform/checkout/mercadopago', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -110,11 +124,15 @@ export default function BillingPage() {
           })
         });
 
+        console.log('handlePayment: Response received, status:', response.status);
         const data = await response.json();
+        console.log('handlePayment: Parsed response JSON:', data);
+
         if (data.init_point) {
+          console.log('handlePayment: Redirecting to:', data.init_point);
           window.location.href = data.init_point;
         } else {
-          throw new Error(data.error || 'Error al iniciar pago');
+          throw new Error(data.error || 'Error al iniciar pago (sin init_point)');
         }
         return;
       }
@@ -159,7 +177,7 @@ export default function BillingPage() {
       setInformPaymentStep(false);
       fetchData();
     } catch (error: any) {
-      console.error(error);
+      console.error('handlePayment Exception:', error);
       alert('Error al procesar pago: ' + error.message);
     } finally {
       setUpdating(false);
