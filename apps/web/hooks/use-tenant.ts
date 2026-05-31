@@ -57,6 +57,8 @@ export interface Tenant {
   ml_refresh_token?: string | null;
   ml_token_expires_at?: string | null;
   ml_user_id?: string | null;
+  store_mp_access_token?: string | null;
+  store_mp_public_key?: string | null;
 }
 
 export interface Plan {
