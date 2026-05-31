@@ -23,7 +23,7 @@ const TAB_MAP: Record<string, Tab[]> = {
   '/pos': [
     { label: 'Terminal POS', href: '/pos' },
     { label: 'Ventas', href: '/pos/sales' },
-    { label: 'Sesiones', href: '/pos/sessions' },
+    { label: 'Historial de Caja', href: '/pos/history' },
   ],
   '/inventory': [
     { label: 'Inventario', href: '/inventory' },
