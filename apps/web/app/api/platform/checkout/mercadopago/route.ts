@@ -8,11 +8,13 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { planId, tenantId } = await req.json();
+    const { planId, tenantId, billingPeriod } = await req.json();
 
     if (!planId || !tenantId) {
       return NextResponse.json({ error: 'Faltan datos requeridos' }, { status: 400 });
     }
+
+    const isYearly = billingPeriod === 'yearly';
 
     // 1. Get Plan data
     const { data: plan, error: planError } = await supabaseAdmin
@@ -68,15 +70,18 @@ export async function POST(req: Request) {
         items: [
           {
             id: plan.id,
-            title: `Suscripción Obsidiana: ${plan.name || plan.nombre}`,
+            title: `Suscripción Obsidiana: ${plan.name || plan.nombre} (${isYearly ? 'Anual' : 'Mensual'})`,
             quantity: 1,
-            unit_price: plan.monthly_price || plan.precio_mensual,
+            unit_price: isYearly 
+              ? (plan.yearly_price || (plan.monthly_price * 12)) 
+              : (plan.monthly_price || plan.precio_mensual),
             currency_id: 'ARS',
           },
         ],
         metadata: {
           tenant_id: tenantId,
           plan_id: planId,
+          billing_period: isYearly ? 'yearly' : 'monthly',
           type: 'subscription_payment',
         },
         back_urls: {

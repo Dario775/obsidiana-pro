@@ -17,6 +17,7 @@ export default function BillingPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('transferencia');
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [transferProof, setTransferProof] = useState<File | null>(null);
   const [informPaymentStep, setInformPaymentStep] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -128,7 +129,8 @@ export default function BillingPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             planId: selectedPlan.id,
-            tenantId: tenant.id
+            tenantId: tenant.id,
+            billingPeriod: billingPeriod
           })
         });
 
@@ -169,7 +171,7 @@ export default function BillingPage() {
       const { error: paymentError } = await supabase.from('subscription_payments').insert({
         tenant_id: tenant.id,
         plan_id: selectedPlan.id,
-        amount: selectedPlan.monthly_price ?? 0,
+        amount: billingPeriod === 'yearly' ? (selectedPlan.yearly_price ?? (selectedPlan.monthly_price * 12)) : (selectedPlan.monthly_price ?? 0),
         currency: 'ARS',
         payment_method: 'transferencia',
         status: 'pending_confirmation',
@@ -542,7 +544,7 @@ export default function BillingPage() {
              {/* Native Grab Handle for Mobile */}
              <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mt-4 mb-2 md:hidden" />
              <div className="p-6 md:p-10">
-               <div className="flex items-center justify-between mb-10">
+               <div className="flex items-center justify-between mb-8">
                   <div>
                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Procesar Suscripción</h3>
                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-1">Plan Seleccionado: {selectedPlan.name || selectedPlan.nombre}</p>
@@ -550,6 +552,37 @@ export default function BillingPage() {
                   <button onClick={() => setShowPaymentModal(false)} className="w-10 h-10 rounded-full bg-zinc-900 border border-white/5 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
                      <span className="material-symbols-outlined">close</span>
                   </button>
+               </div>
+
+               {/* Billing Period Selector segmented control */}
+               <div className="bg-zinc-950 p-1 rounded-2xl border border-white/5 flex mb-8">
+                  <button
+                     type="button"
+                     onClick={() => setBillingPeriod('monthly')}
+                     className={`flex-1 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${
+                        billingPeriod === 'monthly'
+                           ? 'bg-white text-black font-black'
+                           : 'text-zinc-500 hover:text-white'
+                     }`}
+                  >
+                     Mensual (${(selectedPlan.monthly_price ?? 0).toLocaleString()} / mes)
+                  </button>
+                  {selectedPlan.yearly_price && (
+                     <button
+                        type="button"
+                        onClick={() => setBillingPeriod('yearly')}
+                        className={`flex-1 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all relative ${
+                           billingPeriod === 'yearly'
+                              ? 'bg-primary text-black font-black'
+                              : 'text-zinc-500 hover:text-white'
+                        }`}
+                     >
+                        Anual (${(selectedPlan.yearly_price ?? 0).toLocaleString()} / año)
+                        <span className="absolute -top-2 right-2 bg-emerald-500 text-black px-1.5 py-0.5 rounded-full font-black text-[6px] uppercase tracking-widest border border-black shadow-lg animate-pulse">
+                           Ahorrá {100 - Math.round((selectedPlan.yearly_price / (selectedPlan.monthly_price * 12)) * 100)}%
+                        </span>
+                     </button>
+                  )}
                </div>
 
                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-4">1. Seleccioná el método de pago</p>
@@ -640,6 +673,22 @@ export default function BillingPage() {
                      </div>
                   </div>
                )}
+
+               {/* Total summary block */}
+               <div className="bg-zinc-950/40 rounded-[2rem] border border-white/5 p-6 mb-8 flex justify-between items-center animate-in fade-in duration-300">
+                  <div>
+                     <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Total a Pagar ({billingPeriod === 'yearly' ? 'Suscripción Anual' : 'Suscripción Mensual'})</p>
+                     <p className="text-xl font-black text-white mt-1">
+                        ${(billingPeriod === 'yearly' 
+                           ? (selectedPlan.yearly_price ?? (selectedPlan.monthly_price * 12)) 
+                           : (selectedPlan.monthly_price ?? 0)
+                        ).toLocaleString()} ARS
+                     </p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-full bg-zinc-900 border border-white/5 font-black text-[8px] uppercase tracking-wider text-zinc-400">
+                     Suscripción {billingPeriod === 'yearly' ? '12 meses' : '1 mes'}
+                  </div>
+               </div>
 
                <div className="flex gap-4 pt-2 border-t border-white/5">
                   <button type="button" onClick={() => setShowPaymentModal(false)} className="flex-1 py-5 rounded-[1.5rem] bg-zinc-950 text-zinc-500 font-black text-[10px] uppercase tracking-widest border border-white/5 hover:text-white transition-all active:scale-95">Cerrar</button>

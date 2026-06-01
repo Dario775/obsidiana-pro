@@ -163,13 +163,22 @@ export default function SubscriptionsPage() {
       if (approve) {
         const now = new Date();
         const paidUntil = new Date(now);
-        paidUntil.setMonth(paidUntil.getMonth() + 1);
 
         // Determine the plan ID to activate
         const targetPlanId = payment.plan_id || tenant?.plan_id;
         
         if (!targetPlanId) {
           throw new Error('No se pudo determinar el plan para este tenant');
+        }
+
+        // Check if the payment amount corresponds to the yearly price of the plan
+        const selectedPlan = plans.find(pl => pl.id === targetPlanId);
+        const isYearly = selectedPlan && selectedPlan.yearly_price && payment.amount >= (selectedPlan.yearly_price - 100);
+
+        if (isYearly) {
+          paidUntil.setFullYear(paidUntil.getFullYear() + 1);
+        } else {
+          paidUntil.setMonth(paidUntil.getMonth() + 1);
         }
 
         // 1. Update Tenant Plan and Expiry
@@ -217,7 +226,16 @@ export default function SubscriptionsPage() {
       const paymentAmountNum = amount;
       const now = new Date();
       const paidUntil = new Date(now);
-      paidUntil.setMonth(paidUntil.getMonth() + 1);
+
+      const tenantPlanId = paymentTenant.plan_id;
+      const selectedPlan = plans.find(pl => pl.id === tenantPlanId);
+      const isYearly = selectedPlan && selectedPlan.yearly_price && paymentAmountNum >= (selectedPlan.yearly_price - 100);
+
+      if (isYearly) {
+        paidUntil.setFullYear(paidUntil.getFullYear() + 1);
+      } else {
+        paidUntil.setMonth(paidUntil.getMonth() + 1);
+      }
 
       const { error: paymentError } = await supabase.from('subscription_payments').insert({
         tenant_id: paymentTenant.id,

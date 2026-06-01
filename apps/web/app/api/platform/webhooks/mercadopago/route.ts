@@ -159,7 +159,13 @@ export async function POST(req: Request) {
       // 3. Actualizar suscripción del tenant
       const now = new Date();
       const paidUntil = new Date(now);
-      paidUntil.setMonth(paidUntil.getMonth() + 1);
+      
+      const billing_period = payment.metadata?.billing_period || payment.metadata?.billingPeriod || payment.metadata?.billingperiod;
+      if (billing_period === 'yearly') {
+        paidUntil.setFullYear(paidUntil.getFullYear() + 1);
+      } else {
+        paidUntil.setMonth(paidUntil.getMonth() + 1);
+      }
 
       const { error: tenantError } = await supabaseAdmin
         .from('tenants')
