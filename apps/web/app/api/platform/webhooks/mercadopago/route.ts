@@ -62,9 +62,23 @@ function verifyMpSignature(req: Request, dataId: string): boolean {
 
 export async function POST(req: Request) {
   try {
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch (e) {
+      // Ignorar si no hay body
+    }
+
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get('data.id') || searchParams.get('id');
-    const type = searchParams.get('type') || searchParams.get('topic');
+    const id = searchParams.get('data.id') || searchParams.get('id') || body.data?.id || body.id || (body.resource ? body.resource.split('/').pop() : null);
+    const type = searchParams.get('type') || searchParams.get('topic') || body.type || body.topic || body.action;
+
+    console.log('[Platform Webhook] Recibido:', {
+      id,
+      type,
+      searchParams: Object.fromEntries(searchParams.entries()),
+      bodyKeys: Object.keys(body),
+    });
 
     // Solo procesar notificaciones de pago
     if (type !== 'payment') {
@@ -102,14 +116,26 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!mpResponse.ok) throw new Error('Error al obtener datos de MP');
+    if (!mpResponse.ok) {
+      const errorText = await mpResponse.text();
+      console.error('[Platform Webhook] Error fetching payment from MP:', errorText);
+      throw new Error('Error al obtener datos de MP: ' + errorText);
+    }
     const payment = await mpResponse.json();
 
+    console.log('[Platform Webhook] Detalles del pago de MP:', {
+      id: payment.id,
+      status: payment.status,
+      status_detail: payment.status_detail,
+      metadata: payment.metadata
+    });
+
     if (payment.status === 'approved') {
-      const { tenant_id, plan_id } = payment.metadata || {};
+      const tenant_id = payment.metadata?.tenant_id || payment.metadata?.tenantId || payment.metadata?.tenantid;
+      const plan_id = payment.metadata?.plan_id || payment.metadata?.planId || payment.metadata?.planid;
 
       if (!tenant_id || !plan_id) {
-        console.error('[Platform Webhook] Webhook sin metadata:', payment.metadata);
+        console.error('[Platform Webhook] Webhook sin metadata requerida:', payment.metadata);
         return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
       }
 
@@ -146,7 +172,9 @@ export async function POST(req: Request) {
 
       if (tenantError) throw tenantError;
 
-      console.log(`[Platform Webhook] Suscripción actualizada para tenant ${tenant_id} → plan ${plan_id}`);
+      console.log(`[Platform Webhook] Suscripción actualizada exitosamente para tenant ${tenant_id} → plan ${plan_id}`);
+    } else {
+      console.log(`[Platform Webhook] Pago ${id} no aprobado (status: ${payment.status})`);
     }
 
     return NextResponse.json({ received: true });
