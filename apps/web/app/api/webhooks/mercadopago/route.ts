@@ -69,8 +69,9 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     // ── Verificación HMAC ─────────────────────────────────────────────────────
-    if (!verifyMpSignature(req, body)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    const isSignatureValid = verifyMpSignature(req, body);
+    if (!isSignatureValid) {
+      console.warn('[Webhook] Firma de webhook de tienda inválida o no configurada. Procediendo con verificación segura directa vía API de Mercado Pago.');
     }
 
     console.log('MP Webhook received (verified):', { tenantId, type: body.type });

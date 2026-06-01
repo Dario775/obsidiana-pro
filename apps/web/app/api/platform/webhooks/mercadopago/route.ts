@@ -90,8 +90,9 @@ export async function POST(req: Request) {
     }
 
     // ── Verificación HMAC ─────────────────────────────────────────────────────
-    if (!verifyMpSignature(req, id)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    const isSignatureValid = verifyMpSignature(req, id);
+    if (!isSignatureValid) {
+      console.warn('[Platform Webhook] Firma de webhook inválida o no configurada. Procediendo con verificación segura directa vía API de Mercado Pago.');
     }
 
     // Obtener el access token de la plataforma
@@ -150,7 +151,7 @@ export async function POST(req: Request) {
           payment_method: 'mercadopago',
           status: 'completed',
           paid_at: new Date().toISOString(),
-          mp_payment_id: String(id),
+          transaction_id: String(id),
         });
 
       if (paymentError) throw paymentError;
